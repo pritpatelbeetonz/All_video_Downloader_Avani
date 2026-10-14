@@ -59,14 +59,13 @@ class SetDefaultLauncherActivity : BaseActivity() {
             return
         }
 
-        binding.tvTitle.text = "Set as Default Launcher"
+        val titleHtml = "<font color='#000000'><b>Set as</b></font><br/><font color='#FE7338'><b>Default Launcher</b></font>"
+        binding.tvTitle.text = androidx.core.text.HtmlCompat.fromHtml(titleHtml, androidx.core.text.HtmlCompat.FROM_HTML_MODE_LEGACY)
 
         binding.btnSetDefault.setOnClickListener {
             android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] User clicked 'Set as Default' button.")
             requestDefaultLauncherRole()
         }
-
-        setupGlareAnimation()
     }
 
     private fun setupEdgeToEdge() {
@@ -75,9 +74,9 @@ class SetDefaultLauncherActivity : BaseActivity() {
         window.navigationBarColor = Color.TRANSPARENT
 
         val controller = WindowInsetsControllerCompat(window, window.decorView)
-        // Dark background -> Crisp white status bar icons (clock, battery, Wi-Fi)
-        controller.isAppearanceLightStatusBars = false
-        controller.isAppearanceLightNavigationBars = false
+        // Light background -> Crisp dark status bar & navigation bar icons
+        controller.isAppearanceLightStatusBars = true
+        controller.isAppearanceLightNavigationBars = true
 
         // Clear BaseActivity's white background and top padding on android.R.id.content
         val root: FrameLayout = findViewById(android.R.id.content)
@@ -95,18 +94,6 @@ class SetDefaultLauncherActivity : BaseActivity() {
                 binding.llBottomContainer.layoutParams = lp
             }
             insets
-        }
-    }
-
-    private fun setupGlareAnimation() {
-        binding.ivGlare.post {
-            val width = binding.btnSetDefault.width.toFloat()
-            val animator = android.animation.ObjectAnimator.ofFloat(binding.ivGlare, "translationX", -160f, width + 160f)
-            animator.duration = 1800
-            animator.repeatMode = android.animation.ValueAnimator.RESTART
-            animator.repeatCount = android.animation.ValueAnimator.INFINITE
-            animator.startDelay = 800
-            animator.start()
         }
     }
 

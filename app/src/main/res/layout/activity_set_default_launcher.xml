@@ -4,44 +4,44 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#060B14">
+    android:background="#FFFFFF">
 
-    <!-- Full Background Graphic -->
+    <!-- Full Background Graphic with Phone Illustration -->
     <ImageView
         android:id="@+id/ivBackground"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:contentDescription="@null"
         android:scaleType="fitXY"
-        android:src="@drawable/updated_default_launcher_bg"
+        android:src="@drawable/bg_setlauncher"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Header Text Section -->
+    <!-- Text Section: Left Aligned right above the button, matching the reference -->
     <LinearLayout
         android:id="@+id/llTextContainer"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
-        android:layout_marginTop="52dp"
         android:layout_marginEnd="24dp"
-        android:gravity="center"
+        android:layout_marginBottom="28dp"
         android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@+id/llBottomContainer"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintStart_toStartOf="parent">
 
         <TextView
             android:id="@+id/tvTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif-black"
-            android:gravity="center"
-            android:text="Set as Default Launcher"
-            android:textColor="#FFFFFF"
-            android:textSize="26sp" />
+            android:lineSpacingExtra="2dp"
+            android:text="Set as\nDefault Launcher"
+            android:textColor="#000000"
+            android:textSize="30sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvSubtitle"
@@ -49,14 +49,13 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:fontFamily="sans-serif"
-            android:gravity="center"
             android:lineSpacingExtra="3dp"
-            android:text="Set as your default Launcher to view and manage your contact from your home screen"
-            android:textColor="#8C95A8"
-            android:textSize="14sp" />
+            android:text="Set your preferred launcher to\ncustomize your device experience."
+            android:textColor="#666666"
+            android:textSize="15sp" />
     </LinearLayout>
 
-    <!-- Bottom Actions Container -->
+    <!-- Bottom Actions Container: Full prominent width matching reference -->
     <LinearLayout
         android:id="@+id/llBottomContainer"
         android:layout_width="match_parent"
@@ -70,39 +69,32 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cvButtonContainer"
+        <FrameLayout
+            android:id="@+id/btnSetDefault"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            app:cardBackgroundColor="@android:color/transparent"
-            app:cardCornerRadius="28dp"
-            app:cardElevation="0dp">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSetDefault"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:backgroundTint="#0066FF"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:text="Set as Default"
-                android:textAllCaps="false"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                app:cornerRadius="28dp" />
+            android:layout_height="58dp"
+            android:clickable="true"
+            android:focusable="true">
 
             <ImageView
-                android:id="@+id/ivGlare"
-                android:layout_width="160dp"
+                android:id="@+id/ivBtnBg"
+                android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_gravity="start"
                 android:contentDescription="@null"
                 android:scaleType="fitXY"
-                android:src="@drawable/ic_button_glare"
-                android:translationX="-160dp"
-                android:translationZ="2dp" />
-        </androidx.cardview.widget.CardView>
+                android:src="@drawable/btn_launcher" />
+
+            <TextView
+                android:id="@+id/tvBtnText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:fontFamily="sans-serif-black"
+                android:text="Set as Default"
+                android:textColor="@color/white"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+        </FrameLayout>
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
