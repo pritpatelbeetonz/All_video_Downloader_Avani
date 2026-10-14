@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Colors -->
+    <color name="glass_dark">#66000000</color>
+    <color name="glass_darker">#99000000</color>
+    <color name="glass_border">#22FFFFFF</color>
+    <color name="text_hint">#888888</color>
+    <color name="launcher_text_primary">#FFFFFF</color>
+    <color name="launcher_text_secondary">#B3FFFFFF</color>
+    <color name="accent_green">#00E676</color>
+    <color name="drawer_panel_bg">#1E1E1E</color>
+    <color name="edge_tab_bg">#4DFFFFFF</color>
+    <color name="gray_50">#F9FAFB</color>
+    <color name="accent_red">#F44336</color>
+    
+    <!-- Dimens -->
+    <dimen name="dock_margin_bottom">16dp</dimen>
+    <dimen name="page_indicator_height">38dp</dimen>
+    <dimen name="home_search_margin_above_dock">72dp</dimen>
+    <dimen name="page_indicator_margin_bottom">100dp</dimen>
+    <dimen name="corner_pill">50dp</dimen>
+    <dimen name="search_bar_height">48dp</dimen>
+    <dimen name="dock_height">72dp</dimen>
+    <dimen name="app_icon_size">56dp</dimen>
+    <dimen name="dock_icon_size">56dp</dimen>
+    
+    <!-- Strings -->
+    <string name="add_to_favorites">Add to favorites</string>
+    <string name="remove_from_favorites">Remove from favorites</string>
+    <string name="uninstall_failed">Uninstall failed</string>
+    <string name="uninstalled_app">Uninstalled app</string>
+    <string name="no_apps_found_matching">No apps found matching</string>
+    
+    <string name="tab_all">All</string>
+    <string name="tab_audio">Audio</string>
+    <string name="tab_favorites">Favorites</string>
+    <string name="tab_games">Games</string>
+    <string name="tab_others">Others</string>
+    <string name="tab_photography">Photography</string>
+    <string name="tab_productivity">Productivity</string>
+    <string name="tab_social">Social</string>
+    <string name="tab_video">Video</string>
+    <string name="search_apps_hint">Search apps&#8230;</string>
+    <string name="clear_search">Clear search</string>
+    <string name="no_apps_found_subtitle">Try a different keyword</string>
+    <string name="app_info">App info</string>
+    <string name="uninstall">Uninstall</string>
+    <string name="suggested_for_now">Suggested apps</string>
+    <string name="app_usage_stats">Screen time</string>
+    <string name="launcher_settings">Launcher settings</string>
+    <string name="dashboard_app_settings">App settings</string>
+    <string name="dashboard_app_settings_subtitle">Theme, notifications, backup</string>
+    <string name="recent_apps">Recent apps</string>
+    <string name="usage_permission_required">Grant Usage Access to see screen time</string>
+</resources>

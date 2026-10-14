@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Dark base -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/_10sdp"/>
+
+            <gradient
+                android:angle="0"
+                android:startColor="#131A2B"
+                android:centerColor="#181D2E"
+                android:endColor="#1B2742"/>
+        </shape>
+    </item>
+
+    <!-- Very subtle purple glow -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/_10sdp"/>
+
+            <gradient
+                android:type="radial"
+                android:centerX="65%"
+                android:centerY="60%"
+                android:gradientRadius="220dp"
+                android:startColor="#303E1D6A"
+                android:centerColor="#152A1450"
+                android:endColor="#00000000"/>
+        </shape>
+    </item>
+
+    <!-- Thin blue border -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/_10sdp"/>
+
+            <stroke
+                android:width="1.2dp"
+                android:color="#21467E"/>
+
+            <solid android:color="@android:color/transparent"/>
+        </shape>
+    </item>
+
+</layer-list>

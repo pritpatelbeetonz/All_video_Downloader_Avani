@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="@dimen/_12sdp"
+    android:paddingVertical="@dimen/_4sdp">
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/llMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="@dimen/_40sdp"
+        android:background="@drawable/bg_chat_bubble_received"
+        android:orientation="vertical"
+        android:paddingHorizontal="@dimen/_12sdp"
+        android:paddingVertical="@dimen/_8sdp"
+        android:layout_marginEnd="@dimen/_20sdp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/ivMessage"
+            android:layout_width="@dimen/_150sdp"
+            android:layout_height="@dimen/_150sdp"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium" />
+
+        <TextView
+            android:id="@+id/tvMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/geist_medium"
+            android:gravity="start"
+            android:text="@string/extracted_hello"
+            android:textColor="@color/black"
+            android:textSize="@dimen/_12ssp" />
+
+        <TextView
+            android:id="@+id/tvSimInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/_2sdp"
+            android:fontFamily="@font/geist_regular"
+            android:text="@string/extracted_sim_1"
+            android:textColor="@color/colorTextGrey"
+            android:textSize="@dimen/_8ssp"
+            android:visibility="gone" />
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+    
+    <TextView
+        android:id="@+id/tvTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/_2sdp"
+        android:fontFamily="@font/geist_regular"
+        android:text="@string/extracted_str_1000_am"
+        android:textColor="@color/colorTextGrey"
+        android:textSize="@dimen/_8ssp"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="@+id/llMessage"
+        app:layout_constraintTop_toBottomOf="@+id/llMessage"
+        tools:visibility="visible" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+

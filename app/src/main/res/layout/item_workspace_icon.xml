@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@android:color/transparent"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_horizontal"
+    android:longClickable="true"
+    android:orientation="vertical"
+    android:paddingHorizontal="2dp"
+    android:paddingVertical="4dp">
+
+    <ImageView
+        android:id="@+id/ivIcon"
+        android:layout_width="54dp"
+        android:layout_height="54dp"
+        android:clickable="false"
+        android:contentDescription="@null"
+        android:focusable="false"
+        android:longClickable="false"
+        android:scaleType="fitCenter"
+        tools:src="@mipmap/ic_launcher" />
+
+    <TextView
+        android:id="@+id/tvLabel"
+        style="@style/TextAppearance.CallLauncher.AppLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/white"
+        android:shadowColor="#80000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="3"
+        android:gravity="center"
+        android:singleLine="true"
+        android:ellipsize="end"
+        tools:text="YouTube" />
+</LinearLayout>

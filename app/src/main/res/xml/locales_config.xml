@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Per-app language preference list. The 15-locale ASO stack from the build
+     doc §9 expands this once string translation lands in M6. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+</locale-config>

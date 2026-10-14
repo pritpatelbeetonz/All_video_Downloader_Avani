@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+
+    <dimen name="adaptive_banner_caller_ad_height">320dp</dimen>
+
+
+    <dimen name="corner_lg">16dp</dimen>
+    <dimen name="spacing_xxs">2dp</dimen>
+    <dimen name="spacing_xs">4dp</dimen>
+    <dimen name="spacing_sm">8dp</dimen>
+    <dimen name="spacing_md">12dp</dimen>
+    <dimen name="spacing_lg">16dp</dimen>
+    <dimen name="spacing_xl">20dp</dimen>
+    <dimen name="spacing_xxl">24dp</dimen>
+    <dimen name="spacing_xxxl">32dp</dimen>
+
+    <dimen name="corner_md">12dp</dimen>
+    <dimen name="app_icon_size_sm">48dp</dimen>
+    <dimen name="glass_card_radius">18dp</dimen>
+</resources>

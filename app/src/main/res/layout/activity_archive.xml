@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_main">
+
+    <include
+        android:id="@+id/incToolbar"
+        layout="@layout/inc_toolbar_common"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:visibility="gone"
+        android:id="@+id/toolbarDivider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider_line"
+        app:layout_constraintTop_toBottomOf="@id/incToolbar" />
+
+    <include
+        android:id="@+id/incToolbarSelection"
+        layout="@layout/layout_toolbar_selection"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:visibility="gone"
+        android:id="@+id/rvTopDivider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#EAEAEA"
+        app:layout_constraintBottom_toTopOf="@id/rvArchive" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:layout_marginTop="@dimen/_20ssp"
+        android:id="@+id/rvArchive"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        tools:itemCount="10"
+        android:visibility="gone"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        app:layout_constraintTop_toBottomOf="@id/toolbarDivider"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/emptyView"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="visible"
+        app:layout_constraintTop_toBottomOf="@id/toolbarDivider"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintVertical_bias="0.4">
+
+        <ImageView
+            android:id="@+id/imgNoArchive"
+            android:layout_width="@dimen/_150sdp"
+            android:layout_height="@dimen/_120sdp"
+            android:src="@drawable/ic_no_conversation" />
+
+        <TextView
+            android:id="@+id/tvEmptyTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/_16sdp"
+            android:fontFamily="@font/geist_bold"
+            android:text="@string/no_archive_chats_yet"
+            android:textColor="@color/colorTextBlack"
+            android:textSize="@dimen/_16ssp" />
+
+        <TextView
+            android:id="@+id/tvEmptyDetails"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/_8sdp"
+            android:gravity="center"
+            android:fontFamily="@font/geist_regular"
+            android:paddingHorizontal="@dimen/_24sdp"
+            android:text="@string/archive_chat_empty_details"
+            android:textColor="@color/colorTextGrey"
+            android:textSize="@dimen/_12ssp" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

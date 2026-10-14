@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#2563EB</color>
+
+    <!-- Set-default-SMS phone mock-up -->
+    <color name="sms_mock_surface">#1E2130</color>
+    <color name="sms_mock_muted">#2A2E3F</color>
+    <color name="sms_mock_stroke">#333849</color>
+
+    <color name="colorWhiteCommon">#FFFFFF</color>
+    <color name="colorBlackCommon">#000000</color>
+
+    <color name="white">#FFFFFF</color>
+    <color name="black">#FFFFFF</color>
+    <color name="red">#F44649</color>
+    <color name="green">#59D517</color>
+
+    <color name="colorTextWhite">#FFFFFF</color>
+    <color name="colorTextBlack">#FFFFFF</color>
+    <color name="colorTextRed">#E30000</color>
+    <color name="colorTextHint">#727272</color>
+    <color name="colorTextGrey">#989898</color>
+    <color name="colorTextGreyDark">#989898</color>
+
+    <color name="colorBackground">#0F111A</color>
+    <color name="colorChildBackground">#2D2D2D</color>
+    <color name="colorChildBackgroundDark">#2D2D2D</color>
+<!--    <color name="colorChildBackgroundDark">#4D727272</color>-->
+    <color name="colorSelectionBg">#303030</color>
+    <color name="colorDialogBg">#1A1A2E</color>
+    <color name="colorChatMessageBackgroundGrey">#303030</color>
+
+    <color name="colorLineGrey">#727272</color>
+    <color name="colorBorderGrey">#F2F2F2</color>
+
+    <color name="colorBlockBackStroke">#2C2C3E</color>
+    <color name="colorBlockBackSolid">#1A1A2E</color>
+
+    <color name="colorErrorRed">#F44649</color>
+    <color name="colorInactiveIndicator">#2D2D2D</color>
+    <color name="colorEditextForSearch">#2C2C3E</color>
+    <!--ads-->
+    <color name="colorAdsGreyColor">#A0A0A0</color>
+    <color name="colorAdsShimmerLoading">#666666</color>
+    <color name="colorAdsShimmerBg">#575757</color>
+    <color name="colorNativeAdsTitle">#FFFFFF</color>
+
+    <!-- SIM Colors -->
+    <color name="sim1_color">#1C4EF4</color>  <!-- Blue for SIM 1 -->
+    <color name="sim2_color">#4CAF50</color>  <!-- Green for SIM 2 -->
+    <color name="sim3_color">#FF9800</color>  <!-- Orange for SIM 3 -->
+    <color name="sim_default_color">#2D2D2D</color>  <!-- Gray for unknown SIM -->
+
+    <!-- App Theme Semantic Colors -->
+    <color name="bg_main">#0F111A</color>
+    <color name="bg_surface">#171926</color>
+
+    <color name="schedule">#171926</color>
+
+
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#8C95A8</color>
+    <color name="blue_primary">#2763F7</color>
+    <color name="bg_selected">#FFFFFF</color>
+    <color name="divider_line">#2A2C38</color>
+    <color name="red_delete">#FF453A</color>
+    <color name="icon_tint_primary">#FFFFFF</color>
+    <color name="icon_tint_secondary">#8C95A8</color>
+    <color name="icon_tint_tertiary">#666666</color>
+
+    <!-- Launcher settings surfaces (accents inherit from values/colors.xml) -->
+    <color name="ls_card_bg">#171926</color>
+    <color name="ls_card_stroke">#252A3A</color>
+    <color name="ls_section_label">#6E7689</color>
+</resources>

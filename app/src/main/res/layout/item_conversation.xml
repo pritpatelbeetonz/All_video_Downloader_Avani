@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/background_conversation"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <!-- Background Layer (The buttons revealed behind) -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/backgroundLayer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <LinearLayout
+                android:id="@+id/btnRightSwipeAction"
+                android:layout_width="@dimen/_70sdp"
+                android:layout_height="match_parent"
+                android:background="@color/colorPrimary"
+                android:gravity="center"
+                android:orientation="vertical"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <ImageView
+                    android:id="@+id/ivRightSwipeAction"
+                    android:layout_width="@dimen/_20sdp"
+                    android:layout_height="@dimen/_20sdp"
+                    android:src="@drawable/ic_archive"
+                    app:tint="@color/colorWhiteCommon" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnLeftSwipeAction"
+                android:layout_width="@dimen/_70sdp"
+                android:layout_height="match_parent"
+                android:background="@color/colorTextRed"
+                android:gravity="center"
+                android:orientation="vertical"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <ImageView
+                    android:id="@+id/ivLeftSwipeAction"
+                    android:layout_width="@dimen/_20sdp"
+                    android:layout_height="@dimen/_20sdp"
+                    android:src="@drawable/ic_delete"
+                    app:tint="@color/colorWhiteCommon" />
+            </LinearLayout>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Selection Background -->
+        <View
+            android:id="@+id/selectionBackground"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/colorSelectionBg"
+            android:visibility="gone" />
+
+        <!-- Foreground Layer (The actual message item) -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/foregroundLayer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/bg_surface"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingStart="@dimen/_10sdp"
+            android:paddingTop="@dimen/_8sdp"
+            android:paddingEnd="@dimen/_10sdp"
+            android:paddingBottom="@dimen/_8sdp">
+
+            <FrameLayout
+                android:id="@+id/flAvatarContainer"
+                android:layout_width="@dimen/_42sdp"
+                android:layout_height="@dimen/_42sdp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <!-- Full Avatar (for individuals) -->
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/ivAvatarFull"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/circle_white"
+                    android:backgroundTint="@color/colorChildBackgroundDark"
+                    android:scaleType="center"
+                    android:src="@drawable/ic_group"
+                    android:tint="@color/icon_tint_primary"
+                    app:strokeWidth="2dp"
+                    app:strokeColor="@color/bg_surface"
+                    app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full" />
+
+                <TextView
+                    android:id="@+id/tvInitialsFull"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/circle_white"
+                    android:backgroundTint="#F0F4FF"
+                    android:fontFamily="@font/geist_medium"
+                    android:gravity="center"
+                    android:textAllCaps="true"
+                    android:textColor="@color/blue_primary"
+                    android:textSize="@dimen/_15ssp"
+                    android:visibility="gone" />
+
+                <FrameLayout
+                    android:id="@+id/flAvatarBack"
+                    android:layout_width="@dimen/_28sdp"
+                    android:layout_height="@dimen/_28sdp"
+                    android:layout_gravity="top|end"
+                    android:visibility="gone">
+
+                    <com.google.android.material.imageview.ShapeableImageView
+                        android:id="@+id/ivAvatarBack"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/circle_white"
+                        android:backgroundTint="@color/colorChildBackgroundDark"
+                        android:scaleType="center"
+                        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+                        app:strokeColor="@color/bg_surface"
+                        app:strokeWidth="2dp" />
+
+                    <TextView
+                        android:id="@+id/tvInitialsBack"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:fontFamily="@font/geist_medium"
+                        android:gravity="center"
+                        android:textAllCaps="true"
+                        android:textColor="@color/colorTextBlack"
+                        android:textSize="@dimen/_10ssp" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/flAvatarFront"
+                    android:layout_width="@dimen/_28sdp"
+                    android:layout_height="@dimen/_28sdp"
+                    android:layout_gravity="bottom|start"
+                    android:visibility="gone">
+
+                    <com.google.android.material.imageview.ShapeableImageView
+                        android:id="@+id/ivAvatarFront"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/circle_white"
+                        android:backgroundTint="@color/colorChildBackgroundDark"
+                        android:scaleType="center"
+                        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+                        app:strokeColor="@color/bg_surface"
+                        app:strokeWidth="2dp" />
+
+                    <TextView
+                        android:id="@+id/tvInitialsFront"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:fontFamily="@font/geist_medium"
+                        android:gravity="center"
+                        android:textAllCaps="true"
+                        android:textColor="@color/colorTextBlack"
+                        android:textSize="@dimen/_10ssp" />
+                </FrameLayout>
+
+                <ImageView
+                    android:id="@+id/ivCheckmark"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/circle_white"
+                    android:backgroundTint="@color/colorPrimary"
+                    android:scaleType="center"
+                    android:src="@drawable/ic_true"
+                    android:visibility="gone" />
+
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/tvName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/_10sdp"
+                android:layout_marginEnd="@dimen/_8sdp"
+                android:ellipsize="end"
+                android:fontFamily="@font/geist_bold"
+                android:maxLines="1"
+                android:textColor="@color/colorTextBlack"
+                android:textSize="@dimen/_13ssp"
+                app:layout_constraintBottom_toTopOf="@+id/tvSnippet"
+                app:layout_constraintEnd_toStartOf="@+id/tvDate"
+                app:layout_constraintStart_toEndOf="@+id/flAvatarContainer"
+                app:layout_constraintTop_toTopOf="@+id/flAvatarContainer"
+                app:layout_constraintVertical_chainStyle="packed"
+                tools:text="Scott Franklin" />
+
+            <TextView
+                android:id="@+id/tvSnippet"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/_4sdp"
+                android:ellipsize="end"
+                android:fontFamily="@font/geist_regular"
+                android:maxLines="1"
+                android:paddingEnd="@dimen/_5sdp"
+                android:textColor="@color/colorTextGrey"
+                android:textSize="@dimen/_11ssp"
+                app:layout_constraintBottom_toBottomOf="@+id/flAvatarContainer"
+                app:layout_constraintEnd_toStartOf="@+id/tvBadge"
+                app:layout_constraintStart_toStartOf="@+id/tvName"
+                app:layout_constraintTop_toBottomOf="@+id/tvName"
+                tools:text="Hey! Can we catch up tomorrow?" />
+
+            <TextView
+                android:id="@+id/tvDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/geist_regular"
+                android:textColor="@color/colorTextGrey"
+                android:textSize="@dimen/_10ssp"
+                app:layout_constraintBottom_toBottomOf="@+id/tvName"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="@+id/tvName"
+                tools:text="Aug 7" />
+
+            <View
+                android:id="@+id/tvBadge"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/circle_white"
+                android:backgroundTint="@color/colorPrimary"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="@+id/tvSnippet"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="@+id/tvSnippet"
+                tools:visibility="visible" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </FrameLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/_1sdp"
+        android:background="@color/divider_line" />
+
+</androidx.appcompat.widget.LinearLayoutCompat>

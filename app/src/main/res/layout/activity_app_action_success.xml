@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/drawer_panel_bg">
+
+    <ImageView
+        android:id="@+id/ivSettings"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginTop="32dp"
+        android:layout_marginEnd="24dp"
+        app:tint="@color/colorTextGrey"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tvActionTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="16dp"
+        android:fontFamily="@font/geist_bold"
+        android:textColor="@color/white"
+        android:textSize="28sp"
+        app:layout_constraintEnd_toStartOf="@id/ivSecureBadge"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ivSettings"
+        tools:text="App Install\nSuccessfully" />
+
+    <ImageView
+        android:id="@+id/ivSecureBadge"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_marginEnd="24dp"
+        android:background="@drawable/round_corner_20"
+        android:backgroundTint="#9ED1FA"
+        android:padding="16dp"
+        android:src="@drawable/ic_checkmark"
+        app:tint="#FFFFFF"
+        app:layout_constraintBottom_toBottomOf="@id/tvActionTitle"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/tvActionTitle" />
+
+    <LinearLayout
+        android:id="@+id/llSecureNotice"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvActionTitle">
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_check_circle"
+            app:tint="#00C853" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:fontFamily="@font/geist_regular"
+            android:text="This app is secure to use"
+            android:textColor="#00C853"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/cvAppInfo"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_margin="16dp"
+        android:background="@drawable/bg_glass_card"
+        app:layout_constraintBottom_toTopOf="@id/btnAction"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/llSecureNotice">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <ImageView
+                android:id="@+id/ivAppIcon"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_marginStart="24dp"
+                android:layout_marginTop="24dp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:src="@mipmap/ic_launcher" />
+
+            <TextView
+                android:id="@+id/tvAppName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="24dp"
+                android:fontFamily="@font/geist_bold"
+                android:textColor="@color/white"
+                android:textSize="20sp"
+                app:layout_constraintBottom_toTopOf="@id/tvAppSize"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/ivAppIcon"
+                app:layout_constraintTop_toTopOf="@id/ivAppIcon"
+                app:layout_constraintVertical_chainStyle="packed"
+                tools:text="Downloader" />
+
+            <TextView
+                android:id="@+id/tvAppSize"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginEnd="24dp"
+                android:fontFamily="@font/geist_regular"
+                android:textColor="@color/colorTextGrey"
+                android:textSize="14sp"
+                app:layout_constraintBottom_toBottomOf="@id/ivAppIcon"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/ivAppIcon"
+                app:layout_constraintTop_toBottomOf="@id/tvAppName"
+                tools:text="Size: 76.7 MB" />
+
+            <View
+                android:id="@+id/dividerAppInfo"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="24dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginEnd="24dp"
+                android:background="@color/divider_line"
+                app:layout_constraintTop_toBottomOf="@id/ivAppIcon" />
+
+            <FrameLayout
+                android:id="@+id/adContainer"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="16dp"
+                android:background="@android:color/transparent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/dividerAppInfo">
+
+                <FrameLayout
+                    android:id="@+id/nativeAdShimmerFrameLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <include layout="@layout/layout_shimmer_native" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/nativeAdFrameLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </FrameLayout>
+
+    <Button
+        android:id="@+id/btnAction"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="32dp"
+        android:backgroundTint="#7D7D7D"
+        android:fontFamily="@font/geist_bold"
+        android:text="Open"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

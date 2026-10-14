@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="?attr/actionBarSize"
+    android:background="@color/bg_surface"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/ivCloseSelection"
+        android:layout_width="@dimen/_35sdp"
+        android:layout_height="@dimen/_35sdp"
+        android:layout_marginStart="@dimen/_5sdp"
+        android:padding="@dimen/_10sdp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_close"
+        app:tint="@color/icon_tint_primary" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/tvSelectionCount"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:fontFamily="@font/geist_semibold"
+        android:text="@string/extracted_str_0_selected"
+        android:textColor="@color/text_primary"
+        android:textSize="@dimen/_15ssp" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/ivSelectionArchive"
+        android:layout_width="@dimen/_30sdp"
+        android:layout_height="@dimen/_30sdp"
+        android:padding="@dimen/_7sdp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_archive"
+        app:tint="@color/icon_tint_primary" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/ivSelectionDelete"
+        android:layout_width="@dimen/_30sdp"
+        android:layout_height="@dimen/_30sdp"
+        android:padding="@dimen/_7sdp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_delete"
+        app:tint="@color/icon_tint_primary" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/ivSelectionMore"
+        android:layout_width="@dimen/_20sdp"
+        android:layout_marginEnd="@dimen/_5sdp"
+        android:layout_height="@dimen/_30sdp"
+        android:paddingVertical="@dimen/_7sdp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_more_menu"
+        app:tint="@color/icon_tint_primary" />
+
+</androidx.appcompat.widget.LinearLayoutCompat>
+

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:paddingHorizontal="@dimen/_15sdp">
+
+    <FrameLayout
+        android:id="@+id/flAvatarContainer"
+        android:layout_width="@dimen/_38sdp"
+        android:layout_height="@dimen/_38sdp"
+        android:layout_marginVertical="@dimen/_10sdp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/ivAvatarFull"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/circle_white"
+            android:backgroundTint="@color/colorChildBackgroundDark"
+            android:scaleType="center"
+            android:src="@drawable/ic_person"
+            android:visibility="visible"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full" />
+
+        <TextView
+            android:id="@+id/tvInitialsFull"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/circle_white"
+            android:backgroundTint="@color/colorChildBackgroundDark"
+            android:fontFamily="@font/geist_bold"
+            android:gravity="center"
+            android:textColor="@color/colorTextBlack"
+            android:textSize="@dimen/_16ssp"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tvName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/_12sdp"
+        android:layout_marginEnd="@dimen/_12sdp"
+        android:fontFamily="@font/geist_medium"
+        android:textColor="@color/colorTextBlack"
+        android:textSize="@dimen/_12ssp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/cbSelect"
+        app:layout_constraintStart_toEndOf="@+id/flAvatarContainer"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Contact Name" />
+
+    <CheckBox
+        android:id="@+id/cbSelect"
+        android:layout_width="@dimen/_19sdp"
+        android:layout_height="@dimen/_19sdp"
+        android:background="@drawable/selector_checkbox"
+        android:button="@null"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:layout_width="wrap_content"
+        android:id="@+id/txtOwner"
+        android:layout_height="wrap_content"
+        android:background="@drawable/round_corner_20"
+        android:backgroundTint="@color/colorPrimary"
+        android:fontFamily="@font/geist_regular"
+        android:paddingHorizontal="@dimen/_8sdp"
+        android:paddingVertical="@dimen/_3sdp"
+        android:text="@string/owner"
+        android:textColor="@color/colorTextWhite"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/txtAdmin"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/rounded_primary_border_15"
+        android:fontFamily="@font/geist_regular"
+        android:paddingHorizontal="@dimen/_8sdp"
+        android:paddingVertical="@dimen/_3sdp"
+        android:text="@string/admin"
+        android:textColor="@color/colorPrimary"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/_1sdp"
+        android:background="@color/colorLineGrey"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_premium"
+    android:gravity="center_horizontal"
+    android:orientation="vertical">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="20dp"
+        android:orientation="horizontal">
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/ivClose"
+            android:layout_centerVertical="true"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_close"
+            android:tint="@color/colorWhiteCommon"
+            android:visibility="visible" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/btnRestore"
+            android:fontFamily="@font/geist_semibold"
+            android:layout_width="wrap_content"
+            android:layout_height="35dp"
+            android:layout_centerVertical="true"
+            android:layout_alignParentEnd="true"
+            android:background="@drawable/round_corner_5"
+            android:backgroundTint="@android:color/transparent"
+            android:paddingHorizontal="10dp"
+            android:text="@string/restore"
+            android:gravity="center"
+            android:textAllCaps="false"
+            android:textColor="@color/colorWhiteCommon"
+            android:textSize="@dimen/_12ssp" />
+    </RelativeLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:gravity="center_horizontal"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="30dp"
+                android:fontFamily="@font/geist_bold"
+                android:text="@string/upgrade_to_premium"
+                android:textColor="@color/colorWhiteCommon"
+                android:textSize="@dimen/_24ssp" />
+
+            <TextView
+                android:id="@+id/tvSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="40dp"
+                android:fontFamily="@font/geist_regular"
+                android:gravity="center"
+                android:text="@string/go_premium_and_make_the_most_out_of_every_feature_we_offer"
+                android:textColor="#94A3B8"
+                android:textSize="@dimen/_13ssp" />
+
+            <!-- Basic Plan Card -->
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="@dimen/_20sdp"
+                android:layout_marginTop="25dp">
+
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/_12sdp">
+
+                    <LinearLayout
+                        android:background="@drawable/bg_premium_item"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/_100sdp"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="25dp"
+                                android:layout_height="25dp"
+                                android:src="@drawable/ic_check_squre"
+                                app:tint="@color/colorPrimary" />
+
+                            <TextView
+                                android:fontFamily="@font/geist_regular"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:text="@string/text_messaging"
+                                android:textColor="@color/colorWhiteCommon"
+                                android:textSize="@dimen/_14ssp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="25dp"
+                                android:layout_height="25dp"
+                                android:src="@drawable/ic_check_squre"
+                                app:tint="@color/colorPrimary" />
+
+                            <TextView
+                                android:fontFamily="@font/geist_regular"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:text="@string/scheduled_messages"
+                                android:textColor="@color/colorWhiteCommon"
+                                android:textSize="@dimen/_14ssp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </RelativeLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerHorizontal="true"
+                    android:layout_gravity="center_horizontal"
+                    android:background="@drawable/round_corner_5"
+                    android:backgroundTint="@color/colorPrimary"
+                    android:elevation="@dimen/_1sdp"
+                    android:fontFamily="@font/geist_bold"
+                    android:paddingHorizontal="24dp"
+                    android:paddingVertical="4dp"
+                    android:text="@string/basic"
+                    android:textColor="@color/colorWhiteCommon"
+                    android:textSize="@dimen/_12ssp" />
+            </RelativeLayout>
+
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="@dimen/_20sdp"
+                android:layout_marginTop="20dp">
+
+                <!-- Pro Plan Card -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/_12sdp"
+                    android:layout_marginBottom="20dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_premium_item"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="25dp"
+                                android:layout_height="25dp"
+                                android:src="@drawable/ic_check_squre"
+                                app:tint="@color/colorPrimary" />
+
+                            <TextView
+                                android:fontFamily="@font/geist_regular"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:text="@string/text_messaging"
+                                android:textColor="@color/colorWhiteCommon"
+                                android:textSize="@dimen/_14ssp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="25dp"
+                                android:layout_height="25dp"
+                                android:src="@drawable/ic_check_squre"
+                                app:tint="@color/colorPrimary" />
+
+                            <TextView
+                                android:fontFamily="@font/geist_regular"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:text="@string/scheduled_messages"
+                                android:textColor="@color/colorWhiteCommon"
+                                android:textSize="@dimen/_14ssp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:visibility="gone"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:src="@drawable/ic_check_squre"
+                                app:tint="@color/colorPrimary" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:text="@string/vip_customer_support"
+                                android:textColor="@color/colorWhiteCommon"
+                                android:textSize="@dimen/_14ssp" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="25dp"
+                                android:layout_height="25dp"
+                                android:src="@drawable/ic_check_squre"
+                                app:tint="@color/colorPrimary" />
+
+                            <TextView
+                                android:fontFamily="@font/geist_regular"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:text="@string/remove_ads"
+                                android:textColor="@color/colorWhiteCommon"
+                                android:textSize="@dimen/_14ssp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </RelativeLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerHorizontal="true"
+                    android:layout_gravity="center_horizontal"
+                    android:background="@drawable/rounded_corner_5_yellow_grediant"
+                    android:gravity="center"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="24dp"
+                    android:paddingVertical="4dp">
+
+                    <ImageView
+                        android:layout_width="17dp"
+                        android:layout_height="17dp"
+                        android:layout_marginEnd="6dp"
+                        android:src="@drawable/ic_crown"
+                        app:tint="@color/colorWhiteCommon" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/geist_bold"
+                        android:text="@string/pro"
+                        android:textColor="@color/colorWhiteCommon"
+                        android:textSize="@dimen/_12ssp" />
+                </LinearLayout>
+            </RelativeLayout>
+
+            <Space
+                android:layout_width="wrap_content"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/tvPriceInfo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="@dimen/_10sdp"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="@font/geist_medium"
+                android:text="@string/_990_00_year_auto_renews_cancel_anytime"
+                android:textColor="@color/colorWhiteCommon"
+                android:textSize="@dimen/_11ssp" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnContinue"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginHorizontal="20dp"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/round_corner_12"
+                android:backgroundTint="@color/colorPrimary"
+                android:fontFamily="@font/geist_bold"
+                android:text="@string/continue_"
+                android:textAllCaps="false"
+                android:textColor="@color/colorWhiteCommon"
+                android:textSize="@dimen/_16ssp" />
+
+            <TextView
+                android:id="@+id/tvTryLimited"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:background="?selectableItemBackground"
+                android:text="@string/try_limited_version"
+                android:textColor="#94A3B8"
+                android:fontFamily="@font/geist_regular"
+                android:textSize="@dimen/_13ssp"
+                app:layout_constraintBottom_toTopOf="@+id/llFooter"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent" />
+
+            <LinearLayout
+                android:id="@+id/llFooter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:orientation="horizontal"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent">
+
+                <TextView
+                    android:visibility="gone"
+                    android:id="@+id/tvTerms"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/terms_of_use"
+                    android:textColor="#94A3B8"
+                    android:textSize="@dimen/_12ssp" />
+
+                <View
+                    android:visibility="gone"
+                    android:layout_width="1dp"
+                    android:layout_height="12dp"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginHorizontal="16dp"
+                    android:background="#94A3B8" />
+
+                <TextView
+                    android:id="@+id/tvPrivacy"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/privacy_policy"
+                    android:fontFamily="@font/geist_regular"
+                    android:textColor="#94A3B8"
+                    android:textSize="@dimen/_12ssp" />
+            </LinearLayout>
+        </androidx.appcompat.widget.LinearLayoutCompat>
+    </ScrollView>
+</androidx.appcompat.widget.LinearLayoutCompat>

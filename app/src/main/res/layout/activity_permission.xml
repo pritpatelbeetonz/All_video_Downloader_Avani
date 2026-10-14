@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_main"
+    android:orientation="vertical">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:overScrollMode="never">
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="@dimen/_15sdp"
+            android:layout_marginTop="@dimen/_10sdp"
+            android:orientation="vertical">
+
+            <androidx.appcompat.widget.AppCompatImageView
+                android:id="@+id/imgAppIcon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_launcher" />
+
+            <androidx.appcompat.widget.LinearLayoutCompat
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="@dimen/_20sdp"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <androidx.appcompat.widget.AppCompatTextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="@dimen/_3sdp"
+                    android:fontFamily="@font/geist_bold"
+                    android:text="@string/permission_required"
+                    android:textColor="@color/colorTextBlack"
+                    android:textSize="@dimen/_15ssp" />
+
+                <androidx.appcompat.widget.AppCompatTextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="@dimen/_3sdp"
+                    android:fontFamily="@font/geist_regular"
+                    android:gravity="center"
+                    android:text="@string/to_use_all_features_of_this_app_please_allow_the_required_permissions_on_the_next_screen"
+                    android:textColor="@color/colorTextGrey"
+                    android:textSize="@dimen/_11ssp" />
+
+            </androidx.appcompat.widget.LinearLayoutCompat>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerPermissions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/_10sdp"
+                android:layout_marginBottom="@dimen/_20sdp"
+                tools:itemCount="2"
+                tools:listitem="@layout/raw_permission_list" />
+
+        </androidx.appcompat.widget.LinearLayoutCompat>
+    </androidx.core.widget.NestedScrollView>
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:layout_width="match_parent"
+        android:id="@+id/tvPrivacyPolicy"
+        android:layout_marginTop="@dimen/_10sdp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/_10sdp"
+        android:fontFamily="@font/geist_regular"
+        android:gravity="center"
+        android:text="@string/by_continuing_you_agree_to_our_privacy_policy"
+        android:textColor="@color/colorTextGreyDark"
+        android:textSize="@dimen/_11ssp" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/btnAllowPermission"
+        style="@style/buttonStyle"
+        android:layout_marginHorizontal="@dimen/_15sdp"
+        android:layout_marginBottom="@dimen/_15sdp"
+        android:text="@string/agree_continue"
+        android:textColor="@color/colorWhiteCommon" />
+
+
+    <include
+        android:id="@+id/bannerViewAdsFrameLayout"
+        layout="@layout/ads_banner_shimmer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+</androidx.appcompat.widget.LinearLayoutCompat>

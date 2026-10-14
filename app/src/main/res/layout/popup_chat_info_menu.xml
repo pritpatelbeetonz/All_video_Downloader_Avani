@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    app:cardBackgroundColor="@color/colorDialogBg"
+    app:cardCornerRadius="@dimen/_12sdp"
+    app:cardElevation="@dimen/_8sdp">
+
+    <LinearLayout
+        android:layout_width="@dimen/_170sdp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="@dimen/_12sdp">
+
+        <!-- Add People -->
+        <LinearLayout
+            android:id="@+id/llAddPeople"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="@dimen/_9sdp">
+
+            <ImageView
+                android:layout_width="@dimen/_24sdp"
+                android:layout_height="@dimen/_24sdp"
+                android:padding="@dimen/_4sdp"
+                android:src="@drawable/ic_add_people"
+                app:tint="@color/colorTextBlack" />
+
+            <TextView
+                android:id="@+id/tvAddPeople"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/_7sdp"
+                android:fontFamily="@font/geist_regular"
+                android:text="@string/add_people"
+                android:textColor="@color/colorTextBlack"
+                android:textSize="@dimen/_12ssp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/_1sdp"
+            android:background="@color/colorLineGrey" />
+
+        <!-- Group Info -->
+        <LinearLayout
+            android:id="@+id/llGroupInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="@dimen/_9sdp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="@dimen/_24sdp"
+                android:layout_height="@dimen/_24sdp"
+                android:padding="@dimen/_4sdp"
+                android:src="@drawable/ic_info"
+                app:tint="@color/colorTextBlack" />
+
+            <TextView
+                android:id="@+id/tvGroupInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/_7sdp"
+                android:fontFamily="@font/geist_regular"
+                android:text="@string/group_info"
+                android:textColor="@color/colorTextBlack"
+                android:textSize="@dimen/_12ssp" />
+        </LinearLayout>
+
+        <View
+            android:id="@+id/vGroupInfoDivider"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/_1sdp"
+            android:background="@color/colorLineGrey"
+            android:visibility="gone" />
+
+        <!-- Copy -->
+        <LinearLayout
+            android:id="@+id/llCopy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="@dimen/_9sdp">
+
+            <ImageView
+                android:layout_width="@dimen/_24sdp"
+                android:layout_height="@dimen/_24sdp"
+                android:padding="@dimen/_4sdp"
+                android:src="@drawable/ic_copy"
+                app:tint="@color/colorTextBlack" />
+
+            <TextView
+                android:id="@+id/tvCopy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/_7sdp"
+                android:fontFamily="@font/geist_regular"
+                android:text="@string/copy"
+                android:textColor="@color/colorTextBlack"
+                android:textSize="@dimen/_12ssp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/_1sdp"
+            android:background="@color/colorLineGrey" />
+
+        <!-- Call -->
+        <LinearLayout
+            android:id="@+id/llCall"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="@dimen/_9sdp">
+
+            <ImageView
+                android:layout_width="@dimen/_24sdp"
+                android:layout_height="@dimen/_24sdp"
+                android:padding="@dimen/_4sdp"
+                android:src="@drawable/ic_call"
+                app:tint="@color/colorTextBlack" />
+
+            <TextView
+                android:id="@+id/tvCall"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/_7sdp"
+                android:fontFamily="@font/geist_regular"
+                android:text="@string/call"
+                android:textColor="@color/colorTextBlack"
+                android:textSize="@dimen/_12ssp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/_1sdp"
+            android:background="@color/colorLineGrey" />
+
+        <!-- Restore -->
+        <LinearLayout
+            android:id="@+id/llRestoreLastMessage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="@dimen/_9sdp">
+
+            <ImageView
+                android:layout_width="@dimen/_24sdp"
+                android:layout_height="@dimen/_24sdp"
+                android:padding="@dimen/_4sdp"
+                android:src="@drawable/ic_restore_msg"
+                app:tint="@color/colorTextBlack" />
+
+            <TextView
+                android:id="@+id/tvRestoreLastMessage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/_7sdp"
+                android:fontFamily="@font/geist_regular"
+                android:text="@string/restore_last_message"
+                android:textColor="@color/colorTextBlack"
+                android:textSize="@dimen/_12ssp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/_1sdp"
+            android:background="@color/colorLineGrey" />
+
+        <!-- Block -->
+        <LinearLayout
+            android:id="@+id/llBlock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="@dimen/_9sdp">
+
+            <ImageView
+                android:layout_width="@dimen/_24sdp"
+                android:layout_height="@dimen/_24sdp"
+                android:padding="@dimen/_4sdp"
+                android:src="@drawable/ic_block"
+                app:tint="@color/colorTextRed" />
+
+            <TextView
+                android:id="@+id/tvBlock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/_7sdp"
+                android:fontFamily="@font/geist_regular"
+                android:text="@string/block"
+                android:textColor="@color/colorTextRed"
+                android:textSize="@dimen/_12ssp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/_1sdp"
+            android:background="@color/colorLineGrey" />
+
+        <!-- Delete -->
+        <LinearLayout
+            android:id="@+id/llDelete"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="@dimen/_9sdp">
+
+            <ImageView
+                android:layout_width="@dimen/_24sdp"
+                android:layout_height="@dimen/_24sdp"
+                android:padding="@dimen/_4sdp"
+                android:src="@drawable/ic_delete"
+                app:tint="@color/colorTextRed" />
+
+            <TextView
+                android:id="@+id/tvDelete"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/_7sdp"
+                android:fontFamily="@font/geist_regular"
+                android:text="@string/delete"
+                android:textColor="@color/colorTextRed"
+                android:textSize="@dimen/_12ssp" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

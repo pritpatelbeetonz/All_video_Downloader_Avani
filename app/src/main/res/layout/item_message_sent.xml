@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="@dimen/_12sdp"
+    android:paddingVertical="@dimen/_4sdp">
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/llMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="@dimen/_40sdp"
+        android:background="@drawable/bg_chat_bubble_sent"
+        android:orientation="vertical"
+        android:paddingHorizontal="@dimen/_12sdp"
+        android:paddingVertical="@dimen/_8sdp"
+        android:layout_marginStart="@dimen/_20sdp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/ivMessage"
+            android:layout_width="@dimen/_150sdp"
+            android:layout_height="@dimen/_150sdp"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium" />
+
+        <TextView
+            android:id="@+id/tvMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/extracted_hello_test"
+            android:fontFamily="@font/geist_medium"
+            android:textColor="@color/colorWhiteCommon"
+            android:textSize="@dimen/_12ssp" />
+
+        <LinearLayout
+            android:id="@+id/llScheduled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="@dimen/_4sdp"
+            android:gravity="end|center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <ImageView
+                android:layout_width="@dimen/_10sdp"
+                android:layout_height="@dimen/_10sdp"
+                android:layout_marginEnd="@dimen/_4sdp"
+                android:src="@drawable/ic_clock"
+                app:tint="@color/colorWhiteCommon" />
+
+            <TextView
+                android:id="@+id/tvScheduled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/geist_regular"
+                android:textColor="@color/colorWhiteCommon"
+                android:textSize="@dimen/_8ssp"
+                tools:text="Scheduled for 5:24 pm" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvSimInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="@dimen/_2sdp"
+            android:gravity="end"
+            android:fontFamily="@font/geist_regular"
+            android:text="@string/extracted_sim_1"
+            android:textColor="@color/colorWhiteCommon"
+            android:textSize="@dimen/_8ssp"
+            android:visibility="gone" />
+    </androidx.appcompat.widget.LinearLayoutCompat>
+    
+    <TextView
+        android:id="@+id/tvTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/_2sdp"
+        android:fontFamily="@font/geist_regular"
+        android:text="@string/extracted_str_1000_am"
+        android:textColor="@color/colorTextGrey"
+        android:textSize="@dimen/_8ssp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@+id/llMessage"
+        app:layout_constraintTop_toBottomOf="@+id/llMessage"
+        tools:visibility="visible" />
+
+    <LinearLayout
+        android:id="@+id/llUndoSend"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/_8sdp"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@+id/llMessage"
+        app:layout_constraintEnd_toStartOf="@+id/llMessage"
+        app:layout_constraintTop_toTopOf="@+id/llMessage"
+        tools:visibility="visible">
+
+        <FrameLayout
+            android:id="@+id/ivStopUndoSend"
+            android:layout_width="@dimen/_24sdp"
+            android:layout_height="@dimen/_24sdp">
+
+            <ProgressBar
+                android:id="@+id/pbUndoSend"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:indeterminate="false"
+                android:max="100"
+                android:progress="50"
+                android:progressDrawable="@drawable/circular_progress_bar" />
+
+            <ImageView
+                android:layout_width="@dimen/_12sdp"
+                android:layout_height="@dimen/_12sdp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_stop_square"
+                app:tint="@color/colorPrimary" />
+        </FrameLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/_2sdp"
+            android:fontFamily="@font/geist_regular"
+            android:text="@string/sending"
+            android:textColor="@color/colorTextGrey"
+            android:textSize="@dimen/_8ssp" />
+
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/ivFail"
+        android:layout_width="@dimen/_12sdp"
+        android:layout_height="@dimen/_12sdp"
+        android:layout_marginEnd="@dimen/_4sdp"
+        android:src="@drawable/ic_error"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@+id/llMessage"
+        app:layout_constraintEnd_toStartOf="@+id/llUndoSend"
+        app:tint="@color/colorErrorRed" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+

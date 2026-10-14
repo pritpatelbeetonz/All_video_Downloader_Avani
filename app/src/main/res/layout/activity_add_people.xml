@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_main">
+
+    <include layout="@layout/inc_toolbar_common"
+        android:id="@+id/incToolbar"
+        app:layout_constraintTop_toTopOf="parent"/>
+
+    <androidx.appcompat.widget.AppCompatEditText
+        android:id="@+id/etSearch"
+        android:layout_width="0dp"
+        android:fontFamily="@font/geist_regular"
+        android:layout_marginTop="@dimen/_10sdp"
+        android:layout_height="@dimen/_36sdp"
+        android:layout_marginStart="@dimen/_15sdp"
+        android:layout_marginEnd="@dimen/_15sdp"
+        android:background="@drawable/round_corner_20"
+        android:backgroundTint="@color/colorChildBackground"
+        android:drawableStart="@drawable/ic_search"
+        android:drawableTint="@color/colorTextHint"
+        android:drawablePadding="@dimen/_8sdp"
+        android:hint="@string/search"
+        android:paddingStart="@dimen/_12sdp"
+        android:paddingEnd="@dimen/_20sdp"
+        android:textColor="@color/colorTextBlack"
+        android:textColorHint="@color/colorTextHint"
+        android:textSize="@dimen/_12ssp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/incToolbar" />
+
+    <ImageView
+        android:id="@+id/ivClearSearch"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginEnd="@dimen/_25sdp"
+        android:src="@drawable/ic_close_circle"
+        app:tint="@color/colorTextBlack"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/etSearch"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/etSearch" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvContacts"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="@dimen/_8sdp"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        app:layout_constraintBottom_toTopOf="@id/btnAddMembers"
+        app:layout_constraintTop_toBottomOf="@id/etSearch" />
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/btnAddMembers"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/_45sdp"
+        android:layout_marginHorizontal="@dimen/_16sdp"
+        android:layout_marginBottom="@dimen/_16sdp"
+        android:background="@drawable/bg_button_primary_10"
+        android:fontFamily="@font/geist_bold"
+        android:textAllCaps="false"
+        android:textColor="@color/colorWhiteCommon"
+        android:textSize="@dimen/_14ssp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@+id/bannerViewAdsFrameLayout" />
+
+    <include
+        android:id="@+id/bannerViewAdsFrameLayout"
+        layout="@layout/ads_banner_shimmer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

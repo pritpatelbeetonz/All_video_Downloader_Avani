@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:backgroundTint="@color/colorDialogBg"
+    android:background="@drawable/round_corner_20">
+
+    <RadioGroup
+        android:id="@+id/radioGroupFont"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <RadioButton
+            android:fontFamily="@font/geist_medium"
+            android:textColor="@color/colorTextBlack"
+            android:layoutDirection="rtl"
+            android:gravity="start|center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/rbSmall"
+            android:text="@string/small"
+            android:textSize="@dimen/_12ssp"/>
+
+        <RadioButton
+            android:fontFamily="@font/geist_medium"
+            android:textColor="@color/colorTextBlack"
+            android:layoutDirection="rtl"
+            android:gravity="start|center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/rbNormal"
+            android:text="@string/normal"
+            android:textSize="@dimen/_12ssp"/>
+
+        <RadioButton
+            android:fontFamily="@font/geist_medium"
+            android:textColor="@color/colorTextBlack"
+            android:layoutDirection="rtl"
+            android:gravity="start|center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/rbLarge"
+            android:text="@string/large"
+            android:textSize="@dimen/_12ssp"/>
+
+        <RadioButton
+            android:fontFamily="@font/geist_medium"
+            android:textColor="@color/colorTextBlack"
+            android:layoutDirection="rtl"
+            android:gravity="start|center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/rbLarger"
+            android:text="@string/larger"
+            android:textSize="@dimen/_12ssp"/>
+    </RadioGroup>
+
+</LinearLayout>

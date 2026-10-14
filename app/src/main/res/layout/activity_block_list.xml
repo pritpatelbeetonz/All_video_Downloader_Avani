@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_main">
+
+    <include
+        android:id="@+id/incToolbar"
+        layout="@layout/inc_toolbar_common"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:visibility="gone"
+        android:id="@+id/toolbarDivider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#E5E5E5"
+        app:layout_constraintTop_toBottomOf="@id/incToolbar" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="@dimen/_15sdp"
+        android:paddingTop="@dimen/_15sdp"
+        app:layout_constraintTop_toBottomOf="@id/toolbarDivider"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cvBlockedNumbers"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/_10sdp"
+            app:cardBackgroundColor="@color/bg_surface"
+            app:cardCornerRadius="@dimen/_10sdp"
+            app:cardElevation="0dp">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/rounded_grey_border_10">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="@dimen/_12sdp"
+                    android:background="?attr/selectableItemBackground">
+
+                <FrameLayout
+                    android:layout_width="@dimen/_36sdp"
+                    android:layout_height="@dimen/_36sdp"
+                    android:background="@drawable/bg_rounded_light_blue">
+
+                    <ImageView
+                        android:layout_width="@dimen/_18sdp"
+                        android:layout_height="@dimen/_18sdp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_block"
+                        app:tint="@color/blue_primary" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="@dimen/_12sdp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/extracted_blocked_numbers"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/_12ssp"
+                        android:fontFamily="@font/geist_bold" />
+
+                    <TextView
+                        android:id="@+id/tvBlockedNumbersCount"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/extracted_str_8_phone_numbers_blocked"
+                        android:textColor="#666666"
+                        android:textSize="@dimen/_10ssp"
+                        android:fontFamily="@font/geist_regular"
+                        android:layout_marginTop="@dimen/_2sdp" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="@dimen/_16sdp"
+                    android:layout_height="@dimen/_16sdp"
+                    android:src="@drawable/ic_right_arrow"
+                    app:tint="@color/icon_tint_tertiary" />
+
+                </LinearLayout>
+            </FrameLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Drop messages Card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cvDropMessages"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/_10sdp"
+            app:cardBackgroundColor="@color/bg_surface"
+            app:cardCornerRadius="@dimen/_10sdp"
+            app:cardElevation="0dp">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/rounded_grey_border_10">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="@dimen/_12sdp"
+                    android:background="?attr/selectableItemBackground">
+
+                <FrameLayout
+                    android:layout_width="@dimen/_36sdp"
+                    android:layout_height="@dimen/_36sdp"
+                    android:background="@drawable/bg_rounded_light_red">
+
+                    <ImageView
+                        android:layout_width="@dimen/_18sdp"
+                        android:layout_height="@dimen/_18sdp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_delete"
+                        app:tint="#E93E3E" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="@dimen/_12sdp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/extracted_drop_messages"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/_12ssp"
+                        android:fontFamily="@font/geist_bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/extracted_drop_incoming_messages_from_bl"
+                        android:textColor="#666666"
+                        android:textSize="@dimen/_10ssp"
+                        android:fontFamily="@font/geist_regular"
+                        android:layout_marginTop="@dimen/_2sdp" />
+                </LinearLayout>
+
+                    <androidx.appcompat.widget.AppCompatCheckBox
+                        android:id="@+id/switchDropMessages"
+                        android:layout_width="@dimen/_35sdp"
+                        android:layout_height="@dimen/_20sdp"
+                        android:checked="true"
+                        android:background="@drawable/selector_switch"
+                        android:button="@null" />
+
+                </LinearLayout>
+            </FrameLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Blocked messages Card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cvBlockedMessages"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/bg_surface"
+            app:cardCornerRadius="@dimen/_10sdp"
+            app:cardElevation="0dp">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/rounded_grey_border_10">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="@dimen/_12sdp"
+                    android:background="?attr/selectableItemBackground">
+
+                <FrameLayout
+                    android:layout_width="@dimen/_36sdp"
+                    android:layout_height="@dimen/_36sdp"
+                    android:background="@drawable/bg_rounded_light_blue">
+
+                    <ImageView
+                        android:layout_width="@dimen/_18sdp"
+                        android:layout_height="@dimen/_18sdp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_block_message"
+                       />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="@dimen/_12sdp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/extracted_blocked_messages"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/_12ssp"
+                        android:fontFamily="@font/geist_bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/extracted_review_log_of_discarded_items"
+                        android:textColor="#666666"
+                        android:textSize="@dimen/_10ssp"
+                        android:fontFamily="@font/geist_regular"
+                        android:layout_marginTop="@dimen/_2sdp" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="@dimen/_16sdp"
+                    android:layout_height="@dimen/_16sdp"
+                    android:src="@drawable/ic_right_arrow"
+                    app:tint="@color/icon_tint_tertiary" />
+
+                </LinearLayout>
+            </FrameLayout>
+        </androidx.cardview.widget.CardView>
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+

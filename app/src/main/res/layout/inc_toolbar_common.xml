@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/bg_surface">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider_line" />
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/ivBack"
+            android:layout_width="?attr/actionBarSize"
+            android:layout_height="?attr/actionBarSize"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:scaleType="center"
+            android:src="@drawable/ic_back"
+            android:tint="@color/icon_tint_primary" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/tvTitle"
+            style="@style/toolbarTitleStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_weight="1"
+            android:fontFamily="@font/geist_bold"
+            android:text="@string/select_language"
+            android:textColor="@color/colorTextBlack"
+            android:textSize="@dimen/_15ssp"
+            tools:ignore="HardcodedText" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/tvDone"
+            style="@style/toolbarTitleStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="@dimen/_10sdp"
+            android:background="@drawable/round_corner_20"
+            android:backgroundTint="@color/colorPrimary"
+            android:fontFamily="@font/geist_regular"
+            android:paddingHorizontal="@dimen/_10sdp"
+            android:paddingVertical="@dimen/_4sdp"
+            android:text="@string/done"
+            android:textColor="@color/colorWhiteCommon"
+            android:textSize="@dimen/_12ssp"
+            android:visibility="gone"
+            tools:ignore="HardcodedText"
+            tools:visibility="visible" />
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/ivEdit"
+            android:layout_width="?attr/actionBarSize"
+            android:layout_height="?attr/actionBarSize"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:scaleType="center"
+            android:src="@drawable/ic_edit"
+            android:tint="@color/icon_tint_primary"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider_line" />
+
+</androidx.appcompat.widget.LinearLayoutCompat>

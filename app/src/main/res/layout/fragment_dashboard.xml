@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/scrollDashboard"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/drawer_panel_bg"
+    android:clipToPadding="true"
+    android:fillViewport="true"
+    android:overScrollMode="never">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="@dimen/spacing_lg"
+        android:paddingTop="@dimen/spacing_lg"
+        android:paddingBottom="24dp">
+
+        <!-- Greeting & Date section commented out
+        <TextView
+            android:id="@+id/tvGreeting"
+            style="@style/TextAppearance.CallLauncher.Greeting"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            tools:text="Good Afternoon" />
+
+        <TextView
+            android:id="@+id/tvDate"
+            style="@style/TextAppearance.CallLauncher.Date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            tools:text="Wednesday, September 2" />
+        -->
+
+        <!-- Row 1: Storage | App settings -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_xl"
+            android:orientation="horizontal"
+            android:weightSum="2">
+
+            <FrameLayout
+                android:id="@+id/cardStorage"
+                android:layout_width="0dp"
+                android:layout_height="170dp"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_glass_card"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:padding="@dimen/spacing_md">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_storage"
+                            app:tint="@color/accent_blue" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:fontFamily="@font/geist_bold"
+                            android:text="Storage"
+                            android:textColor="@color/launcher_text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvStoragePercent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:fontFamily="@font/geist_bold"
+                        android:textColor="@color/white"
+                        android:textSize="22sp"
+                        tools:text="68% Used" />
+
+                    <ProgressBar
+                        android:id="@+id/progressStorage"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="6dp"
+                        android:layout_marginTop="8dp"
+                        android:max="100"
+                        android:progress="68"
+                        android:progressDrawable="@drawable/bg_blue_rounded" />
+
+                    <TextView
+                        android:id="@+id/tvStorageSpace"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textColor="@color/launcher_text_secondary"
+                        android:textSize="11sp"
+                        tools:text="64.2 GB / 128 GB" />
+
+                    <TextView
+                        android:id="@+id/tvStorageFree"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="@font/geist_bold"
+                        android:textColor="#34D399"
+                        android:textSize="10sp"
+                        tools:text="41.2 GB Free" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <LinearLayout
+                android:id="@+id/cardSettings"
+                android:layout_width="0dp"
+                android:layout_height="170dp"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_glass_card"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="@dimen/spacing_md">
+
+                <ImageView
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:contentDescription="@string/settings"
+                    android:src="@drawable/ic_launcher_settings_gear"
+                    app:tint="@color/launcher_text_primary" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_sm"
+                    android:fontFamily="@font/geist_bold"
+                    android:gravity="center"
+                    android:text="@string/dashboard_app_settings"
+                    android:textColor="@color/launcher_text_primary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"
+                    android:text="@string/dashboard_app_settings_subtitle"
+                    android:textColor="@color/launcher_text_secondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Row 2: Suggested apps | Recent apps -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_xl"
+            android:orientation="horizontal"
+            android:weightSum="2">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/TextAppearance.CallLauncher.SectionTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/suggested_for_now" />
+
+                <FrameLayout
+                    android:id="@+id/blurSuggested"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_sm">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_glass_card"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="8dp">
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/rvSuggested"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:nestedScrollingEnabled="false"
+                            android:overScrollMode="never"
+                            tools:itemCount="4"
+                            tools:listitem="@layout/item_app_icon_compact" />
+                    </FrameLayout>
+                </FrameLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/TextAppearance.CallLauncher.SectionTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/recent_apps" />
+
+                <FrameLayout
+                    android:id="@+id/blurRecent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_sm">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_glass_card"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="8dp">
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/rvRecentApps"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:nestedScrollingEnabled="false"
+                            android:overScrollMode="never"
+                            tools:itemCount="4"
+                            tools:listitem="@layout/item_app_icon_compact" />
+                    </FrameLayout>
+                </FrameLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Native Ad Card — always last on this panel -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/nativeAdCardView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_xl"
+            app:cardBackgroundColor="@android:color/transparent"
+            app:cardCornerRadius="@dimen/corner_md"
+            app:cardElevation="0dp">
+
+            <FrameLayout
+                android:id="@+id/nativeAdShimmerFrameLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <include layout="@layout/ads_native_big_shimmer" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/nativeAdFrameLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone" />
+        </androidx.cardview.widget.CardView>
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/_102sdp">
+
+    <com.facebook.shimmer.ShimmerFrameLayout
+        android:id="@+id/shimmer_view_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="visible">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center_vertical"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:background="@color/colorAdsShimmerBg">
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="5dp"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="5dp"
+                    android:gravity="center_vertical">
+
+                    <ImageView
+                        android:layout_width="@dimen/_45sdp"
+                        android:layout_height="@dimen/_45sdp"
+                        android:adjustViewBounds="true"
+                        android:background="@drawable/ads_background_shimmer_drawable"
+                        android:contentDescription="@string/app_name"
+                        android:visibility="visible" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="5dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center_vertical"
+                                android:contentDescription="@string/app_name"
+                                android:src="@drawable/ads_badges_drawable"
+                                tools:ignore="TooDeepLayout" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="5dp"
+                                android:background="@drawable/ads_background_shimmer_drawable"
+                                android:layoutDirection="locale"
+                                android:maxLines="1"
+                                android:textColor="@color/colorTextBlack"
+                                android:textDirection="locale"
+                                android:textSize="16sp"
+                            android:fontFamily="@font/geist_bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="25dp"
+                            android:layout_marginTop="5dp"
+                            android:background="@drawable/ads_background_shimmer_drawable"
+                            android:fontFamily="@font/geist_medium"
+                            android:layoutDirection="locale"
+                            android:maxLines="2"
+                            android:textColor="#656363"
+                            android:textDirection="locale"
+                            android:textSize="13sp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:id="@+id/ad_advertiser"
+                                android:layout_width="wrap_content"
+                                android:layout_height="match_parent"
+                                android:gravity="bottom"
+                                android:layoutDirection="locale"
+                                android:textDirection="locale"
+                                android:textSize="12sp"
+                            android:fontFamily="@font/geist_bold" />
+
+                            <RatingBar
+                                android:id="@+id/ad_stars"
+                                style="?android:attr/ratingBarStyleSmall"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:isIndicator="true"
+                                android:numStars="5"
+                                android:stepSize="0.5" />
+
+                            <TextView
+                                android:id="@+id/ad_price"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="@font/geist_regular"
+                                android:layoutDirection="locale"
+                                android:padding="2dp"
+                                android:textColor="@color/colorAdsGreyColor"
+                                android:textDirection="locale"
+                                android:textSize="@dimen/_9ssp" />
+
+                            <TextView
+                                android:id="@+id/ad_store"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="@font/geist_regular"
+                                android:layoutDirection="locale"
+                                android:padding="2dp"
+                                android:textColor="@color/colorAdsGreyColor"
+                                android:textDirection="locale"
+                                android:textSize="@dimen/_9ssp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </RelativeLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="45dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginHorizontal="10dp"
+                android:layout_marginTop="7dp"
+                android:background="@drawable/round_corner_20"
+                android:backgroundTint="@color/colorAdsShimmerLoading"
+                android:gravity="center"
+                android:layoutDirection="locale"
+                android:maxLines="1"
+                android:padding="2dp"
+                android:textColor="#ffffff"
+                android:textDirection="locale"
+                android:textSize="20sp"
+            android:fontFamily="@font/geist_bold" />
+        </LinearLayout>
+    </com.facebook.shimmer.ShimmerFrameLayout>
+</FrameLayout>

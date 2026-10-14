@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="@dimen/_280sdp"
+    android:layout_height="wrap_content"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_gravity="center"
+    app:cardCornerRadius="@dimen/_20sdp"
+    app:cardElevation="@dimen/_8sdp"
+    app:cardBackgroundColor="@color/colorDialogBg">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:layout_marginTop="@dimen/_20sdp"
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/geist_bold"
+            tools:text="@string/unblock"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/_16ssp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/tvMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/_12sdp"
+            android:fontFamily="@font/geist_regular"
+            android:gravity="center"
+            tools:text="@string/are_you_sure_you_want_to_unblock"
+            android:textColor="@color/colorTextGrey"
+            android:textSize="@dimen/_12ssp"
+            android:layout_marginHorizontal="@dimen/_20sdp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
+
+        <View
+            android:id="@+id/divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="@dimen/_20sdp"
+            android:background="@color/colorLineGrey"
+            app:layout_constraintTop_toBottomOf="@id/tvMessage" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:weightSum="2"
+            app:layout_constraintTop_toBottomOf="@id/divider">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnCancel"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/_45sdp"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:fontFamily="@font/geist_semibold"
+                android:text="@string/cancel"
+                android:textAllCaps="false"
+                android:textColor="@color/colorTextGrey"
+                android:textSize="@dimen/_13ssp" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="@color/colorLineGrey" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnPositive"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/_45sdp"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:fontFamily="@font/geist_semibold"
+                android:text="@string/delete"
+                android:textAllCaps="false"
+                android:textColor="@color/red"
+                android:textSize="@dimen/_13ssp" />
+
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</com.google.android.material.card.MaterialCardView>

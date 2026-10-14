@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <com.facebook.shimmer.ShimmerFrameLayout
+        android:id="@+id/bannerAdShimmerFrameLayout"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/_50sdp">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/colorAdsShimmerBg"
+            android:gravity="center">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingHorizontal="@dimen/_5sdp"
+                android:paddingLeft="@dimen/_5sdp"
+                android:paddingRight="@dimen/_5sdp">
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="@dimen/_40sdp"
+                    android:layout_height="@dimen/_40sdp"
+                    android:layout_gravity="center"
+                    app:cardBackgroundColor="@color/colorAdsShimmerLoading"
+                    app:cardCornerRadius="0dp"
+                    app:cardElevation="0dp" />
+
+                <RelativeLayout
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/_40sdp"
+                    android:layout_marginStart="@dimen/_5sdp"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical">
+
+                            <androidx.cardview.widget.CardView
+                                android:layout_width="wrap_content"
+                                android:layout_height="@dimen/_14sdp"
+                                android:gravity="center"
+                                app:cardBackgroundColor="@color/colorAdsShimmerLoading"
+                                app:cardCornerRadius="0dp"
+                                app:cardElevation="0dp">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:gravity="center"
+                                    android:paddingHorizontal="@dimen/_3sdp"
+                                    android:paddingLeft="@dimen/_3sdp"
+                                    android:paddingRight="@dimen/_3sdp"
+                                    android:text="@string/extracted_ad"
+                                    android:textColor="@color/colorTextBlack"
+                                    android:textSize="@dimen/_10ssp"
+                                android:fontFamily="@font/geist_bold" />
+                            </androidx.cardview.widget.CardView>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="@dimen/_3sdp"
+                                android:background="@color/colorAdsShimmerLoading"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:singleLine="true"
+                                android:textColor="@color/colorTextBlack"
+                                android:textSize="@dimen/_10ssp"
+                            android:fontFamily="@font/geist_bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginVertical="@dimen/_2sdp"
+                            android:layout_marginTop="@dimen/_2sdp"
+                            android:layout_marginBottom="@dimen/_2sdp"
+                            android:background="@color/colorAdsShimmerLoading"
+                            android:ellipsize="end"
+                            android:maxLines="2"
+                            android:textColor="@color/colorTextBlack"
+                            android:textSize="@dimen/_8ssp" />
+
+                        <RatingBar
+                            android:id="@+id/native_stars"
+                            style="?android:attr/ratingBarStyleSmall"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/_minus2sdp"
+                            android:isIndicator="true"
+                            android:numStars="5"
+                            android:progressTint="@color/colorAdsShimmerLoading"
+                            android:stepSize="0.5"
+                            android:visibility="visible" />
+                    </LinearLayout>
+                </RelativeLayout>
+            </LinearLayout>
+        </RelativeLayout>
+    </com.facebook.shimmer.ShimmerFrameLayout>
+
+    <FrameLayout
+        android:id="@+id/bannerAdFrameLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
+</LinearLayout>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Exact brand logo from the Figma "Splash" frame (node 92:2572): a white
+  speech-bubble blob with three #0057CC dots. Path/coords are the design's SVG
+  verbatim (viewBox 87.3107 x 80). Recolor via tint for on-light surfaces.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="87.31dp"
+    android:height="80dp"
+    android:viewportWidth="87.3107"
+    android:viewportHeight="80">
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M59.2522,59.003H41.2934V77.4598C41.2934,79.7012 38.5849,80.8246 37.0052,79.2345L8.39347,50.435C5.09751,46.633 -1.14445,36.7531 0.255422,27.6489C2.34898,10.3398 13.3009,1.12704 28.1389,0H59.2133C80.6325,0.750467 89.8181,22.7712 86.6455,34.4159C83.8903,49.4775 71.4508,59.003 59.2522,59.003Z" />
+
+    <path
+        android:fillColor="#FF0057CC"
+        android:pathData="M18.94754,29.0497a5.96396,5.96396 0 1,0 11.92792,0a5.96396,5.96396 0 1,0 -11.92792,0Z" />
+    <path
+        android:fillColor="#FF0057CC"
+        android:pathData="M37.69134,29.0496a5.96396,5.96396 0 1,0 11.92792,0a5.96396,5.96396 0 1,0 -11.92792,0Z" />
+    <path
+        android:fillColor="#FF0057CC"
+        android:pathData="M56.43524,29.0496a5.96396,5.96396 0 1,0 11.92792,0a5.96396,5.96396 0 1,0 -11.92792,0Z" />
+</vector>

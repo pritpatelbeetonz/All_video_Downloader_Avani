@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootLauncher"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent"
+    android:clipChildren="false"
+    android:fitsSystemWindows="false"
+    android:hardwareAccelerated="true">
+
+    <!-- Holds a copy of the system wallpaper for drawer blur; transparent when
+         WallpaperManager cannot read so FLAG_SHOW_WALLPAPER shows through.
+         The FrameLayout exists only so BlurView (which requires a ViewGroup root)
+         can capture the wallpaper alone. Capturing the whole launcher root instead
+         redraws the Compose pages into a software canvas every frame, which both
+         costs a fortune and crashes on Compose's stretch overscroll. -->
+    <FrameLayout
+        android:id="@+id/wallpaperLayer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@android:color/transparent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:id="@+id/ivWallpaper"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            android:background="@android:color/transparent"
+            tools:src="@drawable/bg_launcher_wallpaper" />
+    </FrameLayout>
+
+    <!-- Home layer: fades + scales while drawer opens -->
+    <app.messages.ui.common.SwipeUpInterceptLayout
+        android:id="@+id/swipeUpIntercept"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/viewPager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:overScrollMode="never" />
+    </app.messages.ui.common.SwipeUpInterceptLayout>
+
+    <FrameLayout
+        android:id="@+id/edgeTab"
+        android:visibility="gone"
+        android:layout_width="70dp"
+        android:layout_height="58dp"
+        android:background="@drawable/bg_edge_tab"
+        android:clickable="true"
+        android:elevation="10dp"
+        android:focusable="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.40">
+
+        <ImageView
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:padding="@dimen/_6sdp"
+            android:layout_marginEnd="@dimen/_4sdp"
+            android:layout_gravity="end|center_vertical"
+            android:background="@drawable/bg_circle_green"
+            android:backgroundTint="#0082FF"
+            android:contentDescription="Scan"
+            android:src="@drawable/ic_foreground_message"
+
+           />
+    </FrameLayout>
+
+    <!-- Page indicator — above the home dock (margin = dock height + dock bottom + gap) -->
+    <eightbitlab.com.blurview.BlurView
+        android:id="@+id/glassPageIndicatorBlur"
+        android:visibility="gone"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/page_indicator_height"
+        android:layout_marginBottom="@dimen/home_search_margin_above_dock"
+        android:background="@drawable/bg_page_indicator"
+        android:clipToOutline="true"
+        android:outlineProvider="background"
+        android:clickable="false"
+        android:elevation="2dp"
+        android:focusable="false"
+        app:blurOverlayColor="@color/glass_dark"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <LinearLayout
+            android:id="@+id/pageIndicatorBlur"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/page_indicator_height"
+            android:layout_marginBottom="100dp"
+            android:background="@drawable/bg_page_indicator"
+            android:elevation="10dp"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp">
+
+            <ImageView
+                android:id="@+id/btnPagePhone"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:contentDescription="Video Downloader"
+                android:padding="8dp"
+                android:src="@drawable/ic_package_download"
+                app:tint="@color/launcher_text_secondary"
+                />
+
+            <ImageView
+                android:id="@+id/btnPageHome"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/home"
+                android:padding="8dp"
+                android:src="@drawable/ic_home_dash"
+                app:tint="@color/white" />
+
+            <ImageView
+                android:id="@+id/btnPageApps"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="8dp"
+                android:src="@drawable/ic_apps_grid"
+                app:tint="@color/launcher_text_secondary" />
+        </LinearLayout>
+    </eightbitlab.com.blurview.BlurView>
+
+    <!-- Drawer overlay -->
+    <FrameLayout
+        android:id="@+id/drawerContainer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:clickable="true"
+        android:elevation="24dp"
+        android:focusable="true"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <!-- Dim / pre-12 blur fallback -->
+        <View
+            android:id="@+id/drawerScrim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0"
+            android:background="#FF000000" />
+
+        <app.messages.ui.common.SwipeDownDismissLayout
+            android:id="@+id/drawerDismiss"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_drawer_panel"
+            android:clickable="true"
+            android:focusable="true"
+            android:hardwareAccelerated="true">
+
+            <androidx.fragment.app.FragmentContainerView
+                android:id="@+id/drawerHost"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </app.messages.ui.common.SwipeDownDismissLayout>
+    </FrameLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

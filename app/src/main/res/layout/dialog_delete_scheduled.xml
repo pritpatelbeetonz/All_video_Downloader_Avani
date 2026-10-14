@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="@dimen/_280sdp"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    app:cardCornerRadius="@dimen/_16sdp"
+    app:cardElevation="@dimen/_8sdp"
+    app:cardBackgroundColor="@color/colorDialogBg">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="@dimen/_20sdp"
+        android:paddingTop="@dimen/_24sdp"
+        android:paddingBottom="@dimen/_16sdp">
+
+        <!-- Title: "Delete" -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/geist_bold"
+            android:text="@string/delete"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/_18ssp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!-- Subtitle message -->
+        <TextView
+            android:id="@+id/tvMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/_10sdp"
+            android:fontFamily="@font/geist_regular"
+            android:text="@string/are_you_sure_you_want_to_delete"
+            android:textColor="@color/colorTextGrey"
+            android:textSize="@dimen/_13ssp"
+            android:lineSpacingExtra="2dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
+
+        <!-- Buttons Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/_24sdp"
+            android:gravity="end"
+            android:orientation="horizontal"
+            app:layout_constraintTop_toBottomOf="@id/tvMessage">
+
+            <!-- CANCEL button -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnCancel"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/_40sdp"
+                android:background="@android:color/transparent"
+                android:fontFamily="@font/geist_semibold"
+                android:paddingHorizontal="@dimen/_16sdp"
+                android:text="@string/cancel"
+                android:textAllCaps="true"
+                android:textColor="@color/colorTextGrey"
+                android:textSize="@dimen/_12ssp"
+                android:letterSpacing="0.06" />
+
+            <!-- DELETE button (light red bg, red text) -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnDelete"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/_40sdp"
+                android:layout_marginStart="@dimen/_8sdp"
+                android:background="@drawable/bg_button_delete_red"
+                android:fontFamily="@font/geist_semibold"
+                android:paddingHorizontal="@dimen/_16sdp"
+                android:text="@string/delete"
+                android:textAllCaps="true"
+                android:textColor="@color/red_delete"
+                android:textSize="@dimen/_12ssp"
+                android:letterSpacing="0.06" />
+
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</com.google.android.material.card.MaterialCardView>

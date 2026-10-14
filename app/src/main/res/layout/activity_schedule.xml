@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_surface">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bg_surface"
+        app:elevation="0dp">
+
+        <include
+            android:id="@+id/incToolbar"
+            layout="@layout/inc_toolbar_common" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:background="@color/bg_main"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <View
+            android:visibility="gone"
+            android:id="@+id/toolbarDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E5E5E5"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!-- Header -->
+        <LinearLayout
+            android:id="@+id/llHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@color/schedule"
+            android:paddingHorizontal="@dimen/_15sdp"
+            android:paddingVertical="@dimen/_15sdp"
+            app:layout_constraintTop_toBottomOf="@id/toolbarDivider">
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/extracted_automatically_send_later"
+                android:textColor="@color/blue_primary"
+                android:textSize="@dimen/_14ssp"
+                android:fontFamily="@font/geist_semibold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/_8sdp"
+                android:text="@string/extracted_schedule_text_messages_to_send"
+                android:textColor="#666666"
+                android:textSize="@dimen/_12ssp"
+                android:fontFamily="@font/geist_regular"
+                android:lineSpacingExtra="2dp" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvScheduled"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:clipToPadding="false"
+            android:paddingBottom="@dimen/_80sdp"
+            android:visibility="gone"
+            app:layout_constraintTop_toBottomOf="@id/llHeader"
+            app:layout_constraintBottom_toBottomOf="parent"
+            tools:listitem="@layout/item_scheduled_message" />
+
+        <LinearLayout
+            android:id="@+id/emptyView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="@dimen/_24sdp"
+            android:visibility="visible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <ImageView
+                android:id="@+id/imgEmpty"
+                android:layout_width="@dimen/_200sdp"
+                android:layout_height="@dimen/_200sdp"
+                android:src="@drawable/ic_no_conversation"
+                android:visibility="visible" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/_minus10sdp"
+                android:fontFamily="@font/geist_semibold"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp"
+                android:text="@string/no_schedule_yet"
+                android:textColor="@color/colorTextBlack"
+                android:textSize="@dimen/_18ssp" />
+
+            <TextView
+                android:id="@+id/tvEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/_5sdp"
+                android:fontFamily="@font/geist_medium"
+                android:gravity="center"
+                android:layout_marginBottom="@dimen/_60sdp"
+                android:lineSpacingExtra="4dp"
+                android:text="@string/focus_on_other_important_tasks_without_worrying_about_sending_messages_manually"
+                android:textColor="@color/colorTextGrey"
+                android:textSize="@dimen/_14ssp" />
+
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabAdd"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="@dimen/_16sdp"
+        android:src="@drawable/ic_add"
+        app:backgroundTint="@color/blue_primary"
+        app:fabSize="normal"
+        app:tint="@color/colorWhiteCommon" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+

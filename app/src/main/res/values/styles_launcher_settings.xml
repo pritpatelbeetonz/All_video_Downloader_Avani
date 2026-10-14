@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Row styles for the launcher's own settings screens. Kept in one place so
+    every row lines up: same height, same 42dp icon puck, same text ramp.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="LauncherSettingsSectionLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">6dp</item>
+        <item name="android:layout_marginTop">18dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:textColor">@color/ls_section_label</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+    </style>
+
+    <style name="LauncherSettingsRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginBottom">10dp</item>
+        <item name="android:minHeight">72dp</item>
+        <item name="android:background">@drawable/bg_settings_card</item>
+        <item name="android:foreground">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingHorizontal">14dp</item>
+        <item name="android:paddingVertical">12dp</item>
+    </style>
+
+    <style name="LauncherSettingsRowIcon">
+        <item name="android:layout_width">42dp</item>
+        <item name="android:layout_height">42dp</item>
+        <item name="android:background">@drawable/bg_blue_circle</item>
+    </style>
+
+    <style name="LauncherSettingsRowGlyph">
+        <item name="android:layout_width">22dp</item>
+        <item name="android:layout_height">22dp</item>
+        <item name="android:layout_gravity">center</item>
+        <!-- Fixed white: the puck behind it is always a saturated accent. -->
+        <item name="android:tint">#FFFFFF</item>
+    </style>
+
+    <style name="LauncherSettingsRowText">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">14dp</item>
+        <item name="android:layout_marginEnd">10dp</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <style name="LauncherSettingsRowTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <style name="LauncherSettingsRowSubtitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">3dp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <style name="LauncherSettingsRowChevron">
+        <item name="android:layout_width">18dp</item>
+        <item name="android:layout_height">18dp</item>
+        <item name="android:src">@drawable/ic_arrow_right</item>
+        <item name="android:tint">@color/icon_tint_tertiary</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+
+</resources>

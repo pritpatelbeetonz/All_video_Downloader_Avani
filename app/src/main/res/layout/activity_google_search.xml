@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootGoogleSearch"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/drawer_panel_bg"
+    android:clickable="true"
+    android:descendantFocusability="beforeDescendants"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:id="@+id/searchBar"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="@dimen/spacing_lg"
+        android:layout_marginTop="@dimen/spacing_sm"
+        android:background="@drawable/bg_google_search_field"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="@dimen/spacing_md"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_search"
+            app:tint="@color/google_search_icon_blue" />
+
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="@dimen/spacing_sm"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:hint="@string/google_search_hint"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textColorHint="@color/white"
+            android:textSize="16sp" />
+
+        <ImageView
+            android:id="@+id/btnClearQuery"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@string/clear_search"
+            android:src="@drawable/ic_clear_circle"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <ImageView
+            android:id="@+id/btnVoice"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@string/open_voice_search"
+            android:src="@drawable/ic_mic" />
+    </LinearLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollContent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@color/drawer_panel_bg"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:overScrollMode="never"
+        android:paddingBottom="@dimen/spacing_xxl"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/searchBar">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="@dimen/spacing_md">
+
+            <!-- Recent searches -->
+            <LinearLayout
+                android:id="@+id/cardRecent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="@dimen/spacing_lg"
+                android:background="@drawable/bg_google_search_card"
+                android:orientation="vertical"
+                android:paddingHorizontal="@dimen/spacing_lg"
+                android:paddingTop="@dimen/spacing_md"
+                android:paddingBottom="@dimen/spacing_sm"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingBottom="@dimen/spacing_sm">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/recent_searches"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                    android:fontFamily="@font/geist_bold" />
+
+                    <TextView
+                        android:id="@+id/btnClearRecent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:padding="@dimen/spacing_xs"
+                        android:text="@string/clear_all"
+                        android:textColor="@color/google_search_clear_all"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/recentList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
+            <!-- Search suggestions -->
+            <LinearLayout
+                android:id="@+id/cardSuggestions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="@dimen/spacing_lg"
+                android:background="@drawable/bg_google_search_card"
+                android:orientation="vertical"
+                android:paddingHorizontal="@dimen/spacing_lg"
+                android:paddingTop="@dimen/spacing_md"
+                android:paddingBottom="@dimen/spacing_sm"
+                android:visibility="gone"
+                tools:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="@dimen/spacing_sm"
+                    android:text="@string/search_suggestions"
+                    android:textColor="@color/white"
+                    android:textSize="15sp"
+                android:fontFamily="@font/geist_bold" />
+
+                <LinearLayout
+                    android:id="@+id/suggestionsList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvFeed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_md"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="false"
+                android:overScrollMode="never"
+                tools:itemCount="4"
+                tools:listitem="@layout/item_blog_post" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

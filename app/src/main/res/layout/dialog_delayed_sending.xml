@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/round_corner_20"
+    android:orientation="vertical"
+    android:backgroundTint="@color/colorDialogBg"
+    android:padding="20dp">
+
+    <RadioGroup
+        android:id="@+id/radioGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <RadioButton
+            android:id="@+id/rbNoDelay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start|center_vertical"
+            android:layoutDirection="rtl"
+            android:text="@string/no_delay"
+            android:textColor="@color/colorTextBlack"
+            android:buttonTint="@color/radio_button_tint"
+            android:paddingVertical="@dimen/_10sdp"
+            android:fontFamily="@font/geist_regular"
+            android:textSize="@dimen/_12ssp" />
+
+        <RadioButton
+            android:id="@+id/rb3Second"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start|center_vertical"
+            android:layoutDirection="rtl"
+            android:fontFamily="@font/geist_regular"
+            android:text="@string/_3_seconds"
+            android:textColor="@color/colorTextBlack"
+            android:buttonTint="@color/radio_button_tint"
+            android:paddingVertical="@dimen/_10sdp"
+            android:textSize="@dimen/_12ssp" />
+
+        <RadioButton
+            android:id="@+id/rb5Second"
+            android:fontFamily="@font/geist_regular"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start|center_vertical"
+            android:layoutDirection="rtl"
+            android:text="@string/_5_seconds"
+            android:textColor="@color/colorTextBlack"
+            android:buttonTint="@color/radio_button_tint"
+            android:paddingVertical="@dimen/_10sdp"
+            android:textSize="@dimen/_12ssp" />
+
+        <RadioButton
+            android:id="@+id/rb10Second"
+            android:fontFamily="@font/geist_regular"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start|center_vertical"
+            android:layoutDirection="rtl"
+            android:text="@string/_10_seconds"
+            android:textColor="@color/colorTextBlack"
+            android:buttonTint="@color/radio_button_tint"
+            android:paddingVertical="@dimen/_10sdp"
+            android:textSize="@dimen/_12ssp" />
+
+
+    </RadioGroup>
+
+</LinearLayout>

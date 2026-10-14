@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/round_corner_20"
+    android:orientation="vertical"
+    android:backgroundTint="@color/colorDialogBg"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/extracted_delete_old_messages_automatica"
+        android:textColor="@color/colorTextBlack"
+        android:fontFamily="@font/geist_bold"
+        android:textSize="@dimen/_14ssp"
+        android:layout_marginBottom="@dimen/_10sdp" />
+
+    <RadioGroup
+        android:id="@+id/radioGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <RadioButton
+            android:id="@+id/rbNever"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start|center_vertical"
+            android:layoutDirection="rtl"
+            android:text="@string/extracted_never"
+            android:textColor="@color/colorTextBlack"
+            android:buttonTint="@color/radio_button_tint"
+            android:paddingVertical="@dimen/_10sdp"
+            android:fontFamily="@font/geist_regular"
+            android:textSize="@dimen/_12ssp" />
+
+        <RadioButton
+            android:id="@+id/rb7Days"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start|center_vertical"
+            android:layoutDirection="rtl"
+            android:fontFamily="@font/geist_regular"
+            android:text="@string/extracted_after_7_days"
+            android:textColor="@color/colorTextBlack"
+            android:buttonTint="@color/radio_button_tint"
+            android:paddingVertical="@dimen/_10sdp"
+            android:textSize="@dimen/_12ssp" />
+
+        <RadioButton
+            android:id="@+id/rb30Days"
+            android:fontFamily="@font/geist_regular"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start|center_vertical"
+            android:layoutDirection="rtl"
+            android:text="@string/extracted_after_30_days"
+            android:textColor="@color/colorTextBlack"
+            android:buttonTint="@color/radio_button_tint"
+            android:paddingVertical="@dimen/_10sdp"
+            android:textSize="@dimen/_12ssp" />
+
+        <RadioButton
+            android:id="@+id/rb90Days"
+            android:fontFamily="@font/geist_regular"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start|center_vertical"
+            android:layoutDirection="rtl"
+            android:text="@string/extracted_after_90_days"
+            android:textColor="@color/colorTextBlack"
+            android:buttonTint="@color/radio_button_tint"
+            android:paddingVertical="@dimen/_10sdp"
+            android:textSize="@dimen/_12ssp" />
+
+        <RadioButton
+            android:id="@+id/rb1Year"
+            android:fontFamily="@font/geist_regular"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start|center_vertical"
+            android:layoutDirection="rtl"
+            android:text="@string/extracted_after_1_year"
+            android:textColor="@color/colorTextBlack"
+            android:buttonTint="@color/radio_button_tint"
+            android:paddingVertical="@dimen/_10sdp"
+            android:textSize="@dimen/_12ssp" />
+
+    </RadioGroup>
+
+    <TextView
+        android:id="@+id/btnCancel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_marginTop="@dimen/_15sdp"
+        android:layout_marginEnd="@dimen/_5sdp"
+        android:fontFamily="@font/geist_bold"
+        android:text="@string/extracted_cancel"
+        android:textColor="@color/blue_primary"
+        android:textSize="@dimen/_12ssp"
+        android:padding="@dimen/_5sdp"
+        android:background="?attr/selectableItemBackground" />
+
+</LinearLayout>
+

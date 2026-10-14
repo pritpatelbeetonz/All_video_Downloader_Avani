@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#2563EB</color>
+    <color name="colorVideoDownloaderOrange">#FE7338</color>
+
+    <!-- Set-default-SMS phone mock-up -->
+    <color name="sms_mock_surface">#FFFFFF</color>
+    <color name="sms_mock_muted">#E8ECF3</color>
+    <color name="sms_mock_stroke">#DDE3EC</color>
+
+    <color name="colorWhiteCommon">#FFFFFF</color>
+    <color name="colorBlackCommon">#000000</color>
+
+    <color name="white">#F8FAFC</color>
+    <color name="black">#000000</color>
+    <color name="red">#F44649</color>
+    <color name="green">#59D517</color>
+    <color name="google_search_divider">#33FFFFFF</color>
+    <color name="google_search_image_placeholder">#FF3A3A3C</color>
+    <color name="colorTextWhite">#FFFFFF</color>
+    <color name="colorTextBlack">#000000</color>
+    <color name="colorTextRed">#E30000</color>
+    <color name="colorTextHint">#727272</color>
+    <color name="colorTextGrey">#727272</color>
+    <color name="colorTextGreyDark">#474747</color>
+    <color name="google_search_clear_all">#FF8AB4F8</color>
+    <color name="google_search_bar_bg">#FF2A2A2A</color>
+    <color name="google_search_icon_blue">#FF4285F4</color>
+    <color name="colorBackground">#FAFAFA</color>
+    <color name="colorBgPremium">#181D30</color>
+<!--    <color name="colorChildBackground">#F0F0F0</color>-->
+    <color name="colorChildBackground">#F0F0F0</color>
+    <color name="colorChildBackgroundDark">#33727272</color>
+    <color name="colorSelectionBg">#E3EDFE</color>
+    <color name="colorDialogBg">#FFFFFF</color>
+    <color name="colorChatMessageBackgroundGrey">#F2F2F2</color>
+
+    <color name="colorLineGrey">#1A000000</color>
+    <color name="colorBorderGrey">#F2F2F2</color>
+
+    <color name="colorBlockBackStroke">#E2E8F0</color>
+    <color name="colorBlockBackSolid">#FFFFFF</color>
+
+    <color name="colorEditextForSearch">#E2E8F0</color>
+    <color name="google_search_card_bg">#FF1C1C1E</color>
+
+    <color name="colorErrorRed">#F44649</color>
+    <color name="colorInactiveIndicator">#A0AEC0</color>
+
+    <!--ads-->
+    <color name="colorAdsGreyColor">#7E7E7E</color>
+    <color name="colorAdsShimmerLoading">#CFCFCF</color>
+    <color name="colorAdsShimmerBg">#E7E7E7</color>
+    <color name="colorNativeAdsTitle">#212121</color>
+
+    <!-- SIM Colors -->
+    <color name="sim1_color">#1C4EF4</color>  <!-- Blue for SIM 1 -->
+    <color name="sim2_color">#4CAF50</color>  <!-- Green for SIM 2 -->
+    <color name="sim3_color">#FF9800</color>  <!-- Orange for SIM 3 -->
+    <color name="sim_default_color">#9E9E9E</color>  <!-- Gray for unknown SIM -->
+
+
+    <color name="app_context_popup_bg">#FFF2F2F2</color>
+    <color name="accent_blue">#FF1E88FF</color>
+    <color name="insights_start">#FF1A56DB</color>
+    <color name="insights_end">#FF7C3AED</color>
+
+    <color name="schedule">#EFF6FF</color>
+    <!-- App Theme Semantic Colors -->
+    <color name="bg_main">#F8FAFC</color>
+    <color name="bg_surface">#FFFFFF</color>
+    <color name="text_primary">#1B1E28</color>
+    <color name="text_secondary">#A0A0A0</color>
+    <color name="search">#A0A0A0</color>
+    <color name="blue_primary">#2763F7</color>
+    <color name="bg_selected">#F2F6FF</color>
+    <color name="divider_line">#EAEAEA</color>
+    <color name="red_delete">#FF3B30</color>
+    <color name="icon_tint_primary">#1B1E28</color>
+    <color name="icon_tint_secondary">#4A4A4A</color>
+    <color name="icon_tint_tertiary">#A0A0A0</color>
+
+    <!-- Launcher settings surfaces (see activity_launcher_main_settings) -->
+    <color name="ls_card_bg">#FFFFFF</color>
+    <color name="ls_card_stroke">#E6EAF2</color>
+    <color name="ls_section_label">#8A93A6</color>
+    <color name="ls_accent_home">#2763F7</color>
+    <color name="ls_accent_drawer">#7C4DFF</color>
+    <color name="ls_accent_search">#0EA5E9</color>
+    <color name="ls_accent_gestures">#F59E0B</color>
+    <color name="ls_accent_navbar">#10B981</color>
+    <color name="ls_accent_package">#EF4444</color>
+</resources>

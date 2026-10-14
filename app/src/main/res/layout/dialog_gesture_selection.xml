@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_settings_card"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:id="@+id/tvDialogTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:fontFamily="@font/geist_bold"
+        android:text="Double Tap"
+        android:textColor="@color/text_primary"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <RadioGroup
+        android:id="@+id/rgOptions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <RadioButton
+            android:id="@+id/rbDoNothing"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:buttonTint="@color/colorPrimary"
+            android:ellipsize="end"
+            android:fontFamily="@font/geist_medium"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:paddingStart="12dp"
+            android:paddingEnd="0dp"
+            android:text="Do Nothing"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp" />
+
+        <RadioButton
+            android:id="@+id/rbOpenAppDrawer"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:buttonTint="@color/colorPrimary"
+            android:ellipsize="end"
+            android:fontFamily="@font/geist_medium"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:paddingStart="12dp"
+            android:paddingEnd="0dp"
+            android:text="Open app drawer"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <RadioButton
+            android:id="@+id/rbOpenLauncherSetting"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:buttonTint="@color/colorPrimary"
+            android:ellipsize="end"
+            android:fontFamily="@font/geist_medium"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:paddingStart="12dp"
+            android:paddingEnd="0dp"
+            android:text="Open launcher setting"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <RadioButton
+            android:id="@+id/rbOpenHomeScreenPopup"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:buttonTint="@color/colorPrimary"
+            android:ellipsize="end"
+            android:fontFamily="@font/geist_medium"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:paddingStart="12dp"
+            android:paddingEnd="0dp"
+            android:text="Open home screen pop-up"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <RadioButton
+            android:id="@+id/rbOpenGlobalSearch"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:buttonTint="@color/colorPrimary"
+            android:ellipsize="end"
+            android:fontFamily="@font/geist_medium"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:paddingStart="12dp"
+            android:paddingEnd="0dp"
+            android:text="Open global search"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+    </RadioGroup>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:orientation="horizontal">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnCancel"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_dialog_btn_cancel"
+            android:fontFamily="@font/geist_bold"
+            android:text="Cancel"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnSelect"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_dialog_btn_select"
+            android:fontFamily="@font/geist_bold"
+            android:text="Select"
+            android:textAllCaps="false"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>

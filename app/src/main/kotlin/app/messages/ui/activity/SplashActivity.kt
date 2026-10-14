@@ -1,0 +1,305 @@
+package app.messages.ui.activity
+
+import android.app.Activity
+import android.app.role.RoleManager
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.Telephony
+import android.util.Log
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.initialization.InitializationStatus
+import com.google.android.gms.tasks.Task
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
+import com.google.gson.Gson
+import app.messages.BuildConfig
+import app.messages.Controller
+import app.messages.Controller.Companion.adsModel
+
+
+import app.messages.ads.model.AdsModel
+import app.messages.analytics.AnalyticsHelper.logAds
+import app.messages.constant.Constants
+import app.messages.databinding.ActivitySplashBinding
+import app.messages.preferences.PreferenceHelper
+import app.messages.ui.base.BaseActivity
+import android.graphics.Color
+import android.view.WindowManager
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.Boolean
+import kotlin.jvm.java
+
+class SplashActivity : BaseActivity() {
+    private lateinit var binding: ActivitySplashBinding
+
+    lateinit var remoteConfig: FirebaseRemoteConfig
+    private val atomicBoolean = AtomicBoolean(false)
+    private val isNextActivityStarted = AtomicBoolean(false)
+    var appOpenCount = 0
+
+    override fun shouldApplySystemBarInsets(): Boolean = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+        super.onCreate(savedInstanceState)
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+
+        findViewById<FrameLayout>(android.R.id.content)?.let {
+            it.setPadding(0, 0, 0, 0)
+            it.setBackgroundColor(Color.TRANSPARENT)
+        }
+
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+        binding = ActivitySplashBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        appOpenCount = PreferenceHelper.getInstance(this).getAppOpenCount()
+
+        val isPremium = PreferenceHelper.getInstance(this).isPremium()
+        
+        if (!isPremium && appOpenCount <= 1) {
+           showSplashBanner(
+                this@SplashActivity,
+                binding.bannerViewAdsFrameLayout.bannerAdFrameLayout,
+                binding.bannerViewAdsFrameLayout.bannerAdShimmerFrameLayout
+            )
+        } else {
+            binding.bannerViewAdsFrameLayout.bannerAdShimmerFrameLayout.visibility = View.GONE
+            binding.bannerViewAdsFrameLayout.bannerAdFrameLayout.visibility = View.GONE
+        }
+
+
+        incrementAppOpenCount(this)
+
+        if (isInternetAvailable(this@SplashActivity)) {
+            adsConfiguration()
+//            preloadAdsAndGoToNextActivity()
+        } else {
+            Handler(Looper.getMainLooper()).postDelayed({
+                nextActivity()
+            }, 0)
+        }
+
+        /*Handler(Looper.getMainLooper()).postDelayed({
+            nextActivity()
+        }, 300)*/
+    }
+
+    fun incrementAppOpenCount(context: Context) {
+        val prefs = PreferenceHelper.getInstance(context)
+        val count = prefs.getAppOpenCount()
+        prefs.setAppOpenCount(count + 1)
+
+    }
+
+    fun showSplashBanner(
+        activity: Activity,
+        frameLayout: FrameLayout,
+        shimmerFrameLayout: FrameLayout
+    ) {
+        if (PreferenceHelper.getInstance(activity).isPremium()) {
+            frameLayout.visibility = View.GONE
+            shimmerFrameLayout.visibility = View.GONE
+            return
+        }
+
+        loadAndShowBanner(
+            activity,
+            frameLayout,
+            shimmerFrameLayout,
+            Constants.AD_ID_SPLASH_BANNER
+        )
+        frameLayout.visibility = View.VISIBLE
+        shimmerFrameLayout.visibility = View.VISIBLE
+
+    }
+
+    private fun loadAndShowBanner(activity: Activity, frameLayout: FrameLayout, shimmerFrameLayout: FrameLayout, adUnitID: String) {
+        //Set flAd View Height to Same As Place Holder
+        val adView = AdView(activity)
+        adView.adUnitId = adUnitID
+        adView.setAdSize(getNormalAdSize(activity))
+        val adRequest = AdRequest.Builder().build()
+        logAds(activity, "banner_req")
+        adView.loadAd(adRequest)
+        adView.adListener = object : AdListener() {
+            override fun onAdLoaded() {
+                super.onAdLoaded()
+                logAds(activity, "banner_loaded")
+                frameLayout.visibility = View.VISIBLE
+                shimmerFrameLayout.visibility = View.GONE
+
+                if (adView.parent != null) {
+                    (adView.parent as ViewGroup).removeView(adView) // <- fix
+                }
+                frameLayout.removeAllViews()
+                logAds(activity, "banner_showed")
+                frameLayout.addView(adView)
+            }
+
+            override fun onAdClicked() {
+                super.onAdClicked()
+                logAds(activity, "banner_clicked")
+//                showBanner(activity, frameLayout, shimmerFrameLayout)
+            }
+
+            override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                super.onAdFailedToLoad(loadAdError)
+                frameLayout.visibility = View.GONE
+                shimmerFrameLayout.visibility = View.GONE
+                logAds(activity, "banner_failed_to_load_" + loadAdError.code)
+            }
+        }
+    }
+
+    private fun adsConfiguration() {
+        // 1. Immediately preload the Splash Ad with cached / default Remote Config
+        app.messages.config.AdsConfigManager.preloadSplashAd(this@SplashActivity)
+
+        // 2. Gather UMP Consent asynchronously in background (non-blocking)
+        val googleMobileAds = app.messages.ads.GoogleMobileAds.getInstance(applicationContext)
+        googleMobileAds.gatherConsent(this) { error ->
+            if (googleMobileAds.canRequestAds) {
+                app.messages.config.AdsConfigManager.preloadSplashAd(this@SplashActivity)
+            }
+        }
+
+        // 3. Fetch Remote Config and coordinate Splash duration
+        callRemoteConfigAndProceed()
+    }
+
+    private fun callRemoteConfigAndProceed() {
+        if (atomicBoolean.getAndSet(true)) {
+            return
+        }
+        val splashStartTime = System.currentTimeMillis()
+        val minSplashDurationMs = 1500L
+        val maxRemoteConfigWaitMs = 30000L
+
+        val isConfigDone = AtomicBoolean(false)
+
+        fun proceedToAd() {
+            if (isConfigDone.compareAndSet(false, true)) {
+                val elapsed = System.currentTimeMillis() - splashStartTime
+                val remainingDelay = (minSplashDurationMs - elapsed).coerceAtLeast(0L)
+
+                Handler(Looper.getMainLooper()).postDelayed({
+                    if (!isFinishing && !isDestroyed && !isNextActivityStarted.get()) {
+                        showSplashAdAndNext()
+                    }
+                }, remainingDelay)
+            }
+        }
+
+        // Safety fallback: if Remote Config takes more than 30 seconds, proceed with cached config
+        val handler = Handler(Looper.getMainLooper())
+        val timeoutRunnable = Runnable {
+            Log.w("SplashAd", "⏰ Remote config fetch timed out after ${maxRemoteConfigWaitMs}ms -> proceeding with cached config")
+            proceedToAd()
+        }
+        handler.postDelayed(timeoutRunnable, maxRemoteConfigWaitMs)
+
+        app.messages.config.AdsConfigManager.refresh { success ->
+            handler.removeCallbacks(timeoutRunnable)
+
+            // Sync with old AdsModel so any old code doesn't crash
+            var json = FirebaseRemoteConfig.getInstance().getString(app.messages.config.AdsConfigManager.KEY_ADS_CONFIG)
+            if (json.isEmpty()) {
+                json = FirebaseRemoteConfig.getInstance().getString("ads_config")
+            }
+            if (json.isNotEmpty()) {
+                try {
+                    val adModel = Gson().fromJson(json, AdsModel::class.java)
+                    Controller.adsModel = adModel
+                } catch (e: Exception) {
+                }
+            }
+
+            Controller.isRemoteConfigLoaded.postValue(true)
+
+            // Preload with any newly fetched ad unit ID or switch
+            app.messages.config.AdsConfigManager.preloadSplashAd(this@SplashActivity)
+
+            proceedToAd()
+        }
+    }
+
+    private fun showSplashAdAndNext() {
+        app.messages.config.AdsConfigManager.showSplashAd(
+            activity = this@SplashActivity,
+            timeoutMs = 30000L
+        ) {
+            nextActivity()
+        }
+    }
+
+    /**
+     * Robust check for default SMS app status.
+     * Uses RoleManager on Android Q+ (more reliable on OEM devices like Samsung/Xiaomi/MIUI).
+     * Falls back to Telephony.Sms.getDefaultSmsPackage() on older devices.
+     */
+    private fun isDefaultSmsApp(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(RoleManager::class.java)
+            roleManager?.isRoleHeld(RoleManager.ROLE_SMS) == true
+        } else {
+            Telephony.Sms.getDefaultSmsPackage(this) == packageName
+        }
+    }
+
+    private fun isDefaultLauncherApp(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(RoleManager::class.java)
+            roleManager?.isRoleHeld(RoleManager.ROLE_HOME) == true
+        } else {
+            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+            val resolveInfo = packageManager.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+            resolveInfo?.activityInfo?.packageName == packageName
+        }
+    }
+
+    private fun nextActivity() {
+        if (isNextActivityStarted.getAndSet(true)) return
+        if (isFinishing || isDestroyed) return
+        val prefs = PreferenceHelper.getInstance(this)
+
+        if (prefs.isFirstAppLaunch()) {
+            prefs.setFirstAppLaunch(false)
+        }
+
+        val intent = if (!prefs.isOnboardingDone()) {
+            Intent(this, OnboardingActivity::class.java)
+        } else {
+            Intent(this, app.messages.ui.launcher.LauncherActivity::class.java)
+        }
+
+        startActivity(intent)
+        finish()
+    }
+
+}

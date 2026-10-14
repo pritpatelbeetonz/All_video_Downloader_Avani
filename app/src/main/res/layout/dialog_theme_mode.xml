@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:backgroundTint="@color/colorDialogBg"
+    android:background="@drawable/round_corner_20">
+
+    <RadioGroup
+        android:id="@+id/radioGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+
+        <RadioButton
+            android:fontFamily="@font/geist_medium"
+            android:textColor="@color/colorTextBlack"
+            android:id="@+id/rbSystemDefault"
+            android:layoutDirection="rtl"
+            android:gravity="start|center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/system_default"
+            android:textSize="@dimen/_12ssp"/>
+        <RadioButton
+            android:fontFamily="@font/geist_medium"
+            android:textColor="@color/colorTextBlack"
+            android:id="@+id/rbLightTheme"
+            android:layoutDirection="rtl"
+            android:gravity="start|center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/light_theme"
+            android:textSize="@dimen/_12ssp"/>
+        <RadioButton
+            android:fontFamily="@font/geist_medium"
+            android:textColor="@color/colorTextBlack"
+            android:id="@+id/rbDarkTheme"
+            android:layoutDirection="rtl"
+            android:gravity="start|center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/dark_theme"
+            android:textSize="@dimen/_12ssp"/>
+
+    </RadioGroup>
+
+</LinearLayout>

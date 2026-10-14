@@ -1,0 +1,14 @@
+<defaults xmlns:android="http://schemas.android.com/apk/res/android">
+    <entry>
+        <key>video_downlader_launcher_v2</key>
+        <value>{}</value>
+    </entry>
+    <entry>
+        <key>videoDownloader_v1</key>
+        <value>{}</value>
+    </entry>
+    <entry>
+        <key>response</key>
+        <value>{}</value>
+    </entry>
+</defaults>

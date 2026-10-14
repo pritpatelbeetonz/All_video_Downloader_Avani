@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/_65sdp"
+    android:layout_marginTop="@dimen/_10sdp"
+    android:background="@drawable/round_corner_12"
+    android:backgroundTint="@color/colorChildBackground"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="@dimen/_10sdp">
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/ivPermission"
+        android:layout_width="@dimen/_30sdp"
+        android:layout_height="@dimen/_30sdp"
+        android:layout_gravity="center_vertical"
+        android:background="@drawable/round_corner_5"
+        android:scaleType="fitCenter"
+        android:padding="@dimen/_7sdp"
+        android:backgroundTint="@color/bg_surface"
+        android:tint="@color/icon_tint_primary"
+        android:src="@drawable/ic_call" />
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginStart="@dimen/_10sdp"
+        android:orientation="vertical">
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/tvPermissionName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/geist_semibold"
+            android:textColor="@color/colorTextBlack"
+            android:textSize="@dimen/_12ssp"
+            tools:text="city_name" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/tvPermissionDetails"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/geist_regular"
+            android:textColor="@color/colorTextGreyDark"
+            android:textSize="@dimen/_10ssp"
+            tools:text="dfsd" />
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+
+</androidx.appcompat.widget.LinearLayoutCompat>

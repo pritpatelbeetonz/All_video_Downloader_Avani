@@ -1,0 +1,468 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ============================================================
+         SMS handler permissions. These are restricted on Play unless
+         the app is a default SMS handler — every entry below is
+         justified by the four required components further down.
+         ============================================================ -->
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_MMS" />
+    <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Tenor GIF search (user-initiated network). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Voice-clip attachments (MMS audio). Camera capture is delegated to the
+         camera app, so no CAMERA permission is needed. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Scheduling (M5) — declared early to keep migrations simple. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Re-arm scheduled-send alarms after a reboot (alarms don't survive it). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Required when default handler responds via the quick-reply path. -->
+    <uses-permission android:name="android.permission.SEND_RESPOND_VIA_MESSAGE" />
+
+    <!-- Launcher permissions -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+
+    <!-- Video Downloader permissions -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"
+        tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
+
+    <queries>
+        <!--
+            The app drawer, home grid and dock are built from every app that has a
+            launcher activity. Without this entry, Android 11+ package visibility
+            filtering hides almost all of them from queryIntentActivities, and the
+            drawer shows only the handful of apps visible through the intents below.
+            MATCH_ALL does not cover this: it selects match flags, not visibility.
+        -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tel" />
+        </intent>
+    </queries>
+
+    <application
+        android:name=".MessagesApplication"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/Theme.Messages"
+        android:supportsRtl="true"
+        android:hardwareAccelerated="true"
+        android:localeConfig="@xml/locales_config"
+        android:usesCleartextTraffic="true"
+        android:requestLegacyExternalStorage="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules">
+
+        <!-- The Next Gen Mobile Ads SDK (com.google.android.libraries.ads.mobile.sdk)
+             takes the AdMob app id programmatically via InitializationConfig — see
+             AdUnits.APP_ID / AdSdkInitializer. The legacy APPLICATION_ID meta-data
+             and OPTIMIZE_* flags are not used by the Next Gen SDK. -->
+
+        <!-- Shares camera-captured photos + recorded audio clips with the camera
+             app and the MMS send path. Distinct authority from the klinker
+             library's own MmsFileProvider. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+
+            <!-- ROLE_SMS requires the default SMS app to handle sms:/smsto:/mms:/mmsto: -->
+            <intent-filter>
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- ============================================================
+             Default-SMS role required components (4 of 4).
+             Removing any of these de-qualifies the app from ROLE_SMS.
+             ============================================================ -->
+
+        <!-- (1) SMS_DELIVER receiver — delivered to default handler only. -->
+        <receiver
+            android:name=".data.telephony.SmsDeliverReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_DELIVER" />
+            </intent-filter>
+        </receiver>
+
+        <!-- (2) WAP_PUSH_DELIVER receiver — incoming MMS. The klinker PushReceiver
+             parses the M-Notification.ind, downloads the PDU via
+             SmsManager.downloadMultimediaMessage, persists it, then broadcasts
+             MMS_RECEIVED (handled by AppMmsReceivedReceiver below). -->
+        <receiver
+            android:name="com.android.mms.transaction.PushReceiver"
+            android:permission="android.permission.BROADCAST_WAP_PUSH"
+            android:exported="true">
+            <intent-filter android:priority="2147483647">
+                <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+                <data android:mimeType="application/vnd.wap.mms-message" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Our post-persist handler: emits an event + posts a notification. -->
+        <receiver
+            android:name=".data.telephony.AppMmsReceivedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.klinker.android.messaging.MMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Outgoing MMS result: updates the message box (sent/failed) + logs. -->
+        <receiver
+            android:name=".data.telephony.AppMmsSentReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.klinker.android.messaging.MMS_SENT" />
+            </intent-filter>
+        </receiver>
+
+        <!-- (3) SENDTO activity declared on MainActivity above. -->
+
+        <!-- (4) HeadlessSmsSendService — answers RESPOND_VIA_MESSAGE intents
+                 (the quick-reply path from the dialer when a call is rejected). -->
+        <service
+            android:name=".data.telephony.HeadlessSmsSendService"
+            android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+        </service>
+
+        <!-- Internal receivers for SmsManager.sendTextMessage delivery callbacks.
+             Registered statically here so they keep working when no UI process
+             is alive (e.g. when send is initiated from HeadlessSmsSendService). -->
+        <receiver
+            android:name=".data.telephony.SmsSentReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".data.telephony.SmsDeliveredReceiver"
+            android:exported="false" />
+
+        <!-- Notification action handlers (inline reply + mark-as-read). -->
+        <receiver
+            android:name=".notifications.ReplyReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notifications.MarkReadReceiver"
+            android:exported="false" />
+
+        <!-- ============================================================
+             Scheduled send (M5 / §F13). The exact alarm targets
+             ScheduledSendReceiver, which sends even with no UI alive.
+             BootReceiver re-arms pending alarms after a reboot.
+             ============================================================ -->
+        <receiver
+            android:name=".data.scheduling.ScheduledSendReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="app.messages.action.SCHEDULED_SEND" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".data.scheduling.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- An app update also clears exact alarms; re-arm on replace. -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Ported Launcher and AfterCall components -->
+        <activity
+            android:name="app.messages.ui.activity.SplashActivity"
+            android:exported="true"
+            android:theme="@style/Theme.ContactApp.Splash">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="app.messages.ui.launcher.LauncherActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="true"
+            android:hardwareAccelerated="true"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:label="@string/app_name"
+            android:resumeWhilePausing="true"
+            android:screenOrientation="portrait"
+            android:stateNotNeeded="true"
+            android:windowSoftInputMode="adjustPan">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="app.messages.ui.activity.SetDefaultLauncherActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.activity.SetDefaultSmsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.activity.OnboardingActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.LanguageSelectionActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.activity.SettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.NotificationSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.SwipeActionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.ArchiveActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.BackupRestoreActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.BlockListActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.BlockedMessagesActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.BlockedNumbersActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+
+
+        <activity
+            android:name=".ui.activity.ChatActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".ui.activity.GroupInfoActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.HomeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp" />
+
+        <activity
+            android:name=".ui.activity.MenuActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp" />
+
+        <activity
+            android:name=".ui.activity.PermissionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.PremiumActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.ScheduleActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.SelectContactActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.activity.AddPeopleActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MessageApp"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.launcher.drawer.AppActionSuccessActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.launcher.settings.LauncherMainSettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.launcher.settings.HomeScreenSettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.launcher.settings.AppDrawerSettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.launcher.settings.SearchSettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.launcher.settings.GesturesSettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.launcher.settings.PackageMonitorSettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.launcher.settings.PackageInstallScanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".ui.launcher.settings.PackageUninstallScanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".search.GoogleSearchActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-1928310975548619~2515416455" />
+        <meta-data
+            android:name="com.google.android.gms.ads.AD_MANAGER_APP"
+            android:value="true" />
+
+        <!-- Video Downloader Flutter Activity -->
+        <activity
+            android:name=".ui.videodownloader.VideoDownloaderFlutterActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:exported="false"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.google.android.gms.ads.AdActivity"
+            android:screenOrientation="fullSensor"
+            android:theme="@style/adsStyle"
+            tools:replace="android:theme"
+            tools:ignore="DiscouragedApi" />
+    </application>
+</manifest>

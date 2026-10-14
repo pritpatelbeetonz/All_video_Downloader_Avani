@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="?attr/actionBarSize"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/_15sdp"
+        android:layout_weight="1"
+        android:fontFamily="@font/geist_bold"
+        android:text="@string/chats"
+        android:textColor="@color/colorTextBlack"
+        android:textSize="@dimen/_16ssp" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:layout_width="wrap_content"
+        android:id="@+id/imgRemoveAds"
+        android:layout_height="?attr/actionBarSize"
+        android:paddingHorizontal="@dimen/_7sdp"
+        android:scaleType="center"
+        android:visibility="gone"
+        android:src="@drawable/ic_remove_ads" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/ivMoreMenu"
+        android:layout_width="wrap_content"
+        android:layout_height="?attr/actionBarSize"
+        android:paddingHorizontal="@dimen/_15sdp"
+        android:scaleType="center"
+        android:tint="@color/icon_tint_primary"
+        android:src="@drawable/ic_more_menu" />
+
+</androidx.appcompat.widget.LinearLayoutCompat>

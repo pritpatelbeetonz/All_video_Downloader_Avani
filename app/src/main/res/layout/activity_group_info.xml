@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_surface"
+    android:orientation="vertical">
+
+    <!-- Top Bar -->
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:background="@color/bg_surface">
+
+        <ImageView
+            android:id="@+id/btnBack"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:paddingHorizontal="@dimen/_15sdp"
+            android:src="@drawable/ic_back"
+            app:tint="@color/icon_tint_primary" />
+
+        <TextView
+            android:id="@+id/tvToolbarTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="@font/geist_bold"
+            android:text="@string/extracted_details"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/_16ssp" />
+
+        <ImageView
+            android:visibility="gone"
+            android:id="@+id/btnMore"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:paddingHorizontal="@dimen/_15sdp"
+            android:src="@drawable/ic_more_vert"
+            app:tint="@color/icon_tint_primary" />
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#E5E5E5" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="@dimen/_30sdp">
+
+            <!-- Profile Section -->
+
+
+            <androidx.cardview.widget.CardView
+                android:id="@+id/cvAvatar"
+                android:layout_width="@dimen/_70sdp"
+                android:layout_height="@dimen/_70sdp"
+                android:layout_gravity="center"
+                app:cardBackgroundColor="#F0F4FF"
+                app:cardCornerRadius="@dimen/_35sdp"
+                app:cardElevation="0dp">
+
+                <ImageView
+                    android:id="@+id/ivProfile"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvInitials"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:fontFamily="@font/geist_medium"
+                    android:textColor="@color/blue_primary"
+                    android:textSize="@dimen/_24ssp"
+                    tools:text="DK" />
+            </androidx.cardview.widget.CardView>
+
+            <TextView
+                android:id="@+id/tvName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginHorizontal="@dimen/_15sdp"
+                android:layout_marginTop="@dimen/_15sdp"
+                android:fontFamily="@font/geist_bold"
+                android:gravity="center"
+                android:textColor="@color/text_primary"
+                android:textSize="@dimen/_14ssp"
+                tools:text="Dhruvit K" />
+
+            <TextView
+                android:id="@+id/tvPhone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="@dimen/_2sdp"
+                android:fontFamily="@font/geist_regular"
+                android:textColor="#666666"
+                android:textSize="@dimen/_11ssp"
+                tools:text="+91 81601 36220" />
+
+            <!-- Options List -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="@dimen/_30sdp">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E5E5E5" />
+
+                <!-- Notifications -->
+                <LinearLayout
+                    android:id="@+id/llNotifications"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="@dimen/_15sdp"
+                    android:paddingVertical="@dimen/_12sdp">
+
+                    <ImageView
+                        android:layout_width="@dimen/_18sdp"
+                        android:layout_height="@dimen/_18sdp"
+                        android:src="@drawable/ic_notification"
+                        app:tint="@color/icon_tint_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/_12sdp"
+                        android:fontFamily="@font/geist_bold"
+                        android:text="@string/extracted_notifications"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/_12ssp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E5E5E5" />
+
+                <!-- Archive Conversation -->
+                <LinearLayout
+                    android:id="@+id/llArchive"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="@dimen/_15sdp"
+                    android:paddingVertical="@dimen/_12sdp">
+
+                    <ImageView
+                        android:layout_width="@dimen/_18sdp"
+                        android:layout_height="@dimen/_18sdp"
+                        android:src="@drawable/ic_archive"
+                        app:tint="@color/icon_tint_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/_12sdp"
+                        android:fontFamily="@font/geist_bold"
+                        android:text="@string/extracted_archive_conversation"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/_12ssp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E5E5E5" />
+
+                <!-- Block Contact -->
+                <LinearLayout
+                    android:id="@+id/llBlock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="@dimen/_15sdp"
+                    android:paddingVertical="@dimen/_12sdp">
+
+                    <ImageView
+                        android:layout_width="@dimen/_18sdp"
+                        android:layout_height="@dimen/_18sdp"
+                        android:src="@drawable/ic_block"
+                        app:tint="@color/icon_tint_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/_12sdp"
+                        android:fontFamily="@font/geist_bold"
+                        android:text="@string/extracted_block_contact"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/_12ssp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E5E5E5" />
+
+                <!-- Delete Conversation -->
+                <LinearLayout
+                    android:id="@+id/llDelete"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="@dimen/_15sdp"
+                    android:paddingVertical="@dimen/_12sdp">
+
+                    <ImageView
+                        android:layout_width="@dimen/_18sdp"
+                        android:layout_height="@dimen/_18sdp"
+                        android:src="@drawable/ic_delete"
+                        app:tint="#E93E3E" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/_12sdp"
+                        android:fontFamily="@font/geist_bold"
+                        android:text="@string/extracted_delete_conversation"
+                        android:textColor="#E93E3E"
+                        android:textSize="@dimen/_12ssp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E5E5E5" />
+
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</androidx.appcompat.widget.LinearLayoutCompat>
+

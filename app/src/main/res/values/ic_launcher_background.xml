@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher-icon background: brand blue. The bubble is white, dots blue —
+         a bold blue tile with a white speech bubble (fills the round mask cleanly). -->
+    <color name="ic_launcher_background">#FF0057CC</color>
+</resources>

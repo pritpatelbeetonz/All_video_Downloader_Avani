@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="@dimen/spacing_lg"
+    android:layout_marginTop="@dimen/spacing_sm"
+    android:layout_marginBottom="@dimen/spacing_lg">
+
+    <FrameLayout
+        android:id="@+id/nativeAdShimmerFrameLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <include layout="@layout/ads_native_big_shimmer" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/nativeAdFrameLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
+
+
+</FrameLayout>
