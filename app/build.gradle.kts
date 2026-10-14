@@ -169,6 +169,7 @@ dependencies {
     implementation(libs.onesignal)
     implementation(libs.facebook.core)
     implementation(libs.meta.adapter)
+    implementation(libs.facebook.audience.network)
 
 
     implementation("androidx.navigation:navigation-fragment-ktx:2.8.5")

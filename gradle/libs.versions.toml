@@ -103,6 +103,7 @@ billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", versi
 onesignal = { module = "com.onesignal:OneSignal", version.ref = "onesignal" }
 facebook-core = { module = "com.facebook.android:facebook-core", version = "17.0.2" }
 meta-adapter = { module = "com.google.ads.mediation:facebook", version = "6.18.0.0" }
+facebook-audience-network = { module = "com.facebook.android:audience-network-sdk", version = "6.18.0" }
 
 
 
