@@ -200,6 +200,26 @@ data class AdsConfig(
     )
     val sendRevenueSplashAds: Boolean = true,
 
+    @SerializedName(
+        value = "sendRevenueVideoDownloaderInter",
+        alternate = [
+            "send_revenue_video_downloader_inter",
+            "sendRevenueVDInter",
+            "send_revenue_vd_inter"
+        ]
+    )
+    val sendRevenueVideoDownloaderInter: Boolean = true,
+
+    @SerializedName(
+        value = "sendRevenueVideoDownloaderNative",
+        alternate = [
+            "send_revenue_video_downloader_native",
+            "sendRevenueVDNative",
+            "send_revenue_vd_native"
+        ]
+    )
+    val sendRevenueVideoDownloaderNative: Boolean = true,
+
     @SerializedName("shareAppLink")
     val shareAppLink: String = "https://play.google.com/store/apps/details?id=com.example.qrcodescannerwithlauncher",
 

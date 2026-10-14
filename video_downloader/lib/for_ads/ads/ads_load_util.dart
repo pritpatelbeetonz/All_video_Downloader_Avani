@@ -255,6 +255,14 @@ class AdsLoadUtil extends GetxController {
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           FirebaseAnalyticsService.logEvent(eventName: 'SHOW_PRE_INTERSTITIAL');
+          ad.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
+            FirebaseAnalyticsService.logAdImpression(
+              placement: 'video_downloader_inter',
+              revenue: valueMicros / 1000000.0,
+              currency: currencyCode,
+              precision: precision.index,
+            );
+          };
           _interstitialAd = ad;
           isAdLoaded = true;
           showLog("Pre Inter Loaded");
@@ -345,6 +353,14 @@ class AdsLoadUtil extends GetxController {
         adLoadCallback: InterstitialAdLoadCallback(
           onAdLoaded: (ad) {
             FirebaseAnalyticsService.logEvent(eventName: 'LOADED_INITIAL_AD');
+            ad.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
+              FirebaseAnalyticsService.logAdImpression(
+                placement: 'video_downloader_inter',
+                revenue: valueMicros / 1000000.0,
+                currency: currencyCode,
+                precision: precision.index,
+              );
+            };
             _interstitialAd = ad;
             showLog(ad.toString());
             showLog(adId);
@@ -423,6 +439,14 @@ class AdsLoadUtil extends GetxController {
       adUnitId: adUnitId.toString(),
       factoryId: isBigNative ? 'bigNativeAds' : 'fullNativeAds',
       listener: NativeAdListener(
+        onPaidEvent: (ad, valueMicros, precision, currencyCode) {
+          FirebaseAnalyticsService.logAdImpression(
+            placement: 'video_downloader_native',
+            revenue: valueMicros / 1000000.0,
+            currency: currencyCode,
+            precision: precision.index,
+          );
+        },
         onAdLoaded: (ad) {
           FirebaseAnalyticsService.logEvent(
             eventName: 'LOAD LANGUAGE BIG NATIVE 1',
@@ -457,6 +481,14 @@ class AdsLoadUtil extends GetxController {
       adUnitId: adUnitId.toString(),
       factoryId: isBigNative ? 'bigNativeAds' : 'fullNativeAds',
       listener: NativeAdListener(
+        onPaidEvent: (ad, valueMicros, precision, currencyCode) {
+          FirebaseAnalyticsService.logAdImpression(
+            placement: 'video_downloader_native',
+            revenue: valueMicros / 1000000.0,
+            currency: currencyCode,
+            precision: precision.index,
+          );
+        },
         onAdLoaded: (ad) {
           FirebaseAnalyticsService.logEvent(
             eventName: 'LOAD LANGUAGE BIG NATIVE 2',
@@ -507,6 +539,14 @@ class AdsLoadUtil extends GetxController {
       adUnitId: AdsVariable.prLanguageBigNative3,
       factoryId: isBigNative ? 'bigNativeAds' : 'fullNativeAds',
       listener: NativeAdListener(
+        onPaidEvent: (ad, valueMicros, precision, currencyCode) {
+          FirebaseAnalyticsService.logAdImpression(
+            placement: 'video_downloader_native',
+            revenue: valueMicros / 1000000.0,
+            currency: currencyCode,
+            precision: precision.index,
+          );
+        },
         onAdLoaded: (ad) {
           FirebaseAnalyticsService.logEvent(
             eventName: 'LOAD_LANGUAGE_BIG_NATIVE_3',
@@ -556,6 +596,14 @@ class AdsLoadUtil extends GetxController {
       adUnitId: adUnitId.toString(),
       factoryId: isSmallNative ? 'bigNativeAds' : 'fullNativeAds',
       listener: NativeAdListener(
+        onPaidEvent: (ad, valueMicros, precision, currencyCode) {
+          FirebaseAnalyticsService.logAdImpression(
+            placement: 'video_downloader_native',
+            revenue: valueMicros / 1000000.0,
+            currency: currencyCode,
+            precision: precision.index,
+          );
+        },
         onAdLoaded: (ad) {
           FirebaseAnalyticsService.logEvent(eventName: 'FULL_NATIVE_AD_LOAD');
           fullNativeAdIntro = ad as NativeAd?;
@@ -588,6 +636,14 @@ class AdsLoadUtil extends GetxController {
       adUnitId: adUnitId.toString(),
       factoryId: isSmallNative ? 'bigNativeAds' : 'fullNativeAds',
       listener: NativeAdListener(
+        onPaidEvent: (ad, valueMicros, precision, currencyCode) {
+          FirebaseAnalyticsService.logAdImpression(
+            placement: 'video_downloader_native',
+            revenue: valueMicros / 1000000.0,
+            currency: currencyCode,
+            precision: precision.index,
+          );
+        },
         onAdLoaded: (ad) {
           FirebaseAnalyticsService.logEvent(eventName: 'FULL_NATIVE_AD_LOAD');
           smallThirdNativeAdIntro = ad as NativeAd?;
@@ -1045,6 +1101,14 @@ class AppBigNativeAdPool {
       adUnitId: AdsVariable.prAppBigNative,
       factoryId: 'bigNativeAds',
       listener: NativeAdListener(
+        onPaidEvent: (ad, valueMicros, precision, currencyCode) {
+          FirebaseAnalyticsService.logAdImpression(
+            placement: 'video_downloader_native',
+            revenue: valueMicros / 1000000.0,
+            currency: currencyCode,
+            precision: precision.index,
+          );
+        },
         onAdLoaded: (loadedAd) {
           FirebaseAnalyticsService.logEvent(
             eventName: 'LOAD_APP_BIG_NATIVE_ONSPOT',

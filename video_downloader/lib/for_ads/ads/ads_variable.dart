@@ -124,7 +124,30 @@ class AdsVariable {
           mapValues["enable_apihut_rotation"].toString().toLowerCase() == "true";
     }
 
-    debugPrint("✅ [AdsVariable] Synced from Launcher RemoteConfig: prAppBigNative=$prAppBigNative, prPreInterstitialAd=$prPreInterstitialAd, apiHutKeys=${apiHutKeys.length}, rotation=$isApiHutKeyRotationOn");
+    // Parse Revenue / Ad Impression Analytics Flags
+    if (mapValues.containsKey("sendRevenueToAnalytics") || mapValues.containsKey("send_revenue_to_analytics")) {
+      sendRevenueToAnalytics = mapValues["sendRevenueToAnalytics"] == true ||
+          mapValues["send_revenue_to_analytics"] == true ||
+          mapValues["sendRevenueToAnalytics"].toString().toLowerCase() == "true";
+    }
+    if (mapValues.containsKey("sendRevenueVideoDownloaderInter") ||
+        mapValues.containsKey("send_revenue_video_downloader_inter") ||
+        mapValues.containsKey("sendRevenueVDInter")) {
+      var v = mapValues["sendRevenueVideoDownloaderInter"] ??
+          mapValues["send_revenue_video_downloader_inter"] ??
+          mapValues["sendRevenueVDInter"];
+      sendRevenueVDInter = v == true || v.toString().toLowerCase() == "true";
+    }
+    if (mapValues.containsKey("sendRevenueVideoDownloaderNative") ||
+        mapValues.containsKey("send_revenue_video_downloader_native") ||
+        mapValues.containsKey("sendRevenueVDNative")) {
+      var v = mapValues["sendRevenueVideoDownloaderNative"] ??
+          mapValues["send_revenue_video_downloader_native"] ??
+          mapValues["sendRevenueVDNative"];
+      sendRevenueVDNative = v == true || v.toString().toLowerCase() == "true";
+    }
+
+    debugPrint("✅ [AdsVariable] Synced from Launcher RemoteConfig: prAppBigNative=$prAppBigNative, prPreInterstitialAd=$prPreInterstitialAd, revenueInter=$sendRevenueVDInter, revenueNative=$sendRevenueVDNative");
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -141,6 +164,9 @@ class AdsVariable {
       prefs.setString("fb_token", facebookToken);
       prefs.setStringList("apihut_keys", apiHutKeys);
       prefs.setBool("is_apihut_rotation_on", isApiHutKeyRotationOn);
+      prefs.setBool("sendRevenueToAnalytics", sendRevenueToAnalytics);
+      prefs.setBool("sendRevenueVDInter", sendRevenueVDInter);
+      prefs.setBool("sendRevenueVDNative", sendRevenueVDNative);
     } catch (_) {}
 
     try {
@@ -201,6 +227,19 @@ class AdsVariable {
   static String prLanguageBigNative2 = "11";
   static String prLanguageBigNative3 = "11";
   static String prAppBigNative = "11";
+
+  /// Revenue / Ad Impression Analytics Flags
+  static bool sendRevenueToAnalytics = true;
+  static bool sendRevenueVDInter = true;
+  static bool sendRevenueVDNative = true;
+
+  static bool shouldSendRevenue(String placement) {
+    if (!sendRevenueToAnalytics) return false;
+    final p = placement.toLowerCase();
+    if (p.contains("inter")) return sendRevenueVDInter;
+    if (p.contains("native")) return sendRevenueVDNative;
+    return true;
+  }
 
   /// Backward-compatibility aliases
   static String get appOpenAdsIOS => "11";

@@ -114,6 +114,10 @@ object AdsConfigManager {
     const val KEY_INTRO_APP_OPEN_ON_ALT = "intro_app_open_on"
     const val KEY_INTRO_APP_OPEN_PRELOAD = "introAppOpenAdPreload"
     const val KEY_SEND_REVENUE_INTRO_APP_OPEN = "sendRevenueIntroAppOpen"
+    const val KEY_SEND_REVENUE_VD_INTER = "sendRevenueVideoDownloaderInter"
+    const val KEY_SEND_REVENUE_VD_INTER_ALT = "send_revenue_video_downloader_inter"
+    const val KEY_SEND_REVENUE_VD_NATIVE = "sendRevenueVideoDownloaderNative"
+    const val KEY_SEND_REVENUE_VD_NATIVE_ALT = "send_revenue_video_downloader_native"
     private const val KEY_ONESIGNAL_APP_ID = "oneSignalAppId"
     private const val KEY_ONESIGNAL_APP_ID_ALT = "onesignal_app_id"
     private const val KEY_PRIVACY_POLICY_URL = "privacyPolicyUrl"
@@ -500,6 +504,12 @@ object AdsConfigManager {
                 ?: fromJson.introAppOpenAdPreload,
             sendRevenueIntroAppOpen = remoteConfig.optionalBoolean(KEY_SEND_REVENUE_INTRO_APP_OPEN)
                 ?: fromJson.sendRevenueIntroAppOpen,
+            sendRevenueVideoDownloaderInter = remoteConfig.optionalBoolean(KEY_SEND_REVENUE_VD_INTER)
+                ?: remoteConfig.optionalBoolean(KEY_SEND_REVENUE_VD_INTER_ALT)
+                ?: fromJson.sendRevenueVideoDownloaderInter,
+            sendRevenueVideoDownloaderNative = remoteConfig.optionalBoolean(KEY_SEND_REVENUE_VD_NATIVE)
+                ?: remoteConfig.optionalBoolean(KEY_SEND_REVENUE_VD_NATIVE_ALT)
+                ?: fromJson.sendRevenueVideoDownloaderNative,
         )
     }
 
@@ -609,6 +619,8 @@ object AdsConfigManager {
             "intro_app_open", "app_open_intro" -> config.sendRevenueIntroAppOpen
             "app_open", "swipe_app_open", "app_click_open", "app_open_language" -> config.sendRevenueAppOpen
             "banner", "banner_splash", "banner_home", "banner_drawer", "banner_language" -> config.sendRevenueBanner
+            "video_downloader_inter", "inter_video_downloader" -> config.sendRevenueVideoDownloaderInter
+            "video_downloader_native", "native_video_downloader" -> config.sendRevenueVideoDownloaderNative
             else -> true
         }
     }

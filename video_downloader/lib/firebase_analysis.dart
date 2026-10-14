@@ -1,5 +1,6 @@
 
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:video_downloader/for_ads/ads/ads_variable.dart';
 
 class FirebaseAnalyticsService {
 
@@ -19,6 +20,36 @@ class FirebaseAnalyticsService {
       );
     } catch (e) {
       print("Error logging event: $e");
+    }
+  }
+
+  /// Logs official Firebase ad_impression event with revenue parameters
+  static Future<void> logAdImpression({
+    required String placement,
+    double revenue = 0.0,
+    String currency = 'USD',
+    int precision = 0,
+  }) async {
+    if (!AdsVariable.shouldSendRevenue(placement)) {
+      print("ℹ️ [Analytics] ad_impression skipped for $placement (disabled by Remote Config)");
+      return;
+    }
+
+    try {
+      await logEvent(
+        eventName: 'ad_impression',
+        parameters: {
+          'ad_platform': 'admob',
+          'ad_source': 'AdMob',
+          'ad_format': placement,
+          'value': revenue,
+          'currency': currency.isNotEmpty ? currency : 'USD',
+          'precision_type': precision,
+        },
+      );
+      print("📊✅ [Analytics] Logged ad_impression for $placement (revenue: $revenue $currency)");
+    } catch (e) {
+      print("❌ [Analytics] Error logging ad_impression: $e");
     }
   }
 
