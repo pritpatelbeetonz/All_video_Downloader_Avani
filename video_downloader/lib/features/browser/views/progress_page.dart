@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_downloader/features/videoPlayer/video_player.dart';
+import 'package:video_downloader/for_ads/ads/ads_variable.dart';
 import '../providers/download_task_provider.dart';
 
 class ProgressPage extends ConsumerStatefulWidget {
@@ -332,86 +333,97 @@ class _ProgressPageState extends ConsumerState<ProgressPage> {
     );
   }
 
+  void _playVideo(BuildContext context, DownloadTask task) {
+    final file = File(task.filePath);
+    if (file.existsSync()) {
+      AdsVariable.onShowAds(
+        context,
+        onComplete: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => VideoPlayerPage(videoFile: file),
+            ),
+          );
+        },
+      );
+    }
+  }
+
   Widget _completedTaskCard(DownloadTask task) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(12),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => _playVideo(context, task),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            child: const Icon(
-              Icons.check_circle,
-              color: Colors.green,
-              size: 24,
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 24,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.fileName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  task.formattedTotal,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
+                  const SizedBox(height: 4),
+                  Text(
+                    task.formattedTotal,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.play_arrow_rounded,
-                color: Color(0xFFFE7338), size: 28),
-            onPressed: () {
-              final file = File(task.filePath);
-              if (file.existsSync()) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => VideoPlayerPage(videoFile: file),
-                  ),
-                );
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.share_outlined,
-                color: Colors.black87, size: 20),
-            onPressed: () {
-              final file = File(task.filePath);
-              if (file.existsSync()) {
-                Share.shareXFiles([XFile(file.path)]);
-              }
-            },
-          ),
-        ],
+            IconButton(
+              icon: const Icon(Icons.play_arrow_rounded,
+                  color: Color(0xFFFE7338), size: 28),
+              onPressed: () => _playVideo(context, task),
+            ),
+            IconButton(
+              icon: const Icon(Icons.share_outlined,
+                  color: Colors.black87, size: 20),
+              onPressed: () {
+                final file = File(task.filePath);
+                if (file.existsSync()) {
+                  Share.shareXFiles([XFile(file.path)]);
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

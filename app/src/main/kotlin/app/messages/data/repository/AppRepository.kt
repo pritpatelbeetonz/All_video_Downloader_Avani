@@ -237,7 +237,11 @@ class AppRepositoryImpl constructor(
 
     override fun getDockApps(): Flow<List<AppInfo>> =
         apps.map { list ->
-            // 5 Dock apps: Phone (1st) → My App / Messages → Chrome → Photos/Gallery (4th) → Camera (5th)
+            val defaultSmsPackage = runCatching {
+                android.provider.Telephony.Sms.getDefaultSmsPackage(context)
+            }.getOrNull()?.takeIf { it != context.packageName }
+
+            // 5 Dock apps: Phone (1st) → Default Messages → Chrome → Photos/Gallery (4th) → Camera (5th)
             val slots = listOf(
                 // 1. Phone
                 listOf(
@@ -246,12 +250,17 @@ class AppRepositoryImpl constructor(
                     "com.android.dialer",
                     "com.android.phone"
                 ),
-                // 2. Messages (our app)
-                listOf(
-                    context.packageName,
-                    "com.google.android.apps.messaging",
+                // 2. Default Phone Messages (OEM / System SMS)
+                listOfNotNull(
+                    defaultSmsPackage,
                     "com.samsung.android.messaging",
-                    "com.android.mms"
+                    "com.google.android.apps.messaging",
+                    "com.android.mms",
+                    "com.oppo.mms",
+                    "com.coloros.mms",
+                    "com.oneplus.mms",
+                    "com.vivo.mms",
+                    "com.huawei.message"
                 ),
                 // 3. Chrome
                 listOf(
@@ -297,7 +306,7 @@ class AppRepositoryImpl constructor(
             )
             val labelFallbacks = listOf(
                 listOf("phone", "dialer", "call"),
-                listOf("message", "chat", "sms"),
+                listOf("message", "messages", "chat", "sms"),
                 listOf("chrome", "browser"),
                 listOf("photos", "gallery", "photo"),
                 listOf("camera", "cam")
@@ -307,10 +316,11 @@ class AppRepositoryImpl constructor(
 
             slots.forEachIndexed { index, packages ->
                 val byPackage = packages.firstNotNullOfOrNull { pkg ->
-                    list.firstOrNull { it.packageName.equals(pkg, true) }
+                    list.firstOrNull { it.packageName.equals(pkg, true) && it.packageName != context.packageName }
                 }
                 val byLabel = list.firstOrNull { app ->
                     app.packageName !in used &&
+                        app.packageName != context.packageName &&
                         labelFallbacks[index].any { labelKey -> app.label.contains(labelKey, ignoreCase = true) }
                 }
                 val match = byPackage ?: byLabel
@@ -323,7 +333,7 @@ class AppRepositoryImpl constructor(
             if (picked.size >= 5) {
                 picked.take(5)
             } else {
-                (picked + list.filter { it.packageName !in used }).distinctBy { it.packageName }.take(5)
+                (picked + list.filter { it.packageName !in used && it.packageName != context.packageName }).distinctBy { it.packageName }.take(5)
             }
         }
 

@@ -1,5 +1,4 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:purchases_flutter/models/package_wrapper.dart';
 
 showLog(String msg) {
   print("LOG >> $msg");
@@ -16,8 +15,6 @@ const amazonApiKey = '';
 const entitlementKey = "AndroidTestProAccess";
 
 class GlobalVariables {
-
-  static Map<String, Package>? availablePackages;
 
   static Future<bool> isInternetConnected() {
     return Connectivity().checkConnectivity().then((connectivityResult) {

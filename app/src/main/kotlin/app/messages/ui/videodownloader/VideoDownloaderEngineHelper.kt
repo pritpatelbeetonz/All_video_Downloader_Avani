@@ -94,9 +94,27 @@ object VideoDownloaderEngineHelper {
                         }
                         result.success(true)
                     }
+                    "getAdsConfig" -> {
+                        result.success(app.messages.config.AdsConfigManager.rawConfigJson)
+                    }
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    fun syncAdsConfigToFlutter(rawJson: String? = null) {
+        try {
+            val json = rawJson ?: app.messages.config.AdsConfigManager.rawConfigJson
+            if (json.isBlank()) return
+            val flutterEngine = io.flutter.embedding.engine.FlutterEngineCache.getInstance().get(ENGINE_ID)
+            if (flutterEngine != null) {
+                MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+                    .invokeMethod("syncAdsConfig", mapOf("rawConfig" to json))
+                android.util.Log.d("VideoDownloaderEngine", "Dispatched syncAdsConfig to Flutter (${json.length} chars)")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun notifyLanguageChanged(languageCode: String) {
@@ -116,5 +134,8 @@ object VideoDownloaderEngineHelper {
     fun initEngine(context: Context, flutterEngine: FlutterEngine) {
         registerAdFactories(context, flutterEngine)
         initMethodChannel(context, flutterEngine)
+        if (app.messages.config.AdsConfigManager.rawConfigJson.isNotBlank()) {
+            syncAdsConfigToFlutter(app.messages.config.AdsConfigManager.rawConfigJson)
+        }
     }
 }

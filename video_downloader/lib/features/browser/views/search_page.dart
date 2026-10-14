@@ -102,6 +102,14 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
       }
     });
     _refreshHomeBigNativeAd();
+    AdsVariable.configUpdatedNotifier.addListener(_onAdsConfigUpdated);
+  }
+
+  void _onAdsConfigUpdated() {
+    if (mounted && _homeBigNativeAd == null && AdsLoadUtil.isValidAdId(AdsVariable.prAppBigNative)) {
+      showLog("⚡ [Home Native Ad] AdsConfig updated from Launcher -> Triggering native ad refresh!");
+      _refreshHomeBigNativeAd();
+    }
   }
 
   @override
@@ -186,6 +194,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
 
   @override
   void dispose() {
+    AdsVariable.configUpdatedNotifier.removeListener(_onAdsConfigUpdated);
     routeObserver.unsubscribe(this);
     AppBigNativeAdPool.detachScreen('SearchPage');
     final adToDispose = _homeBigNativeAd;

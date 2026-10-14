@@ -1,35 +1,162 @@
 
+import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'ads_load_util.dart' show AdsLoadUtil;
 
 
 class AdsVariable {
-  static bool? OpenAdInSplash;
-  static AppOpenAd? appOpenAd;
-  static AppOpenAd? appOpenAdSplash;
+  static final ValueNotifier<int> configUpdatedNotifier = ValueNotifier<int>(0);
+
   static bool isShowingAd = false;
   static late ConnectivityResult connectivityResult;
-  //when submittion
-  static bool isPurchase = false;//***************************************************************************************
+  static const bool isPurchase = false;
   static String dataGDPR = "";
-  static Map<String, Package>? availablePackages;
   static bool isPrivacyOptionsRequired = false;
   static bool isYouTubeEnabled = false;
 
+  /// ApiHut API Keys and rotation flag from Remote Config
+  static List<String> apiHutKeys = ["330f736e-3eb6-4ad7-8bb9-0754c2d68f9f"];
+  static bool isApiHutKeyRotationOn = true;
+
   static void resetAdIds() {
-    prAppOpenAd = "11";
-    prSplashInterstitialAd = "11";
     prPreInterstitialAd = "11";
     prLanguageBigNative1 = "11";
     prLanguageBigNative2 = "11";
     prLanguageBigNative3 = "11";
-    prIntroAppOpen = "11";
     prAppBigNative = "11";
     fullNativeIntroAdIOS = "11";
     smallThirdIntroNativeIntroAdIOS = "11";
+  }
+
+  static Future<void> loadFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      prPreInterstitialAd = prefs.getString("pr_preInterstitialAd") ?? prPreInterstitialAd;
+      prAppBigNative = prefs.getString("pr_appBigNative") ?? prAppBigNative;
+      nativeBGColor = prefs.getString("nativeBGColor") ?? nativeBGColor;
+      headerTextColor = prefs.getString("headlineTxtColor") ?? headerTextColor;
+      bodyTextColor = prefs.getString("bodyTxtColor") ?? bodyTextColor;
+      btnBgColorG1 = prefs.getString("buttonBgColorG1") ?? btnBgColorG1;
+      btnBgColorG2 = prefs.getString("buttonBgColorG2") ?? btnBgColorG2;
+      btnTextColor = prefs.getString("buttonTxtColor") ?? btnTextColor;
+      click = prefs.getString("click") ?? click;
+      facebookId = prefs.getString("fb_appid") ?? facebookId;
+      facebookToken = prefs.getString("fb_token") ?? facebookToken;
+
+      final savedKeys = prefs.getStringList("apihut_keys");
+      if (savedKeys != null && savedKeys.isNotEmpty) {
+        apiHutKeys = savedKeys;
+      }
+      isApiHutKeyRotationOn = prefs.getBool("is_apihut_rotation_on") ?? isApiHutKeyRotationOn;
+
+      debugPrint("📦 [AdsVariable] Loaded from cache: prAppBigNative=$prAppBigNative, apiHutKeys=${apiHutKeys.length}, rotation=$isApiHutKeyRotationOn");
+    } catch (e) {
+      debugPrint("⚠️ [AdsVariable] Error loading from prefs: $e");
+    }
+  }
+
+  static Future<void> updateFromRawJson(String rawJson) async {
+    if (rawJson.isEmpty || rawJson == "{}") return;
+    Map<String, dynamic> mapValues = {};
+    try {
+      mapValues = jsonDecode(rawJson);
+    } catch (e) {
+      debugPrint("⚠️ [AdsVariable] Error decoding rawJson: $e");
+      return;
+    }
+
+    facebookId = (mapValues["fb_appid"] ?? facebookId).toString();
+    facebookToken = (mapValues["fb_token"] ?? facebookToken).toString();
+
+    prPreInterstitialAd = (mapValues["pr_preInterstitialAd"] ?? mapValues["tr_preInterstitialAd"] ?? prPreInterstitialAd).toString();
+    prLanguageBigNative1 = (mapValues["pr_languageBigNative1"] ?? mapValues["tr_surveyBigNative1"] ?? prLanguageBigNative1).toString();
+    prLanguageBigNative2 = (mapValues["pr_languageBigNative2"] ?? mapValues["tr_surveyBigNative2"] ?? prLanguageBigNative2).toString();
+    prLanguageBigNative3 = (mapValues["pr_languageBigNative3"] ?? prLanguageBigNative3).toString();
+    prAppBigNative = (mapValues["pr_appBigNative"] ?? prAppBigNative).toString();
+
+    nativeBGColor = (mapValues['nativeBGColor'] ?? nativeBGColor).toString();
+    headerTextColor = (mapValues["headlineTxtColor"] ?? headerTextColor).toString();
+    bodyTextColor = (mapValues["bodyTxtColor"] ?? bodyTextColor).toString();
+    btnBgColorG1 = (mapValues["buttonBgColorG1"] ?? btnBgColorG1).toString();
+    btnBgColorG2 = (mapValues["buttonBgColorG2"] ?? btnBgColorG2).toString();
+    btnTextColor = (mapValues["buttonTxtColor"] ?? btnTextColor).toString();
+    click = (mapValues["click"] ?? click).toString();
+    isYouTubeEnabled = mapValues["is_youtube_enabled"] ?? isYouTubeEnabled;
+
+    // Parse ApiHut API Keys list from Remote Config
+    if (mapValues.containsKey("apihut_keys") ||
+        mapValues.containsKey("apihut_api_keys") ||
+        mapValues.containsKey("apihut_key_list") ||
+        mapValues.containsKey("api_keys")) {
+      var rawKeys = mapValues["apihut_keys"] ??
+          mapValues["apihut_api_keys"] ??
+          mapValues["apihut_key_list"] ??
+          mapValues["api_keys"];
+      if (rawKeys is List) {
+        final parsed = rawKeys
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        if (parsed.isNotEmpty) apiHutKeys = parsed;
+      } else if (rawKeys is String && rawKeys.isNotEmpty) {
+        final parsed = rawKeys
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        if (parsed.isNotEmpty) apiHutKeys = parsed;
+      }
+    }
+
+    // Parse ApiHut API Key rotation flag
+    if (mapValues.containsKey("is_apihut_rotation_on")) {
+      isApiHutKeyRotationOn = mapValues["is_apihut_rotation_on"] == true ||
+          mapValues["is_apihut_rotation_on"].toString().toLowerCase() == "true";
+    } else if (mapValues.containsKey("apihut_key_rotation_on")) {
+      isApiHutKeyRotationOn = mapValues["apihut_key_rotation_on"] == true ||
+          mapValues["apihut_key_rotation_on"].toString().toLowerCase() == "true";
+    } else if (mapValues.containsKey("enable_apihut_rotation")) {
+      isApiHutKeyRotationOn = mapValues["enable_apihut_rotation"] == true ||
+          mapValues["enable_apihut_rotation"].toString().toLowerCase() == "true";
+    }
+
+    debugPrint("✅ [AdsVariable] Synced from Launcher RemoteConfig: prAppBigNative=$prAppBigNative, prPreInterstitialAd=$prPreInterstitialAd, apiHutKeys=${apiHutKeys.length}, rotation=$isApiHutKeyRotationOn");
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      prefs.setString("pr_appBigNative", prAppBigNative);
+      prefs.setString("pr_preInterstitialAd", prPreInterstitialAd);
+      prefs.setString("nativeBGColor", nativeBGColor);
+      prefs.setString("headlineTxtColor", headerTextColor);
+      prefs.setString("bodyTxtColor", bodyTextColor);
+      prefs.setString("buttonBgColorG1", btnBgColorG1);
+      prefs.setString("buttonBgColorG2", btnBgColorG2);
+      prefs.setString("buttonTxtColor", btnTextColor);
+      prefs.setString("click", click);
+      prefs.setString("fb_appid", facebookId);
+      prefs.setString("fb_token", facebookToken);
+      prefs.setStringList("apihut_keys", apiHutKeys);
+      prefs.setBool("is_apihut_rotation_on", isApiHutKeyRotationOn);
+    } catch (_) {}
+
+    try {
+      const MethodChannel('nativeChannel').invokeMethod('setToast', {
+        "btnBgColorG1": "#$btnBgColorG1",
+        "btnBgColorG2": "#$btnBgColorG2",
+        "nativeBGColor": "#$nativeBGColor",
+        "headerTextColor": "#$headerTextColor",
+        "bodyTextColor": "#$bodyTextColor",
+        "btnTextColor": "#$btnTextColor",
+        "fb_appid": facebookId,
+        "fb_token": facebookToken,
+      });
+    } catch (_) {}
+
+    configUpdatedNotifier.value++;
   }
 
   static Future<bool> isInternetConnected() {
@@ -60,7 +187,6 @@ class AdsVariable {
 
   static NativeAd? nativeBigAdLanguage3;
   static NativeAd? nativeBigAdApp;
-  static AppOpenAd? appOpenAdIntro;
 
   static NativeAd? fullNativeAdIntro;
   static NativeAd? smallThirdNativeAdIntro;
@@ -70,21 +196,18 @@ class AdsVariable {
   static String facebookToken = "";
 
   /// RemoteConfig Ad Unit IDs
-  static String prAppOpenAd = "11";
-  static String prSplashInterstitialAd = "11";
   static String prPreInterstitialAd = "11";
   static String prLanguageBigNative1 = "11";
   static String prLanguageBigNative2 = "11";
   static String prLanguageBigNative3 = "11";
-  static String prIntroAppOpen = "11";
   static String prAppBigNative = "11";
 
   /// Backward-compatibility aliases
-  static String get appOpenAdsIOS => prAppOpenAd;
-  static set appOpenAdsIOS(String val) => prAppOpenAd = val;
+  static String get appOpenAdsIOS => "11";
+  static set appOpenAdsIOS(String val) {}
 
-  static String get interSplashIOS => prSplashInterstitialAd;
-  static set interSplashIOS(String val) => prSplashInterstitialAd = val;
+  static String get interSplashIOS => "11";
+  static set interSplashIOS(String val) {}
 
   static String get interPreLoadIOS => prPreInterstitialAd;
   static set interPreLoadIOS(String val) => prPreInterstitialAd = val;
@@ -98,18 +221,11 @@ class AdsVariable {
   static String fullNativeIntroAdIOS = "11";
   static String smallThirdIntroNativeIntroAdIOS = "11";
 
-
-
-
   static Future<void> onShowAds(BuildContext context, {required Function onComplete}) async {
-
-    if(AdsVariable.isPurchase){
-
+    if (AdsVariable.isPurchase) {
       onComplete();
-
-    }else{
+    } else {
       if (AdsVariable.currentClick % int.parse(AdsVariable.click) == 0) {
-
         if (await isInternetConnected()) {
           AdsLoadUtil.showInterstitial(onDismissed: () {
             onComplete();
@@ -117,7 +233,6 @@ class AdsVariable {
         } else {
           onComplete();
         }
-
       } else {
         // Odd-numbered clicks: Perform onTap action directly
         onComplete();
@@ -125,6 +240,7 @@ class AdsVariable {
     }
     AdsVariable.currentClick++;
   }
+
   static void onShowAddMealAds(BuildContext context, {required Function onComplete}) {
     if (AdsVariable.currentClick % int.parse(AdsVariable.click) == 0) {
       AdsLoadUtil.showInterstitial(onDismissed: () {
@@ -135,12 +251,6 @@ class AdsVariable {
     }
     AdsVariable.currentClick++;
   }
-
-  static bool showYearlyPriceFirstInYearlyPlan=false;
-
-  ///For Tester email pass
-  static String testEmail = 'zxcvbnm992@testing.com';
-  static String testPassword = 'tEsT*ApP@992';
 }
 
 class HexColor extends Color {

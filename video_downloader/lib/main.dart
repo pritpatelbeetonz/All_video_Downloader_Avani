@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:purchases_flutter/purchases_flutter.dart';
 import 'LanguageScreen/translations/app_translations.dart';
 import 'features/home/views/home_page.dart';
 import 'package:video_downloader/utility/shared_prefrence_service.dart';
 import 'for_ads/ads/ads_splash_utils.dart';
-import 'for_ads/utils/store_config.dart';
+import 'for_ads/ads/ads_variable.dart';
 import 'import_all.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -29,6 +28,12 @@ void main() async {
     debugPrint("✅ [VideoDownloader] SharedPrefService initialized");
   } catch (e) {
     debugPrint("⚠️ [VideoDownloader] SharedPrefService.init error: $e");
+  }
+
+  try {
+    await AdsVariable.loadFromPrefs();
+  } catch (e) {
+    debugPrint("⚠️ [VideoDownloader] AdsVariable.loadFromPrefs error: $e");
   }
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -59,8 +64,34 @@ void main() async {
       } catch (e) {
         debugPrint("⚠️ [VideoDownloader] Error updating locale: $e");
       }
+    } else if (call.method == 'syncAdsConfig') {
+      try {
+        final args = call.arguments;
+        String? rawConfig;
+        if (args is Map) {
+          rawConfig = args['rawConfig'] as String?;
+        } else if (args is String) {
+          rawConfig = args;
+        }
+        if (rawConfig != null && rawConfig.isNotEmpty) {
+          debugPrint("📡 [VideoDownloader] Received syncAdsConfig from Launcher");
+          await AdsVariable.updateFromRawJson(rawConfig);
+        }
+      } catch (e) {
+        debugPrint("⚠️ [VideoDownloader] Error in syncAdsConfig: $e");
+      }
     }
     return null;
+  });
+
+  // Pull initial ad configuration from Launcher Native if already available
+  platformMethodChannel.invokeMethod('getAdsConfig').then((res) {
+    if (res != null && res.toString().isNotEmpty) {
+      debugPrint("📥 [VideoDownloader] Received getAdsConfig response from Launcher");
+      AdsVariable.updateFromRawJson(res.toString());
+    }
+  }).catchError((e) {
+    debugPrint("⚠️ [VideoDownloader] Error getting initial ads config: $e");
   });
 
   // Start the UI FIRST. Nothing below may block the first frame — the engine
@@ -84,54 +115,8 @@ void main() async {
     debugPrint("⚠️ [VideoDownloader] setPreferredOrientations error: $e");
   });
 
-  try {
-    premiumInit();
-    configureSDK();
-  } catch (e) {
-    debugPrint("⚠️ [VideoDownloader] configureSDK error: $e");
-  }
-}
-
-Future<void> configureSDK() async {
-  try {
-    await Purchases.setLogLevel(LogLevel.debug);
-
-    PurchasesConfiguration configuration;
-    if (StoreConfig.isForAmazonAppstore()) {
-      configuration = AmazonConfiguration(StoreConfig.instance.apiKey);
-    } else {
-      configuration = PurchasesConfiguration(StoreConfig.instance.apiKey);
-    }
-
-    configuration.entitlementVerificationMode =
-        EntitlementVerificationMode.informational;
-    await Purchases.configure(configuration);
-
-    // ✅ ADD THIS — register renewal listener immediately after configure
-    ///only used when credirt screen and autopay is on
-    // SubscriptionCreditService.initUpdateListener();
-
-    await Purchases.enableAdServicesAttributionTokenCollection().catchError((
-        e,
-        ) {
-      debugPrint('⚠️ enableAdServicesAttributionTokenCollection error: $e');
-    });
-
-    final offerings = await Purchases.getOfferings().timeout(
-      const Duration(seconds: 3),
-    );
-    if (offerings.current != null) {
-      debugPrint('✅ Offering found: ${offerings.current!.identifier}');
-      for (final pkg in offerings.current!.availablePackages) {
-        debugPrint('👉 Package: ${pkg.identifier}');
-        debugPrint('👉 Product: ${pkg.storeProduct.identifier}');
-      }
-    } else {
-      debugPrint('⚠️ No current offering found');
-    }
-  } catch (e, st) {
-    debugPrint('❌ Error configuring SDK or fetching offerings: $e');
-  }
+  // Initialize GDPR and mobile ads in the background (non-blocking)
+  AdsSplashUtils.initServices();
 }
 
 final RouteObserver<ModalRoute<void>> routeObserver =

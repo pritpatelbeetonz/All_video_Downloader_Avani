@@ -130,6 +130,10 @@ object AdsConfigManager {
     var config: AdsConfig = AdsConfig.DEFAULT
         private set
 
+    @Volatile
+    var rawConfigJson: String = ""
+        private set
+
     private val _configFlow = kotlinx.coroutines.flow.MutableStateFlow(AdsConfig.DEFAULT)
     val configFlow: kotlinx.coroutines.flow.StateFlow<AdsConfig> = _configFlow
 
@@ -273,11 +277,17 @@ object AdsConfigManager {
         Log.d(TAG, "=================================================================")
         
         val json = getRemoteConfigJsonString(remoteConfig)
+        rawConfigJson = json
         if (json.isNotEmpty()) {
             try {
                 val adModel = Gson().fromJson(json, app.messages.ads.model.AdsModel::class.java)
                 app.messages.Controller.adsModel = adModel
             } catch (e: Exception) {
+            }
+            try {
+                app.messages.ui.videodownloader.VideoDownloaderEngineHelper.syncAdsConfigToFlutter(json)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not sync ads config to Flutter: ${e.message}")
             }
         }
         

@@ -138,135 +138,14 @@ class AdsLoadUtil extends GetxController {
   static bool isIntroAppOpenLoading = false;
 
   static void loadPreloadIntroAppOpen({Function()? onLoaded, Function()? onFailed}) {
-    if (AdsVariable.isPurchase || !isValidAdId(AdsVariable.prIntroAppOpen)) {
-      showLog(
-          "Skipping loadPreloadIntroAppOpen - purchase or invalid adId: ${AdsVariable.prIntroAppOpen}");
-      onFailed?.call();
-      return;
-    }
-    if (AdsVariable.appOpenAdIntro != null) {
-      showLog("Intro App Open ad is already preloaded");
-      onLoaded?.call();
-      return;
-    }
-    if (isIntroAppOpenLoading) {
-      showLog("Intro App Open ad is already loading");
-      return;
-    }
-
-    isIntroAppOpenLoading = true;
-    showLog("Loading Intro App Open ad with ID: ${AdsVariable.prIntroAppOpen}");
-
-    AppOpenAd.load(
-      adUnitId: AdsVariable.prIntroAppOpen,
-      request: const AdRequest(),
-      adLoadCallback: AppOpenAdLoadCallback(
-        onAdLoaded: (ad) {
-          FirebaseAnalyticsService.logEvent(eventName: 'LOAD_INTRO_APP_OPEN');
-          showLog("Intro App Open ad loaded successfully");
-          AdsVariable.appOpenAdIntro = ad;
-          isIntroAppOpenLoading = false;
-          onLoaded?.call();
-        },
-        onAdFailedToLoad: (error) {
-          showLog("Intro App Open ad failed to load: $error");
-          AdsVariable.appOpenAdIntro = null;
-          isIntroAppOpenLoading = false;
-          onFailed?.call();
-        },
-      ),
-    );
+    onFailed?.call();
   }
 
   static void showIntroAppOpen({
     required BuildContext context,
     required Function onDismissed,
-  }) async {
-    if (AdsVariable.isPurchase || !isValidAdId(AdsVariable.prIntroAppOpen)) {
-      showLog(
-          "Skipping showIntroAppOpen - purchase or invalid adId: ${AdsVariable.prIntroAppOpen}");
-      onDismissed();
-      return;
-    }
-
-    if (!await AdsVariable.isInternetConnected()) {
-      showLog("Skipping showIntroAppOpen - no internet");
-      onDismissed();
-      return;
-    }
-
-    void displayAd(AppOpenAd ad) {
-      ad.fullScreenContentCallback = FullScreenContentCallback(
-        onAdShowedFullScreenContent: (ad) {
-          showLog('Intro App Open ad showed full screen content');
-        },
-        onAdFailedToShowFullScreenContent: (ad, error) {
-          showLog('Intro App Open ad failed to show: $error');
-          ad.dispose();
-          AdsVariable.appOpenAdIntro = null;
-          onDismissed();
-        },
-        onAdDismissedFullScreenContent: (ad) {
-          showLog('Intro App Open ad dismissed');
-          ad.dispose();
-          AdsVariable.appOpenAdIntro = null;
-          onDismissed();
-        },
-      );
-      ad.show();
-    }
-
-    if (AdsVariable.appOpenAdIntro != null) {
-      showLog("Intro App Open ad is ready, showing now");
-      final ad = AdsVariable.appOpenAdIntro!;
-      AdsVariable.appOpenAdIntro = null;
-      loadingScreen.show();
-      Future.delayed(const Duration(milliseconds: 400), () {
-        loadingScreen.hide();
-        displayAd(ad);
-      });
-      return;
-    }
-
-    showLog("Intro App Open ad not ready yet, showing loader and loading on-spot");
-    loadingScreen.show();
-
-    bool hasHandled = false;
-    Timer? timeoutTimer;
-
-    void proceed() {
-      if (hasHandled) return;
-      hasHandled = true;
-      timeoutTimer?.cancel();
-      loadingScreen.hide();
-      onDismissed();
-    }
-
-    // Safety timeout: 7 seconds maximum wait time
-    timeoutTimer = Timer(const Duration(seconds: 7), () {
-      showLog("Intro App Open ad load timed out after 7s");
-      proceed();
-    });
-
-    loadPreloadIntroAppOpen(
-      onLoaded: () {
-        if (hasHandled) return;
-        timeoutTimer?.cancel();
-        loadingScreen.hide();
-        if (AdsVariable.appOpenAdIntro != null) {
-          hasHandled = true;
-          final ad = AdsVariable.appOpenAdIntro!;
-          AdsVariable.appOpenAdIntro = null;
-          displayAd(ad);
-        } else {
-          proceed();
-        }
-      },
-      onFailed: () {
-        showLog("Intro App Open ad failed during wait");
-        proceed();
-      },
-    );
+  }) {
+    onDismissed();
   }
 
   /// ------ Splash screen inter load & show --------------------------------------------

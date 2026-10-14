@@ -9,6 +9,7 @@ import 'package:video_downloader/settingpage/settingpage.dart';
 import 'package:video_player/video_player.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import '../videoPlayer/video_player.dart';
+import 'package:video_downloader/for_ads/ads/ads_variable.dart';
 
 import '../../utility/app_storage_utils.dart';
 
@@ -240,11 +241,16 @@ class ActivityLibraryState extends ConsumerState<ActivityLibrary> {
               height: 26,
             ),
             onTap: () {
-              Navigator.push(
+              AdsVariable.onShowAds(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => VideoPlayerPage(videoFile: video),
-                ),
+                onComplete: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => VideoPlayerPage(videoFile: video),
+                    ),
+                  );
+                },
               );
             },
           );

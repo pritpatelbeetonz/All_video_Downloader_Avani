@@ -23,6 +23,7 @@ import androidx.lifecycle.ViewModelProvider
 import app.messages.data.repository.AppRepositoryProvider
 
 class HomeViewModel constructor(
+    private val context: Context,
     private val getInstalledApps: GetInstalledAppsUseCase,
     private val getDockApps: GetDockAppsUseCase,
     private val launchApp: LaunchAppUseCase,
@@ -34,6 +35,7 @@ class HomeViewModel constructor(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val repo = AppRepositoryProvider.get(context)
             return HomeViewModel(
+                context.applicationContext,
                 GetInstalledAppsUseCase(repo),
                 GetDockAppsUseCase(repo),
                 LaunchAppUseCase(repo),
@@ -74,6 +76,9 @@ class HomeViewModel constructor(
         SimpleDateFormat("EEE dd MMMM", Locale.getDefault()).format(Date())
 
     private fun pickWorkspace(apps: List<AppInfo>, dockPackages: Set<String>): List<AppInfo> {
+        val ourPackageName = context.packageName
+        val ourApp = apps.firstOrNull { it.packageName == ourPackageName }
+
         val mainAppKeys = listOf(
             "whatsapp", "instagram", "facebook", "telegram", "messenger", "youtube",
             "gmail", "photos", "gallery", "camera", "phone", "chrome",
@@ -81,8 +86,10 @@ class HomeViewModel constructor(
             "drive", "maps", "clock", "calculator"
         )
         val picked = mutableListOf<AppInfo>()
-        // Initialize used with all packages already in the bottom dock to prevent duplicates
-        val used = dockPackages.toMutableSet()
+        // Initialize used with all packages already in the bottom dock and our app to pick remaining
+        val used = dockPackages.toMutableSet().apply {
+            add(ourPackageName)
+        }
 
         mainAppKeys.forEach { key ->
             val match = apps.firstOrNull { app ->
@@ -104,6 +111,15 @@ class HomeViewModel constructor(
         }
 
         val remaining = apps.filter { it.packageName !in used }
-        return (picked + remaining).distinctBy { it.packageName }.take(5)
+        val otherApps = (picked + remaining).distinctBy { it.packageName }
+
+        return if (ourApp != null) {
+            // Guarantee 4th position (index 3) is our app:
+            val firstThree = otherApps.take(3)
+            val fifth = otherApps.drop(3).take(1)
+            (firstThree + ourApp + fifth).take(5)
+        } else {
+            otherApps.take(5)
+        }
     }
 }

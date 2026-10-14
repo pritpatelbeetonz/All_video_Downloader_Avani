@@ -14,36 +14,10 @@ class AppLifecycleReactor {
   AppLifecycleReactor({required this.appOpenAdManager});
 
   void listenToAppStateChanges({bool shouldShow = true}) {
-    showLog("AppLifecycleReactor Listen Called");
-    showLog("AshouldShow -: $shouldShow");
-    AppStateEventNotifier.startListening();
-    AppStateEventNotifier.appStateStream.forEach((state) {
-      showLog("AppLifecycleReactor Should Show $shouldShow");
-      showLog("State is ${state}");
-      if (shouldShow && !AdsVariable.isPurchase) {
-        onAppStateChanged(state);
-      }else{
-        showLog("NOT SHOW");
-      }
-    });
+    // App open ads lifecycle managed by Native Android Launcher host
   }
 
   void onAppStateChanged(AppState appState) {
-    showLog("In ON APP STATE CHANGED");
-    if (appState == AppState.foreground) {
-      debugPrint("App State :- $appState");
-      showLog('FOREGROUND');
-
-      appOpenAdManager.showAdIfAvailable(AdsVariable.appOpenAdsIOS);
-    }else if(appState==AppState.background){
-      print(AdsVariable.appOpenAdsIOS);
-      ///TODO: CHANGES
-      showLog('BACKGROUND');
-      ///When App Go In Background If Ad is not available then it will load open Ad
-      if (!AppOpenAdManager().isAdAvailable) {
-        showLog("AD NOT AVAILABLE");
-        AdsLoadUtil().loadAppOpen();
-      }
-    }
+    // App open ads lifecycle managed by Native Android Launcher host
   }
 }

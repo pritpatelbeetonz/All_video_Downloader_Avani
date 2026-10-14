@@ -4,6 +4,7 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:get/get.dart';
+import 'package:video_downloader/for_ads/ads/ads_variable.dart';
 
 class VideoPlayerPage extends StatefulWidget {
   final File videoFile;
@@ -189,24 +190,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
               } catch (e) {
                 debugPrint("Delete error: $e");
               }
+              _onBack();
             },
-            child: Text('delete'.tr, style: const TextStyle(color: Colors.redAccent)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              try {
-                if (widget.videoFile.existsSync()) {
-                  widget.videoFile.deleteSync();
-                }
-              } catch (e) {
-                debugPrint("Delete error: $e");
-              }
-              Navigator.pop(context);
-            },
-            child: const Text(
-              "Delete",
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+            child: Text(
+              'delete'.tr,
+              style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -214,11 +202,33 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     );
   }
 
+  void _onBack() {
+    try {
+      if (videoController.value.isPlaying) {
+        videoController.pause();
+      }
+    } catch (_) {}
+    AdsVariable.onShowAds(
+      context,
+      onComplete: () {
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fileName = widget.videoFile.path.split('/').last;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _onBack();
+      },
+      child: Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
         child: Stack(
@@ -254,7 +264,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                   children: [
                     /// BACK BUTTON
                     GestureDetector(
-                      onTap: () => Navigator.pop(context),
+                      onTap: _onBack,
                       child: Image.asset(
                         "assets/icons/back_white.png",
                         width: 30,
@@ -358,6 +368,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

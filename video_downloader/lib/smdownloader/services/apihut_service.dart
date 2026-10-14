@@ -1,34 +1,53 @@
 import 'dart:developer' as dev;
 import 'package:dio/dio.dart';
+import '../../for_ads/ads/ads_variable.dart';
 import '../models/sm_extraction_result.dart';
 
 /// Service for ApiHut fallback video extraction with API Key rotation and emoji logging.
 class ApiHutService {
   final Dio _dio;
 
-  /// Pool of ApiHut API Keys for rotation.
-  final List<String> _apiKeys;
+  /// Custom pool of ApiHut API Keys for rotation (if specified, overrides RemoteConfig).
+  final List<String>? _customApiKeys;
   int _currentKeyIndex = 0;
+  final bool? _customRotationOn;
 
   ApiHutService({
     Dio? dio,
     List<String>? apiKeys,
+    bool? isRotationOn,
   })  : _dio = dio ?? Dio(),
-        _apiKeys = (apiKeys != null && apiKeys.isNotEmpty)
-            ? List.from(apiKeys)
-            : ["330f736e-3eb6-4ad7-8bb9-0754c2d68f9f"];
+        _customApiKeys = (apiKeys != null && apiKeys.isNotEmpty) ? List.from(apiKeys) : null,
+        _customRotationOn = isRotationOn;
+
+  /// Effective pool of API Keys (prefers RemoteConfig list from AdsVariable.apiHutKeys)
+  List<String> get _effectiveKeys {
+    if (_customApiKeys != null && _customApiKeys.isNotEmpty) {
+      return _customApiKeys;
+    }
+    if (AdsVariable.apiHutKeys.isNotEmpty) {
+      return AdsVariable.apiHutKeys;
+    }
+    return const ["330f736e-3eb6-4ad7-8bb9-0754c2d68f9f"];
+  }
+
+  /// Flag indicating if API key rotation is on (from RemoteConfig or override)
+  bool get isRotationOn => _customRotationOn ?? AdsVariable.isApiHutKeyRotationOn;
 
   /// Adds extra keys to the rotation pool if available.
   void addApiKeys(List<String> keys) {
     for (final k in keys) {
-      if (!_apiKeys.contains(k)) {
-        _apiKeys.add(k);
+      if (!AdsVariable.apiHutKeys.contains(k)) {
+        AdsVariable.apiHutKeys.add(k);
       }
     }
   }
 
   /// Current active key (masked for logs).
-  String get _currentKey => _apiKeys[_currentKeyIndex % _apiKeys.length];
+  String get _currentKey {
+    final keys = _effectiveKeys;
+    return keys[_currentKeyIndex % keys.length];
+  }
 
   String _maskKey(String key) {
     if (key.length <= 8) return '****';
@@ -36,7 +55,12 @@ class ApiHutService {
   }
 
   void _rotateKey() {
-    _currentKeyIndex = (_currentKeyIndex + 1) % _apiKeys.length;
+    final keys = _effectiveKeys;
+    if (!isRotationOn || keys.length <= 1) {
+      print('ℹ️ [ApiHut] Key rotation is OFF or only 1 key available. Skipping rotation.');
+      return;
+    }
+    _currentKeyIndex = (_currentKeyIndex + 1) % keys.length;
     dev.log('🔄 [ApiHut] Rotated to API Key #${_currentKeyIndex + 1} (${_maskKey(_currentKey)})');
     print('🔄 [ApiHut] Rotated to API Key #${_currentKeyIndex + 1} (${_maskKey(_currentKey)})');
   }
@@ -46,16 +70,19 @@ class ApiHutService {
     required String url,
     required String platform,
   }) async {
-    print('🔀 [ApiHut] Initiating extraction fallback for platform: $platform');
-    dev.log('🔀 [ApiHut] URL: $url | Platform: $platform');
+    final keys = _effectiveKeys;
+    final rotationActive = isRotationOn;
+    final maxAttempts = rotationActive ? keys.length : 1;
+
+    print('🔀 [ApiHut] Initiating extraction fallback for platform: $platform (Keys in pool: ${keys.length}, Rotation: ${rotationActive ? "ON" : "OFF"})');
+    dev.log('🔀 [ApiHut] URL: $url | Platform: $platform | Rotation: $rotationActive');
 
     int attempts = 0;
-    final maxAttempts = _apiKeys.length;
 
     while (attempts < maxAttempts) {
       attempts++;
       final key = _currentKey;
-      print('🗝️ [ApiHut] Attempt $attempts/$maxAttempts using key #${_currentKeyIndex + 1} (${_maskKey(key)})');
+      print('🗝️ [ApiHut] Attempt $attempts/$maxAttempts using key #${(_currentKeyIndex % keys.length) + 1} (${_maskKey(key)})');
 
       try {
         final response = await _dio.post(
@@ -79,7 +106,9 @@ class ApiHutService {
         // Check for unauthorized, quota exhausted or forbidden
         if (statusCode == 401 || statusCode == 403 || statusCode == 429) {
           print('⚠️ [ApiHut] Key returned status $statusCode (quota/unauthorized).');
-          _rotateKey();
+          if (rotationActive && attempts < maxAttempts) {
+            _rotateKey();
+          }
           continue;
         }
 
@@ -108,18 +137,18 @@ class ApiHutService {
 
         // If response is not success, check if we should rotate
         print('⚠️ [ApiHut] Response did not contain success stream: $data');
-        if (attempts < maxAttempts) {
+        if (rotationActive && attempts < maxAttempts) {
           _rotateKey();
         }
       } catch (e) {
-        print('❌ [ApiHut] Request error with key #${_currentKeyIndex + 1}: $e');
-        if (attempts < maxAttempts) {
+        print('❌ [ApiHut] Request error with key #${(_currentKeyIndex % keys.length) + 1}: $e');
+        if (rotationActive && attempts < maxAttempts) {
           _rotateKey();
         }
       }
     }
 
-    print('❌ [ApiHut] All API keys in rotation pool exhausted or extraction failed');
+    print('❌ [ApiHut] All allowed attempts ($maxAttempts) exhausted or extraction failed');
     return null;
   }
 }
