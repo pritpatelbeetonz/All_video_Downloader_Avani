@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'ads_load_util.dart' show AdsLoadUtil;
+import 'package:video_downloader/for_ads/ads/ads_load_util.dart' show AdsLoadUtil;
 
 
 class AdsVariable {
@@ -260,15 +260,22 @@ class AdsVariable {
   static String fullNativeIntroAdIOS = "11";
   static String smallThirdIntroNativeIntroAdIOS = "11";
 
-  static Future<void> onShowAds(BuildContext context, {required Function onComplete}) async {
+  static Future<void> onShowAds(
+    BuildContext context, {
+    String place = "VD_Quick_App",
+    required Function onComplete,
+  }) async {
     if (AdsVariable.isPurchase) {
       onComplete();
     } else {
       if (AdsVariable.currentClick % int.parse(AdsVariable.click) == 0) {
         if (await isInternetConnected()) {
-          AdsLoadUtil.showInterstitial(onDismissed: () {
-            onComplete();
-          });
+          AdsLoadUtil.showInterstitial(
+            place: place,
+            onDismissed: () {
+              onComplete();
+            },
+          );
         } else {
           onComplete();
         }
@@ -280,11 +287,18 @@ class AdsVariable {
     AdsVariable.currentClick++;
   }
 
-  static void onShowAddMealAds(BuildContext context, {required Function onComplete}) {
+  static void onShowAddMealAds(
+    BuildContext context, {
+    String place = "VD_Quick_App",
+    required Function onComplete,
+  }) {
     if (AdsVariable.currentClick % int.parse(AdsVariable.click) == 0) {
-      AdsLoadUtil.showInterstitial(onDismissed: () {
-        onComplete();
-      });
+      AdsLoadUtil.showInterstitial(
+        place: place,
+        onDismissed: () {
+          onComplete();
+        },
+      );
     } else {
       onComplete();
     }

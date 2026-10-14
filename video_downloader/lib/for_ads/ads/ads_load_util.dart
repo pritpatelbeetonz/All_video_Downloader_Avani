@@ -275,7 +275,10 @@ class AdsLoadUtil extends GetxController {
     );
   }
 
-  static void showInterstitial({required Function onDismissed}) {
+  static void showInterstitial({
+    String place = "VD_Quick_App",
+    required Function onDismissed,
+  }) {
     if (AdsVariable.isPurchase ||
         !isValidAdId(AdsVariable.interPreLoadIOS) ||
         AdsVariable.interPreLoadIOS.startsWith('v', 0)) {
@@ -284,22 +287,30 @@ class AdsLoadUtil extends GetxController {
       return;
     }
     if (isAdLoaded && _interstitialAd != null) {
-      showLog("IT IS PRE LOADED");
+      showLog("IT IS PRE LOADED [$place]");
       loadingScreen.show();
       // Delay showing the ad for 1500 milliseconds
       Future.delayed(const Duration(milliseconds: 500), () {
         loadingScreen.hide();
-        // Close the loading dialog
+
+        // Attach compulsory revenue tracking for this placement
+        _interstitialAd!.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
+          FirebaseAnalyticsService.logAdRevenueEvent(
+            format: 'Inter',
+            place: place,
+            revenue: valueMicros / 1000000.0,
+            currency: currencyCode,
+            precision: precision.index,
+          );
+        };
 
         // Show the ad
         _interstitialAd!.show();
         _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
           onAdImpression: (ad) {
+            FirebaseAnalyticsService.logAdShowEvent(format: 'Inter', place: place);
             FirebaseAnalyticsService.logEvent(eventName: 'SHOW_INITIAL_AD');
-            showLog("onAdImpression---> true");
-            // Future.delayed(const Duration(milliseconds: 500), () {
-            //   onDismissed();
-            // });
+            showLog("onAdImpression---> true [$place]");
           },
           onAdDismissedFullScreenContent: (ad) {
             showLog("onAdDismissedFullScreenContent---> true");
@@ -320,12 +331,17 @@ class AdsLoadUtil extends GetxController {
         );
       });
     } else {
-      loadAndShow(adId: AdsVariable.interPreLoadIOS, onDismissed: onDismissed);
+      loadAndShow(
+        adId: AdsVariable.interPreLoadIOS,
+        place: place,
+        onDismissed: onDismissed,
+      );
     }
   }
 
   static void loadAndShow({
     required String adId,
+    String place = "VD_Quick_App",
     required Function onDismissed,
   }) {
     if (!isValidAdId(adId)) {
@@ -333,14 +349,14 @@ class AdsLoadUtil extends GetxController {
       onDismissed();
       return;
     }
-    showLog("IT IS LOAD AND SHOW");
+    showLog("IT IS LOAD AND SHOW [$place]");
     log("ads id $adId");
     isAdLoaded = false;
     loadingScreen.show();
 
     if (_interstitialAd != null) {
       showLog("onDismissed");
-      showInterstitial(onDismissed: onDismissed);
+      showInterstitial(place: place, onDismissed: onDismissed);
     } else {
       interstitialId = adId;
       showLog("dispose");
@@ -354,8 +370,9 @@ class AdsLoadUtil extends GetxController {
           onAdLoaded: (ad) {
             FirebaseAnalyticsService.logEvent(eventName: 'LOADED_INITIAL_AD');
             ad.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
-              FirebaseAnalyticsService.logAdImpression(
-                placement: 'video_downloader_inter',
+              FirebaseAnalyticsService.logAdRevenueEvent(
+                format: 'Inter',
+                place: place,
                 revenue: valueMicros / 1000000.0,
                 currency: currencyCode,
                 precision: precision.index,
@@ -370,10 +387,8 @@ class AdsLoadUtil extends GetxController {
             _interstitialAd!.fullScreenContentCallback =
                 FullScreenContentCallback(
                   onAdImpression: (ad) {
-                    showLog("onAdImpression");
-                    // Future.delayed(const Duration(seconds: 1), () {
-                    //   onDismissed();
-                    // });
+                    FirebaseAnalyticsService.logAdShowEvent(format: 'Inter', place: place);
+                    showLog("onAdImpression [$place]");
                   },
                   onAdDismissedFullScreenContent: (ad) {
                     onDismissed();
@@ -1046,6 +1061,11 @@ class AppBigNativeAdPool {
   static Function()? _onAdFailedCallback;
   static RxBool isFailedToLoad = false.obs;
 
+  static String get _activePlace =>
+      (_activeScreenTag?.toLowerCase().contains('loading') == true)
+          ? 'VD_Loading'
+          : 'VD_Search';
+
   static void loadForScreen({
     required String screenTag,
     required Function(NativeAd) onLoaded,
@@ -1101,9 +1121,16 @@ class AppBigNativeAdPool {
       adUnitId: AdsVariable.prAppBigNative,
       factoryId: 'bigNativeAds',
       listener: NativeAdListener(
+        onAdImpression: (ad) {
+          FirebaseAnalyticsService.logAdShowEvent(
+            format: 'Native',
+            place: _activePlace,
+          );
+        },
         onPaidEvent: (ad, valueMicros, precision, currencyCode) {
-          FirebaseAnalyticsService.logAdImpression(
-            placement: 'video_downloader_native',
+          FirebaseAnalyticsService.logAdRevenueEvent(
+            format: 'Native',
+            place: _activePlace,
             revenue: valueMicros / 1000000.0,
             currency: currencyCode,
             precision: precision.index,

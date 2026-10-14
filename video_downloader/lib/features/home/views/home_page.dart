@@ -78,6 +78,7 @@ class HomePageState extends ConsumerState<HomePage> {
               }
               AdsVariable.onShowAds(
                 context,
+                place: 'VD_Quick_App',
                 onComplete: () {
                   ref.read(bottomNavProvider.notifier).changeTab(index);
                 },

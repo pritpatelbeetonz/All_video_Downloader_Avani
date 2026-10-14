@@ -338,6 +338,7 @@ class _ProgressPageState extends ConsumerState<ProgressPage> {
     if (file.existsSync()) {
       AdsVariable.onShowAds(
         context,
+        place: 'VD_Play_Video',
         onComplete: () {
           Navigator.push(
             context,

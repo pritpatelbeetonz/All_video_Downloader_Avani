@@ -57,6 +57,9 @@ class LauncherMainSettingsActivity : BaseActivity() {
             adUnitId = config.nativeAdIdLauncherScreen,
             onLoaded = { nativeAd ->
                 if (isDestroyed || isFinishing) return@loadNativeAd
+                nativeAd.setOnPaidEventListener { adValue ->
+                    AdsConfigManager.logAdRevenue("Native", "Launcher_Setting", adValue)
+                }
                 val adView = layoutInflater.inflate(R.layout.ads_native_big, null, false) as com.google.android.gms.ads.nativead.NativeAdView
                 AdsConfigManager.populateNativeAdView(nativeAd, adView)
 

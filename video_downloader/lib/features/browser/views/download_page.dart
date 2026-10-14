@@ -176,6 +176,7 @@ class _DownloadPageState extends ConsumerState<DownloadPage> {
           onPressed: () {
             AdsVariable.onShowAds(
               context,
+              place: 'VD_Download_Click',
               onComplete: () {
                 Navigator.pop(context);
               },

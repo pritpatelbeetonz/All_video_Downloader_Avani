@@ -210,6 +210,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     } catch (_) {}
     AdsVariable.onShowAds(
       context,
+      place: 'VD_Player_Back',
       onComplete: () {
         if (mounted) {
           Navigator.pop(context);

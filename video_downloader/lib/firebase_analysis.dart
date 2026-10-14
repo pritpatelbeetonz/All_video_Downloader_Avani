@@ -53,6 +53,54 @@ class FirebaseAnalyticsService {
     }
   }
 
+  /// Compulsory ad impression event: Show_<Format>_<Place>
+  static Future<void> logAdShowEvent({
+    required String format,
+    required String place,
+  }) async {
+    try {
+      final eventName = 'Show_${format}_${place}';
+      await logEvent(
+        eventName: eventName,
+        parameters: {
+          'ad_format': format,
+          'ad_placement': place,
+        },
+      );
+      print("📊✅ [Analytics] Compulsory Show Event logged: $eventName");
+    } catch (e) {
+      print("❌ [Analytics] Error logging $format show event: $e");
+    }
+  }
+
+  /// Compulsory ad revenue event: Rev_<Format>_<Place> + standard ad_impression
+  static Future<void> logAdRevenueEvent({
+    required String format,
+    required String place,
+    required double revenue,
+    String currency = 'USD',
+    int precision = 0,
+  }) async {
+    try {
+      final eventName = 'Rev_${format}_${place}';
+      final params = <String, Object>{
+        'ad_platform': 'admob',
+        'ad_source': 'AdMob',
+        'ad_format': format,
+        'value': revenue,
+        'currency': currency.isNotEmpty ? currency : 'USD',
+        'precision_type': precision,
+      };
+      // 1. Mandatory Unconditional Rev Event
+      await logEvent(eventName: eventName, parameters: params);
+      print("📊✅ [Analytics] Compulsory Revenue Event logged: $eventName (revenue: $revenue $currency)");
+      // 2. Standard ad_impression event for Google Analytics AdMob revenue reporting
+      await logEvent(eventName: 'ad_impression', parameters: params);
+    } catch (e) {
+      print("❌ [Analytics] Error logging $format revenue event: $e");
+    }
+  }
+
 
   /// Sets a user property
   static Future<void> setUserProperty({

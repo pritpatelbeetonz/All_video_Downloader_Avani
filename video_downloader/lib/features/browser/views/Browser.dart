@@ -428,15 +428,19 @@ class BrowserState extends ConsumerState<Browser> {
                       InkWell(
                         borderRadius: BorderRadius.circular(20),
                         onTap: () async {
-                          AdsVariable.onShowAds(context, onComplete: () async {
-                            // 1. Check if the internal WebView has pages to go back to
-                            if (await browserController.canGoBack()) {
-                              await browserController.goBack();
-                            } else {
-                              // 2. If no history exists, exit the browser view
-                              ref.read(browserViewProvider.notifier).closeBrowser();
-                            }
-                          });
+                          AdsVariable.onShowAds(
+                            context,
+                            place: 'VD_Browser_Back',
+                            onComplete: () async {
+                              // 1. Check if the internal WebView has pages to go back to
+                              if (await browserController.canGoBack()) {
+                                await browserController.goBack();
+                              } else {
+                                // 2. If no history exists, exit the browser view
+                                ref.read(browserViewProvider.notifier).closeBrowser();
+                              }
+                            },
+                          );
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(5),

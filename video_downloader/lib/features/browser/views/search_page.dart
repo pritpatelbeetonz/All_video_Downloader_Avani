@@ -217,6 +217,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
   void _openUrl(String targetUrl) {
     AdsVariable.onShowAds(
       context,
+      place: 'VD_Quick_App',
       onComplete: () {
         searchbarController.text = targetUrl;
         ref.read(tabsProvider.notifier).updateUrl(targetUrl);
@@ -233,10 +234,16 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
       showToast('required_link_or_search'.tr);
       return;
     }
-    FocusScope.of(context).unfocus();
-    ref.read(tabsProvider.notifier).updateUrl(text);
-    ref.read(BrowserURl.notifier).submit(text);
-    ref.read(browserViewProvider.notifier).openBrowser();
+    AdsVariable.onShowAds(
+      context,
+      place: 'VD_Url_Open',
+      onComplete: () {
+        FocusScope.of(context).unfocus();
+        ref.read(tabsProvider.notifier).updateUrl(text);
+        ref.read(BrowserURl.notifier).submit(text);
+        ref.read(browserViewProvider.notifier).openBrowser();
+      },
+    );
   }
 
   @override

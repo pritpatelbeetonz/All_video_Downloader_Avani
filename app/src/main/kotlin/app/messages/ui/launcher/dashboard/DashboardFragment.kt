@@ -93,12 +93,10 @@ class DashboardFragment : Fragment() {
         }
         ViewCompat.requestApplyInsets(binding.root)
 
-        // Opens the app's own Settings (theme, notifications, backup...). The
-        // launcher's own settings are reachable only from the gear in the
-        // home / drawer search bars.
+        // Opens Launcher Settings (wallpapers, home screen, app drawer, gestures...).
         binding.cardSettings.setOnClickListener {
             startActivity(
-                android.content.Intent(requireContext(), app.messages.ui.activity.SettingsActivity::class.java)
+                android.content.Intent(requireContext(), app.messages.ui.launcher.settings.LauncherMainSettingsActivity::class.java)
             )
         }
 

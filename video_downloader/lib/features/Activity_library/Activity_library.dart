@@ -243,6 +243,7 @@ class ActivityLibraryState extends ConsumerState<ActivityLibrary> {
             onTap: () {
               AdsVariable.onShowAds(
                 context,
+                place: 'VD_Library_Click',
                 onComplete: () {
                   Navigator.push(
                     context,
