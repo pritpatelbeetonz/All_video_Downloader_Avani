@@ -215,11 +215,16 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
   }
 
   void _openUrl(String targetUrl) {
-    searchbarController.text = targetUrl;
-    ref.read(tabsProvider.notifier).updateUrl(targetUrl);
-    ref.read(BrowserURl.notifier).submit(targetUrl);
-    FocusScope.of(context).unfocus();
-    ref.read(browserViewProvider.notifier).openBrowser();
+    AdsVariable.onShowAds(
+      context,
+      onComplete: () {
+        searchbarController.text = targetUrl;
+        ref.read(tabsProvider.notifier).updateUrl(targetUrl);
+        ref.read(BrowserURl.notifier).submit(targetUrl);
+        FocusScope.of(context).unfocus();
+        ref.read(browserViewProvider.notifier).openBrowser();
+      },
+    );
   }
 
   void _submitSearch() {
