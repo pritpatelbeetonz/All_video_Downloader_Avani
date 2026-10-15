@@ -63,7 +63,8 @@ class SetDefaultLauncherActivity : BaseActivity() {
         binding.tvTitle.text = androidx.core.text.HtmlCompat.fromHtml(titleHtml, androidx.core.text.HtmlCompat.FROM_HTML_MODE_LEGACY)
 
         binding.btnSetDefault.setOnClickListener {
-            android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] User clicked 'Set as Default' button.")
+            android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] User clicked 'Set as Default' button -> preloading SetAsDefault Interstitial in background")
+            app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
             requestDefaultLauncherRole()
         }
     }
