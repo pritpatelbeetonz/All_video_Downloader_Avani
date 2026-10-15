@@ -44,6 +44,7 @@ class LanguageSelectionActivity : BaseActivity() {
     private lateinit var binding: ActivityLanguageSelectionBinding
     private lateinit var adapter: LanguageAdapter
     var prefs: PreferenceHelper? = null
+    private var isFromSettings: Boolean = false
 
     /** Done, the Done button and the back gesture all land in saveLanguage(). */
     private val isNavigatingNext = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -55,6 +56,7 @@ class LanguageSelectionActivity : BaseActivity() {
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] onCreate() entered")
 
         prefs = PreferenceHelper.getInstance(this)
+        isFromSettings = intent.getBooleanExtra("from_settings", false) || (prefs?.isOnboardingDone() == true)
         
         // Mark as selected immediately so pressing Home/Back doesn't cause a loop
         if (prefs?.isLanguageSelected() == false) {
@@ -118,12 +120,12 @@ class LanguageSelectionActivity : BaseActivity() {
     private fun setupUI() {
         binding.btnNext.setOnClickListener {
             Log.d("SetDefaultFlow", "[LanguageSelectionActivity] User clicked Next button")
-            AnalyticsHelper.logEvent(EventNames.CLICK_DONE, EventScreenName.LANGUAGE)
+            AnalyticsHelper.logEvent("language_done_clicked", EventScreenName.LANGUAGE)
             saveLanguage()
         }
         binding.btnDone.setOnClickListener {
             Log.d("SetDefaultFlow", "[LanguageSelectionActivity] User clicked Done button")
-            AnalyticsHelper.logEvent(EventNames.CLICK_DONE, EventScreenName.LANGUAGE)
+            AnalyticsHelper.logEvent("language_done_clicked", EventScreenName.LANGUAGE)
             saveLanguage()
         }
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
@@ -164,25 +166,33 @@ class LanguageSelectionActivity : BaseActivity() {
             return
         }
 
-        Log.d("ADS_DASHBOARD", "⚡ [LANGUAGE_DONE] User clicked Done -> Preloading Native Dashboard Ad for upcoming launcher session...")
-        Log.d("ADS_GOOGLE_SEARCH", "⚡ [LANGUAGE_DONE] User clicked Done -> Preloading Google Search Native Ad for slot #0...")
-        Log.d("ADS_DRAWER", "⚡ [LANGUAGE_DONE] User clicked Done -> Preloading App Drawer Native Ad for upcoming launcher session...")
-        Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Preloading dashboard, search & drawer native ads for upcoming launcher session")
-        app.messages.config.AdsConfigManager.preloadDashboardNativeAd(this)
-        app.messages.config.AdsConfigManager.preloadGoogleSearchNativeAd(this)
-        app.messages.config.AdsConfigManager.preloadDrawerNativeAd(this)
+        // Only preload launcher session ads if user is onboarding for the first time
+        val isFirstLaunchOnboarding = !isFromSettings && !prefs!!.isOnboardingDone()
+        if (isFirstLaunchOnboarding) {
+            Log.d("ADS_DASHBOARD", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading Native Dashboard Ad...")
+            Log.d("ADS_GOOGLE_SEARCH", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading Google Search Native Ad...")
+            Log.d("ADS_DRAWER", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading App Drawer Native Ad...")
+            app.messages.config.AdsConfigManager.preloadDashboardNativeAd(this)
+            app.messages.config.AdsConfigManager.preloadGoogleSearchNativeAd(this)
+            app.messages.config.AdsConfigManager.preloadDrawerNativeAd(this)
+        }
 
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Triggering showLanguageInterstitial")
         app.messages.config.AdsConfigManager.showLanguageInterstitial(this) {
             Log.d("SetDefaultFlow", "[LanguageSelectionActivity] showLanguageInterstitial callback fired")
-            startActivity(
-                Intent(this, app.messages.ui.launcher.LauncherActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                    putExtra("open_chats_first", true)
-                }
-            )
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-            finish()
+            if (isFromSettings) {
+                // If user opened from Settings, just return back
+                finish()
+            } else {
+                startActivity(
+                    Intent(this, app.messages.ui.launcher.LauncherActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                        putExtra("open_chats_first", true)
+                    }
+                )
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                finish()
+            }
         }
     }
 
