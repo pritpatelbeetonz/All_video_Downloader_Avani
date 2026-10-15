@@ -72,45 +72,49 @@ class _PrivacyPolicyViewState extends State<PrivacyPolicyView> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
-      child: SafeArea(
-        top: false,
-        bottom: false,
-        child: Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            leading: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: GestureDetector(
-                onTap: () => Get.back(),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.close, size: 25.h),
-                ),
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          Get.back();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF14151A),
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: const Color(0xFF14151A),
+          surfaceTintColor: Colors.transparent,
+          leading: IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
               ),
-            ),
-            backgroundColor: Colors.transparent,
-            title: Text(
-              'Privacy Policy',
-              style: TextStyle(
+              child: const Icon(
+                Icons.close_rounded,
                 color: Colors.white,
-                fontSize: 18.sp,
-                fontWeight: FontWeight.w500,
-                fontFamily: 'Inter',
+                size: 22,
               ),
             ),
-            centerTitle: true,
+            onPressed: () => Get.back(),
           ),
-          body: Obx(
-            () => isLoading.value
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF7C4DFF)),
-                  )
-                : WebViewWidget(controller: controller),
+          title: const Text(
+            'Privacy Policy',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
           ),
+          centerTitle: true,
+        ),
+        body: Obx(
+          () => isLoading.value
+              ? const Center(
+                  child: CircularProgressIndicator(color: Color(0xFFFE7338)),
+                )
+              : WebViewWidget(controller: controller),
         ),
       ),
     );
