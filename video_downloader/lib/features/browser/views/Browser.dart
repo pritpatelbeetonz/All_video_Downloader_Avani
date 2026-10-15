@@ -3,6 +3,7 @@ import 'package:video_downloader/for_ads/ads/ads_splash_utils.dart';
 import 'package:video_downloader/for_ads/ads/ads_variable.dart';
 import 'package:video_downloader/import_all.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../providers/Browser_data_provider.dart';
 import '../providers/SearchToBrowser.dart';
 import '../utility/platform_detector.dart';
@@ -10,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import '../providers/Bookmark_Provider.dart';
 import '../views/Bookmart.dart';
+import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import '../providers/download_task_provider.dart';
@@ -20,6 +22,11 @@ import 'Loadingscreen.dart';
 import '../../../smdownloader/smdownloader.dart';
 import '../../../utility/app_storage_utils.dart';
 import 'package:get/get.dart';
+import 'dart:developer' as developer;
+
+void androidLog(String msg) {
+  developer.log(msg, name: 'WEBVIEW_EVENT');
+}
 
 class Browser extends ConsumerStatefulWidget {
   final Function(WebViewController)? onControllerReady;
@@ -39,61 +46,45 @@ class BrowserState extends ConsumerState<Browser> {
   String? videoUrl;
   String? thumbnail;
   bool _isLoadingScreenOpen = false;
-  String? _sniffedVideoUrl;
-  bool _hasDetectedVideo = false;
 
-  Future<String?> _queryInPageVideoSource() async {
-    try {
-      final result = await browserController.runJavaScriptReturningResult('''
-        (function() {
-          try {
-            var videos = Array.from(document.querySelectorAll('video'));
-            for (var i = 0; i < videos.length; i++) {
-              var v = videos[i];
-              var src = v.currentSrc || v.src;
-              if (src && typeof src === 'string' && (src.startsWith('http://') || src.startsWith('https://'))) {
-                return src;
-              }
-              var sources = Array.from(v.querySelectorAll('source'));
-              for (var j = 0; j < sources.length; j++) {
-                var s = sources[j].src;
-                if (s && typeof s === 'string' && (s.startsWith('http://') || s.startsWith('https://'))) {
-                  return s;
-                }
-              }
-            }
-          } catch(e) {}
-          return '';
-        })();
-      ''');
-      if (result is String) {
-        final cleaned = result.replaceAll('"', '').trim();
-        if (cleaned.startsWith('http')) {
-          return cleaned;
-        }
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<void> startDownload(String taskId) async {
+  Future<void> startDownload({
+    required String taskId,
+    String? explicitTargetUrl,
+    String? immediateStreamUrl,
+    String? platform,
+  }) async {
     final state = ref.read(BrowserURl);
-    final pageUrl = state["url"] ?? "";
-    final platform = state["platform"] ?? "";
+    final pageUrl = (explicitTargetUrl != null && explicitTargetUrl.isNotEmpty)
+        ? explicitTargetUrl
+        : (state["url"] ?? "");
+    final targetPlatform = (platform != null && platform.isNotEmpty)
+        ? platform
+        : (state["platform"] ?? "");
 
     try {
-      // 1. Try primary/fallback API extraction first
+      // 1. If we already captured the direct playing video stream from in-page HTML5, download it directly!
+      if (immediateStreamUrl != null && immediateStreamUrl.isNotEmpty) {
+        await ref.read(downloadTaskProvider.notifier).attachStreamAndDownload(
+          taskId: taskId,
+          streamUrl: immediateStreamUrl,
+          thumbnailUrl: null,
+          customFileName: 'video_${DateTime.now().millisecondsSinceEpoch}.mp4',
+          platform: targetPlatform,
+        );
+        return;
+      }
+
+      // 2. Try primary/fallback API extraction first
       final extractor = ref.read(videoExtractorManagerProvider);
       final result = await extractor.extractVideo(
         url: pageUrl,
-        platform: platform,
+        platform: targetPlatform,
         onFallbackToApiHut: () {
           ref.read(downloadTaskProvider.notifier).markUsingApiHut(taskId);
         },
       );
 
       if (result != null) {
-        // Attach the extracted stream URL and begin downloading
         await ref.read(downloadTaskProvider.notifier).attachStreamAndDownload(
           taskId: taskId,
           streamUrl: result.videoUrl,
@@ -101,35 +92,17 @@ class BrowserState extends ConsumerState<Browser> {
           customFileName: result.title != null
               ? AppStorageUtils.sanitizeFileName(result.title!)
               : null,
-          platform: platform,
+          platform: targetPlatform,
           isApiHut: result.isApiHut,
         );
         return;
       }
 
-      // 2. If API extraction returned null, check for in-page HTML5 sniffed stream
-      String? fallbackStream = _sniffedVideoUrl;
-      if (fallbackStream == null || fallbackStream.isEmpty) {
-        fallbackStream = await _queryInPageVideoSource();
-      }
-
-      if (fallbackStream != null && fallbackStream.isNotEmpty) {
-        await ref.read(downloadTaskProvider.notifier).attachStreamAndDownload(
-          taskId: taskId,
-          streamUrl: fallbackStream,
-          thumbnailUrl: null,
-          customFileName: 'video_${DateTime.now().millisecondsSinceEpoch}.mp4',
-          platform: platform,
-        );
-        return;
-      }
-
-      // 3. Neither backend nor in-page stream was available yet
       ref.read(downloadTaskProvider.notifier).markFetchingFailed(
         taskId,
-        "Please play the video first, then tap Download",
+        "Failed to extract video from this page",
       );
-      showToast("Please play the video first, then tap Download");
+      showToast("Failed to extract video from this page");
     } catch (e) {
       ref.read(downloadTaskProvider.notifier).markFetchingFailed(
         taskId,
@@ -138,6 +111,7 @@ class BrowserState extends ConsumerState<Browser> {
       showToast("Please play the video first, then tap Download");
     }
   }
+
 
   Future<void> downloadVideo(String url) async {
 
@@ -216,163 +190,158 @@ class BrowserState extends ConsumerState<Browser> {
 
     browserController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..enableZoom(true)
-      ..addJavaScriptChannel(
-        'VideoDetectorChannel',
-        onMessageReceived: (JavaScriptMessage message) {
-          final mediaUrl = message.message.trim();
-          if (mediaUrl.startsWith('http') && mediaUrl != _sniffedVideoUrl) {
-            if (mounted) {
-              setState(() {
-                _sniffedVideoUrl = mediaUrl;
-                _hasDetectedVideo = true;
-              });
-            }
-          }
-        },
-      )
+      ..enableZoom(true);
+
+    // Apply platform-specific performance optimizations if on Android
+    final platformController = browserController.platform;
+    if (platformController is AndroidWebViewController) {
+      platformController.setMediaPlaybackRequiresUserGesture(true);
+    }
+
+    browserController
+      ..setOnScrollPositionChange((ScrollPositionChange change) {
+        try {
+          androidLog('📜 [WEBVIEW_SCROLL] x: ${change.x.toInt()}, y: ${change.y.toInt()}');
+        } catch (_) {}
+      })
       ..setNavigationDelegate(
         NavigationDelegate(
+          onProgress: (int progress) {
+            try {
+              if (progress % 25 == 0 || progress == 100) {
+                androidLog('⏳ [WEBVIEW_PROGRESS] Loading: $progress%');
+              }
+            } catch (_) {}
+          },
           onPageStarted: (url) {
-            if (!mounted) return;
-            setState(() {
-              _isLoading = true;
-              _sniffedVideoUrl = null;
-              _hasDetectedVideo = false;
-            });
+            try {
+              androidLog('🌐🚀 [WEBVIEW_PAGE_STARTED] URL: $url');
+              if (!mounted) return;
+              setState(() {
+                _isLoading = true;
+              });
+            } catch (e) {
+              androidLog('❌ [WEBVIEW_PAGE_STARTED_ERROR] $e');
+            }
           },
           onWebResourceError: (WebResourceError error) {
-            if (!mounted) return;
-            setState(() {
-              _isLoading = false;
-            });
+            try {
+              final isMainFrame = error.isForMainFrame ?? true;
+              androidLog(
+                '⚠️ [WEBVIEW_RESOURCE_ERROR] isMainFrame: $isMainFrame, code: ${error.errorCode}, type: ${error.errorType}, desc: ${error.description}, url: ${error.url}',
+              );
 
-            // Check if failure affects the main webpage (not subresource/ad iframe)
-            final isMainFrame = error.isForMainFrame ?? true;
-            if (isMainFrame) {
-              final currentUrl = ref.read(BrowserURl)["url"] ?? "";
-              final platformName = _getPlatformDisplayName(currentUrl);
-              final isRestrictedPlatform = _isRestrictedPlatform(currentUrl);
+              if (!mounted) return;
+              setState(() {
+                _isLoading = false;
+              });
 
-              final isNetworkBlocked =
-                  error.description.contains("ERR_NAME_NOT_RESOLVED") ||
-                  error.description.contains("ERR_CONNECTION_REFUSED") ||
-                  error.description.contains("ERR_CONNECTION_TIMED_OUT") ||
-                  error.description.contains("ERR_ADDRESS_UNREACHABLE") ||
-                  error.description.contains("ERR_BLOCKED_BY_RESPONSE") ||
-                  error.errorType == WebResourceErrorType.hostLookup ||
-                  error.errorType == WebResourceErrorType.connect ||
-                  error.errorType == WebResourceErrorType.timeout;
+              // Check if failure affects the main webpage (not subresource/ad iframe)
+              if (isMainFrame) {
+                final currentUrl = ref.read(BrowserURl)["url"] ?? "";
+                final platformName = _getPlatformDisplayName(currentUrl);
+                final isRestrictedPlatform = _isRestrictedPlatform(currentUrl);
 
-              if (isRestrictedPlatform && isNetworkBlocked) {
-                showToast(
-                  "$platformName may be blocked or restricted by your network provider in your region.",
-                );
+                final isNetworkBlocked =
+                    error.description.contains("ERR_NAME_NOT_RESOLVED") ||
+                    error.description.contains("ERR_CONNECTION_REFUSED") ||
+                    error.description.contains("ERR_CONNECTION_TIMED_OUT") ||
+                    error.description.contains("ERR_ADDRESS_UNREACHABLE") ||
+                    error.description.contains("ERR_BLOCKED_BY_RESPONSE") ||
+                    error.errorType == WebResourceErrorType.hostLookup ||
+                    error.errorType == WebResourceErrorType.connect ||
+                    error.errorType == WebResourceErrorType.timeout;
+
+                if (isRestrictedPlatform && isNetworkBlocked) {
+                  showToast(
+                    "$platformName may be blocked or restricted by your network provider in your region.",
+                  );
+                }
               }
+            } catch (e) {
+              androidLog('❌ [WEBVIEW_ERROR_HANDLING_FAILED] $e');
             }
           },
           onPageFinished: (url) async {
-            if (!mounted) return;
-            setState(() {
-              _isLoading = false;
-            });
-
-            // Ensure webpage can scroll and has padding above floating buttons
             try {
-              await browserController.runJavaScript('''
-                (function() {
-                  try {
-                    var style = document.getElementById('vd-scroll-fix');
-                    if (!style) {
-                      style = document.createElement('style');
-                      style.id = 'vd-scroll-fix';
-                      style.innerHTML = 'html, body { overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; } body { padding-bottom: 90px !important; }';
-                      (document.head || document.documentElement).appendChild(style);
-                    }
-                  } catch(e) {}
-                })();
-              ''');
+              androidLog('✅ [WEBVIEW_PAGE_FINISHED] URL: $url');
+              if (!mounted) return;
+              setState(() {
+                _isLoading = false;
+              });
+
+              // Ensure webpage can scroll and has padding above floating buttons
+              try {
+                await browserController.runJavaScript('''
+                  (function() {
+                    try {
+                      var style = document.getElementById('vd-scroll-fix');
+                      if (!style) {
+                        style = document.createElement('style');
+                        style.id = 'vd-scroll-fix';
+                        style.innerHTML = 'html, body { overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; } body { padding-bottom: 90px !important; }';
+                        (document.head || document.documentElement).appendChild(style);
+                      }
+                    } catch(e) {}
+                  })();
+                ''');
+              } catch (e) {
+                // Ignore JS errors on unsupported schemes
+              }
+
+              // If navigation was triggered internally, ignore provider update
+              if (_isInternalNavigation) {
+                androidLog('🔄 [WEBVIEW_INTERNAL_NAV] Ignored provider sync');
+                _isInternalNavigation = false;
+                return;
+              }
+
+              final currentState = ref.read(BrowserURl);
+
+              if (currentState["url"] != url) {
+                androidLog('📌 [WEBVIEW_URL_SYNC] Syncing URL to provider: $url');
+                ref.read(BrowserURl.notifier).setUrlFromWeb(url);
+                searchbar.text = url;
+              }
+              ref.read(tabsProvider.notifier).updateUrl(url);
             } catch (e) {
-              // Ignore JS errors on unsupported schemes
+              androidLog('❌ [WEBVIEW_PAGE_FINISHED_ERROR] $e');
             }
-
-            // In-page video play sniffer
-            try {
-              await browserController.runJavaScript('''
-                (function() {
-                  function notifyVideo(v) {
-                    if (!v) return;
-                    var src = v.currentSrc || v.src;
-                    if (src && typeof src === 'string' && (src.startsWith('http://') || src.startsWith('https://'))) {
-                      try { VideoDetectorChannel.postMessage(src); } catch(e) {}
-                    }
-                  }
-                  document.addEventListener('play', function(e) {
-                    if (e.target && e.target.tagName === 'VIDEO') {
-                      notifyVideo(e.target);
-                    }
-                  }, true);
-                  document.addEventListener('playing', function(e) {
-                    if (e.target && e.target.tagName === 'VIDEO') {
-                      notifyVideo(e.target);
-                    }
-                  }, true);
-                  document.addEventListener('loadeddata', function(e) {
-                    if (e.target && e.target.tagName === 'VIDEO') {
-                      notifyVideo(e.target);
-                    }
-                  }, true);
-                  var videos = document.querySelectorAll('video');
-                  for (var i = 0; i < videos.length; i++) {
-                    notifyVideo(videos[i]);
-                  }
-                })();
-              ''');
-            } catch (e) {
-              // Ignore JS errors
-            }
-
-            // If navigation was triggered internally, ignore provider update
-            if (_isInternalNavigation) {
-              _isInternalNavigation = false;
-              return;
-            }
-
-            final currentState = ref.read(BrowserURl);
-
-            if (currentState["url"] != url) {
-              ref.read(BrowserURl.notifier).setUrlFromWeb(url);
-              searchbar.text = url;
-            }
-            ref.read(tabsProvider.notifier).updateUrl(url);
           },
           onNavigationRequest: (request) {
-            final url = request.url;
+            try {
+              final url = request.url;
+              androidLog('🧭 [WEBVIEW_NAV_REQUEST] Target: $url, isMainFrame: ${request.isMainFrame}');
 
-            if (url.startsWith("intent://")) {
-              return NavigationDecision.prevent;
-            }
-            // Facebook share reel link
-            if (url.contains("facebook.com/share/r/")) {
-              final uri = Uri.parse(url);
-              final segments = uri.pathSegments;
-
-              if (segments.length >= 3) {
-                final reelId = segments.last;
-
-                final reelUrl = "https://www.facebook.com/reel/$reelId";
-
-                browserController.loadRequest(Uri.parse(reelUrl));
-
+              if (url.startsWith("intent://")) {
+                androidLog('🛑 [WEBVIEW_NAV_BLOCKED] Blocked intent:// scheme: $url');
                 return NavigationDecision.prevent;
               }
-            }
+              // Facebook share reel link
+              if (url.contains("facebook.com/share/r/")) {
+                final uri = Uri.parse(url);
+                final segments = uri.pathSegments;
 
-            // Block fb:// scheme
-            if (url.startsWith("fb://")) {
-              return NavigationDecision.prevent;
+                if (segments.length >= 3) {
+                  final reelId = segments.last;
+                  final reelUrl = "https://www.facebook.com/reel/$reelId";
+                  androidLog('🔀 [WEBVIEW_NAV_REDIRECT] Redirecting FB share link to: $reelUrl');
+                  browserController.loadRequest(Uri.parse(reelUrl));
+                  return NavigationDecision.prevent;
+                }
+              }
+
+              // Block fb:// scheme
+              if (url.startsWith("fb://")) {
+                androidLog('🛑 [WEBVIEW_NAV_BLOCKED] Blocked fb:// scheme: $url');
+                return NavigationDecision.prevent;
+              }
+              androidLog('🟢 [WEBVIEW_NAV_ALLOWED] Allowed navigation to: $url');
+              return NavigationDecision.navigate;
+            } catch (e) {
+              androidLog('❌ [WEBVIEW_NAV_REQUEST_ERROR] $e');
+              return NavigationDecision.navigate;
             }
-            return NavigationDecision.navigate;
           },
         ),
       );
@@ -743,129 +712,88 @@ class BrowserState extends ConsumerState<Browser> {
       floatingActionButton: (Platform == "youtube" && !AdsVariable.isYouTubeEnabled)
           ? null
           : SizedBox(
-        width: 202,
-        height: 50,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(40),
-          onTap: () async {
-            final url = await browserController.currentUrl();
-            print("====>current url $url");
+              width: 56,
+              height: 56,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  FloatingActionButton(
+                    elevation: 5,
+                    backgroundColor: const Color(0xFFFF7134),
+                    shape: const CircleBorder(),
+                    onPressed: () async {
+                      final url = await browserController.currentUrl();
+                      print("====>current url $url");
 
-            final platform = Platform;
-            print("===>platform $platform");
+                      final platform = Platform;
+                      print("===>platform $platform");
 
-            final effectivePlatform = (platform.isNotEmpty && platform != "unknown")
-                ? platform
-                : PlatformDetector.detectPlatform(url ?? "");
+                      final effectivePlatform = (platform.isNotEmpty && platform != "unknown")
+                          ? platform
+                          : PlatformDetector.detectPlatform(url ?? "");
 
-            if (effectivePlatform == "youtube" && !AdsVariable.isYouTubeEnabled) {
-              showToast('youtube_download_restricted'.tr);
-              return;
-            }
-
-            final check = PlatformDetector.isValidVideoUrl(
-              url ?? "unknown",
-              effectivePlatform,
-            );
-
-            print(check);
-
-            final inPageVideo = _sniffedVideoUrl ?? await _queryInPageVideoSource();
-            final hasVideoReady = check || (inPageVideo != null && inPageVideo.isNotEmpty);
-
-            if (!hasVideoReady) {
-              print(" hello $check");
-
-              if (PlatformDetector.isSupportedBySmDownloader(effectivePlatform)) {
-                showToast('please_play_or_open_post'.tr);
-              } else {
-                showToast('please_play_video_first'.tr);
-              }
-
-              return;
-            }
-
-            if (url != null && hasVideoReady) {
-              print(" Second ");
-
-              ref.read(BrowserURl.notifier).setUrlFromWeb(url);
-
-              print("====> download Url $url");
-
-              final platform = ref.read(BrowserURl)["platform"] ?? "";
-              final taskId = ref.read(downloadTaskProvider.notifier).createFetchingTask(
-                pageUrl: url,
-                platform: platform,
-              );
-
-              _isLoadingScreenOpen = true;
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => LoadingChartWidget(
-                    taskId: taskId,
-                    onContinueInBackground: () {
-                      _isLoadingScreenOpen = false;
-                      if (Navigator.canPop(context)) {
-                        Navigator.pop(context);
+                      if (effectivePlatform == "youtube" && !AdsVariable.isYouTubeEnabled) {
+                        showToast('youtube_download_restricted'.tr);
+                        return;
                       }
-                    },
-                  ),
-                ),
-              ).then((_) {
-                _isLoadingScreenOpen = false;
-              });
 
-              startDownload(taskId);
-            }
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFFF7134),
-              borderRadius: BorderRadius.circular(40),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  "assets/icons/download_.png",
-                  width: 16,
-                  height: 16,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'download'.tr,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                if (_hasDetectedVideo || _sniffedVideoUrl != null) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00FF66),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF00FF66).withValues(alpha: 0.6),
-                          blurRadius: 4,
-                          spreadRadius: 1,
+                      // Check URL validity
+                      final isDirectPostUrl = PlatformDetector.isValidVideoUrl(
+                        url ?? "unknown",
+                        effectivePlatform,
+                      );
+
+                      final targetUrl = url ?? "";
+
+                      if (targetUrl.isEmpty || targetUrl == "about:blank") {
+                        showToast('please_play_or_open_post'.tr);
+                        return;
+                      }
+
+                      ref.read(BrowserURl.notifier).setUrlFromWeb(targetUrl);
+                      print("====> Triggering download for URL: $targetUrl");
+
+                      final resolvedPlatform = ref.read(BrowserURl)["platform"] ?? effectivePlatform;
+                      final taskId = ref.read(downloadTaskProvider.notifier).createFetchingTask(
+                        pageUrl: targetUrl,
+                        platform: resolvedPlatform,
+                      );
+
+                      _isLoadingScreenOpen = true;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => LoadingChartWidget(
+                            taskId: taskId,
+                            onContinueInBackground: () {
+                              _isLoadingScreenOpen = false;
+                              if (Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              }
+                            },
+                          ),
                         ),
-                      ],
+                      ).then((_) {
+                        _isLoadingScreenOpen = false;
+                      });
+
+                      startDownload(
+                        taskId: taskId,
+                        explicitTargetUrl: targetUrl,
+                        platform: resolvedPlatform,
+                      );
+                    },
+                    child: Image.asset(
+                      "assets/icons/download_.png",
+                      width: 24,
+                      height: 24,
+                      color: Colors.white,
                     ),
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }

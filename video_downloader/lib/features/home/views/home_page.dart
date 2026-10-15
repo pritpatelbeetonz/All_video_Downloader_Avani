@@ -44,9 +44,7 @@ class HomePageState extends ConsumerState<HomePage> {
       canPop: false,
       child: Scaffold(
         body: IndexedStack(index: currentIndex, children: pages),
-        bottomNavigationBar: (showBrowser && currentIndex == 0)
-            ? null
-            : Container(
+        bottomNavigationBar: Container(
           decoration: const BoxDecoration(
             border: Border(
               top: BorderSide(

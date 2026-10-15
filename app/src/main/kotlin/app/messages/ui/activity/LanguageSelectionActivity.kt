@@ -184,14 +184,19 @@ class LanguageSelectionActivity : BaseActivity() {
                 // If user opened from Settings, just return back
                 finish()
             } else {
-                startActivity(
-                    Intent(this, app.messages.ui.launcher.LauncherActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                        putExtra("open_chats_first", true)
-                    }
-                )
-                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-                finish()
+                try {
+                    android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] User finished Language Selection -> Launching LauncherActivity with open_chats_first=true (Targeting Video Downloader)")
+                    startActivity(
+                        Intent(this, app.messages.ui.launcher.LauncherActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                            putExtra("open_chats_first", true)
+                        }
+                    )
+                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                    finish()
+                } catch (e: Exception) {
+                    android.util.Log.e("FLOW_CHECK", "❌ [LANGUAGE_DONE_ERROR] Failed to start LauncherActivity: ${e.message}", e)
+                }
             }
         }
     }

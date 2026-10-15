@@ -18,8 +18,8 @@ android {
         // 24–28 falls back to read-only mode (banner: "Set as default to send messages").
         minSdk = 27
         targetSdk = 36
-        versionCode = 12
-        versionName = "12.0.0"
+        versionCode = 1
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

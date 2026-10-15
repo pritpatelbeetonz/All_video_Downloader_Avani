@@ -63,6 +63,7 @@ class PreferenceHelper private constructor(context: Context) {
         const val KEY_EVENT_SET_LAUNCHER_LOGGED = "key_event_set_launcher_logged"
         const val KEY_EVENT_LANGUAGE_LOGGED = "key_event_language_logged"
         const val KEY_EVENT_DEFAULT_SMS_LOGGED = "key_event_default_sms_logged"
+        const val KEY_FIRST_LAUNCHER_LANDING_DONE = "key_first_launcher_landing_done"
     }
 
     fun isEventLogged(key: String): Boolean = prefs.getBoolean(key, false)
@@ -167,6 +168,14 @@ class PreferenceHelper private constructor(context: Context) {
 
     fun isOnboardingDone(): Boolean {
         return prefs.getBoolean(KEY_ONBOARDING_DONE, false)
+    }
+
+    fun isFirstLauncherLandingDone(): Boolean {
+        return prefs.getBoolean(KEY_FIRST_LAUNCHER_LANDING_DONE, false)
+    }
+
+    fun setFirstLauncherLandingDone(done: Boolean) {
+        prefs.edit().putBoolean(KEY_FIRST_LAUNCHER_LANDING_DONE, done).apply()
     }
 
     fun setIsPremium(isPremium: Boolean) {

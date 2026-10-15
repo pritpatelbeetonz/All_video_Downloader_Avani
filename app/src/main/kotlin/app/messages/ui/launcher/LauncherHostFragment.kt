@@ -75,13 +75,42 @@ class LauncherHostFragment : Fragment() {
         }
 
         if (savedInstanceState == null) {
-            val openChatsFirst = requireActivity().intent?.getBooleanExtra("open_chats_first", false) ?: false
-            val initialTab = if (openChatsFirst) LauncherPagerAdapter.PAGE_DASHBOARD else LauncherPagerAdapter.PAGE_HOME
-            binding.viewPager.post {
-                if (_binding != null) {
-                    binding.viewPager.setCurrentItem(initialTab, false)
-                    updateChrome(initialTab)
+            try {
+                val prefs = app.messages.preferences.PreferenceHelper.getInstance(requireContext())
+                val openChatsFirst = requireActivity().intent?.getBooleanExtra("open_chats_first", false) ?: false
+                val isFirstLanding = !prefs.isFirstLauncherLandingDone()
+
+                // If intent specifies open_chats_first OR it's the very first landing after onboarding -> Open Video Downloader (Tab 0)
+                val shouldOpenDownloaderFirst = openChatsFirst || isFirstLanding
+                val initialTab = if (shouldOpenDownloaderFirst) {
+                    LauncherPagerAdapter.PAGE_VIDEO_DOWNLOADER
+                } else {
+                    LauncherPagerAdapter.PAGE_HOME
                 }
+
+                if (isFirstLanding) {
+                    prefs.setFirstLauncherLandingDone(true)
+                }
+
+                val pageName = when (initialTab) {
+                    LauncherPagerAdapter.PAGE_VIDEO_DOWNLOADER -> "🎬 PAGE_VIDEO_DOWNLOADER (Flutter Module / Downloader Home)"
+                    LauncherPagerAdapter.PAGE_HOME -> "🏠 PAGE_HOME (Launcher Desktop / Apps Grid)"
+                    LauncherPagerAdapter.PAGE_MESSAGE -> "💬 PAGE_MESSAGE (Dashboard / Messages)"
+                    else -> "❓ UNKNOWN_PAGE ($initialTab)"
+                }
+                android.util.Log.d("FLOW_CHECK", "🚀 [ONBOARDING_TRANSITION] Determining launcher landing tab...")
+                android.util.Log.d("FLOW_CHECK", "📦 [INTENT_EXTRAS] open_chats_first = $openChatsFirst, isFirstLanding = $isFirstLanding")
+                android.util.Log.d("FLOW_CHECK", "🎯 [FIRST_SCREEN_SHOWN] Displaying initial tab index $initialTab -> $pageName")
+
+                binding.viewPager.post {
+                    if (_binding != null) {
+                        binding.viewPager.setCurrentItem(initialTab, false)
+                        updateChrome(initialTab)
+                        android.util.Log.d("FLOW_CHECK", "✅ [FIRST_SCREEN_RENDERED] viewPager.setCurrentItem($initialTab) executed successfully!")
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("FLOW_CHECK", "❌ [FIRST_SCREEN_ERROR] Error determining initial screen: ${e.message}", e)
             }
         } else {
             binding.viewPager.post {
