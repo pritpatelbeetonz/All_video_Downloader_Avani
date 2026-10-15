@@ -8,8 +8,8 @@ class VideoExtractorManager {
   final SmDownloaderService smDownloaderService;
   final ApiHutService apiHutService;
 
-  /// When true, turns OFF ApiHut fallback in kDebugMode so you can test SMDownloader exclusively.
-  static bool disableFallbackInDebug = true;
+  /// Controls whether ApiHut fallback is disabled. Default is false (fallback is always enabled).
+  static bool disableFallbackInDebug = false;
 
   VideoExtractorManager({
     SmDownloaderService? smDownloader,
@@ -53,8 +53,7 @@ class VideoExtractorManager {
 
   /// Primary extraction flow:
   /// 1. Uses SMDownloader as Primary for its 29 supported platforms.
-  /// 2. If in kDebugMode and disableFallbackInDebug is true, fallback is DISABLED to isolate SMDownloader testing.
-  /// 3. If SMDownloader fails or is unsupported (e.g. LinkedIn), automatically routes/falls back to ApiHut with API key rotation.
+  /// 2. If SMDownloader fails or is unsupported (e.g. LinkedIn), automatically routes/falls back to ApiHut with API key rotation.
   Future<SmExtractionResult?> extractVideo({
     required String url,
     required String platform,
@@ -73,9 +72,9 @@ class VideoExtractorManager {
       } catch (e) {
         print('⚠️ [Extractor] SMDownloader extraction encountered an issue: $e');
 
-        // If in debug mode and fallback is disabled, DO NOT call ApiHut!
-        if (kDebugMode && disableFallbackInDebug) {
-          print('🛑 [Extractor] (kDebugMode active) Fallback to ApiHut is DISABLED for testing SMDownloader.');
+        // If fallback is explicitly disabled, DO NOT call ApiHut!
+        if (disableFallbackInDebug) {
+          print('🛑 [Extractor] Fallback to ApiHut is disabled.');
           return null;
         }
 

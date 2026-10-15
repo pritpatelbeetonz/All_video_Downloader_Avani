@@ -1,10 +1,8 @@
 import 'dart:developer';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import 'package:lottie/lottie.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'firebase_analysis.dart';
@@ -29,7 +27,7 @@ class _PrivacyPolicyViewState extends State<PrivacyPolicyView> {
         controller = WebViewController()
           ..setJavaScriptMode(JavaScriptMode.unrestricted)
           ..enableZoom(true)
-          ..loadFlutterAsset('assets/bitnova_privacy.html')
+          ..loadFlutterAsset('assets/luka_privacy.html')
           ..setNavigationDelegate(
             NavigationDelegate(
               onPageStarted: (url) {
@@ -56,6 +54,7 @@ class _PrivacyPolicyViewState extends State<PrivacyPolicyView> {
               },
               onPageFinished: (url) {
                 isLoading.value = false;
+                injectDarkCss();
               },
             ),
           )
@@ -76,37 +75,39 @@ class _PrivacyPolicyViewState extends State<PrivacyPolicyView> {
       canPop: false,
       child: SafeArea(
         top: false,
+        bottom: false,
         child: Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: Colors.black,
           appBar: AppBar(
-            leading: GestureDetector(
-              onTap: () {
-                Get.back();
-              },
-              child: Center(
-                child: Icon(Icons.arrow_back, size: 25),
-              ).paddingOnly(left: 10.w),
+            leading: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: GestureDetector(
+                onTap: () => Get.back(),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.close, size: 25.h),
+                ),
+              ),
             ),
             backgroundColor: Colors.transparent,
             title: Text(
-              "Privacy Policy",
-              style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w500),
+              'Privacy Policy',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'Inter',
+              ),
             ),
             centerTitle: true,
           ),
           body: Obx(
             () => isLoading.value
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Lottie.asset(
-                          "assets/images/Loader animation.json",
-                          height: 60.h,
-                          width: 60.w,
-                        ),
-                      ],
-                    ),
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF7C4DFF)),
                   )
                 : WebViewWidget(controller: controller),
           ),

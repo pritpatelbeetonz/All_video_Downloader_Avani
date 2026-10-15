@@ -262,19 +262,6 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                 ),
               ),
               actions: [
-                if (kDebugMode)
-                  IconButton(
-                    icon: const Icon(Icons.bug_report_rounded, color: Color(0xFFFE7338)),
-                    tooltip: 'Preview Download Loading Screen',
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const LoadingChartWidget(),
-                        ),
-                      );
-                    },
-                  ),
                 TabBadgeButton(
                   onTap: () {
                     showModalBottomSheet(

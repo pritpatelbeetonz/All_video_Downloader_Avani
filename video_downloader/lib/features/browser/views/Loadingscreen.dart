@@ -32,8 +32,6 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
   bool _showButton = false;
   Timer? _fallbackButtonTimer;
   bool _hasTriggeredAutoClose = false;
-  DownloadStatus? _debugOverrideStatus;
-  bool? _debugIsApiHut;
 
   NativeAd? _loadingNativeAd;
   bool _isLoadingNativeAd = false;
@@ -120,38 +118,6 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
     }
   }
 
-  Widget _buildDebugChip(String label, DownloadStatus status, DownloadStatus activeStatus) {
-    final isSelected = activeStatus == status;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _debugOverrideStatus = status;
-          if (status == DownloadStatus.downloading || status == DownloadStatus.failed) {
-            _showButton = true;
-          }
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFE7338) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFFE7338) : Colors.grey.shade300,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? Colors.white : Colors.grey.shade700,
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // Listen for completion to automatically close dialog after a short delay
@@ -174,35 +140,16 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
         ? taskList.where((t) => t.id == widget.taskId).firstOrNull
         : null;
 
-    final effectiveStatus = (kDebugMode && _debugOverrideStatus != null)
-        ? _debugOverrideStatus!
-        : (realTask?.status ?? DownloadStatus.fetching);
+    final effectiveStatus = realTask?.status ?? DownloadStatus.fetching;
 
     final isDownloading = effectiveStatus == DownloadStatus.downloading;
     final isCompleted = effectiveStatus == DownloadStatus.completed;
     final isFailed = effectiveStatus == DownloadStatus.failed;
 
     // Check if ApiHut fallback is in use
-    final isApiHutUsed = (kDebugMode && _debugIsApiHut != null)
-        ? _debugIsApiHut!
-        : (realTask?.isApiHut ?? widget.showContinueInBackgroundImmediately);
+    final isApiHutUsed = realTask?.isApiHut ?? widget.showContinueInBackgroundImmediately;
 
-    final task = realTask ??
-        (kDebugMode && isDownloading
-            ? DownloadTask(
-                id: 'debug_preview',
-                url: 'https://example.com/video.mp4',
-                fileName: 'sample_video.mp4',
-                filePath: '/storage/emulated/0/Download/sample_video.mp4',
-                createdAt: DateTime.now(),
-                status: DownloadStatus.downloading,
-                progress: 0.65,
-                receivedBytes: 15400000,
-                totalBytes: 24000000,
-                speed: '2.4 MB/s',
-                isApiHut: isApiHutUsed,
-              )
-            : null);
+    final task = realTask;
 
     // CRITICAL REQUIREMENT:
     // "Continue in Background" button MUST ONLY be shown if user/task is using ApiHut fallback!
@@ -212,96 +159,13 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
       body: PopScope(
-        canPop: kDebugMode,
+        canPop: false,
         child: SafeArea(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Column(
               children: [
-                if (kDebugMode) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFE3D7),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          "🛠️ DEBUG PREVIEW",
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFFE7338),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, size: 26, color: Colors.black87),
-                        onPressed: _handleClose,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildDebugChip("Fetching", DownloadStatus.fetching, effectiveStatus),
-                        const SizedBox(width: 8),
-                        _buildDebugChip("Downloading (65%)", DownloadStatus.downloading, effectiveStatus),
-                        const SizedBox(width: 8),
-                        _buildDebugChip("Completed", DownloadStatus.completed, effectiveStatus),
-                        const SizedBox(width: 8),
-                        _buildDebugChip("Failed", DownloadStatus.failed, effectiveStatus),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // Engine selector in debug mode to test SMDownloader vs ApiHut
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _debugIsApiHut = !isApiHutUsed;
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isApiHutUsed ? Colors.blue.shade50 : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isApiHutUsed ? Colors.blue.shade300 : Colors.grey.shade300,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isApiHutUsed ? Icons.check_box_rounded : Icons.disabled_by_default_rounded,
-                            size: 16,
-                            color: isApiHutUsed ? Colors.blue.shade700 : Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            isApiHutUsed
-                                ? "Extractor: ApiHut (Button ENABLED)"
-                                : "Extractor: SMDownloader (Button HIDDEN)",
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: isApiHutUsed ? Colors.blue.shade800 : Colors.grey.shade700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-
                 // ═══════════════════════════════════════════════════════════
                 // UPSIDE: STATUS & LOADER
                 // ═══════════════════════════════════════════════════════════
