@@ -238,6 +238,209 @@
                 <ImageView style="@style/LauncherSettingsRowChevron" />
             </LinearLayout>
 
+            <!-- ==================== GENERAL & ABOUT ==================== -->
+            <TextView
+                style="@style/LauncherSettingsSectionLabel"
+                android:text="@string/section_general" />
+
+            <!-- Language -->
+            <LinearLayout
+                android:id="@+id/cardLanguage"
+                style="@style/LauncherSettingsRow">
+
+                <FrameLayout
+                    style="@style/LauncherSettingsRowIcon"
+                    android:backgroundTint="@color/ls_accent_home">
+
+                    <ImageView
+                        style="@style/LauncherSettingsRowGlyph"
+                        android:src="@drawable/ic_language_globe" />
+                </FrameLayout>
+
+                <LinearLayout style="@style/LauncherSettingsRowText">
+
+                    <TextView
+                        style="@style/LauncherSettingsRowTitle"
+                        android:text="@string/languages" />
+
+                    <TextView
+                        android:id="@+id/tvCurrentLanguage"
+                        style="@style/LauncherSettingsRowSubtitle"
+                        android:text="@string/select_language" />
+                </LinearLayout>
+
+                <ImageView style="@style/LauncherSettingsRowChevron" />
+            </LinearLayout>
+
+            <!-- Theme Mode -->
+            <LinearLayout
+                android:id="@+id/cardTheme"
+                style="@style/LauncherSettingsRow">
+
+                <FrameLayout
+                    style="@style/LauncherSettingsRowIcon"
+                    android:backgroundTint="@color/ls_accent_gestures">
+
+                    <ImageView
+                        style="@style/LauncherSettingsRowGlyph"
+                        android:src="@drawable/ic_weather_sun" />
+                </FrameLayout>
+
+                <LinearLayout style="@style/LauncherSettingsRowText">
+
+                    <TextView
+                        style="@style/LauncherSettingsRowTitle"
+                        android:text="@string/choose_themes" />
+
+                    <TextView
+                        android:id="@+id/tvCurrentTheme"
+                        style="@style/LauncherSettingsRowSubtitle"
+                        android:text="@string/system_default" />
+                </LinearLayout>
+
+                <ImageView style="@style/LauncherSettingsRowChevron" />
+            </LinearLayout>
+
+            <!-- Clear Cache -->
+            <LinearLayout
+                android:id="@+id/cardClearCache"
+                style="@style/LauncherSettingsRow">
+
+                <FrameLayout
+                    style="@style/LauncherSettingsRowIcon"
+                    android:backgroundTint="@color/ls_accent_navbar">
+
+                    <ImageView
+                        style="@style/LauncherSettingsRowGlyph"
+                        android:src="@drawable/ic_storage" />
+                </FrameLayout>
+
+                <LinearLayout style="@style/LauncherSettingsRowText">
+
+                    <TextView
+                        style="@style/LauncherSettingsRowTitle"
+                        android:text="@string/title_clear_cache" />
+
+                    <TextView
+                        android:id="@+id/tvCacheSize"
+                        style="@style/LauncherSettingsRowSubtitle"
+                        android:text="@string/desc_clear_cache" />
+                </LinearLayout>
+
+                <ImageView style="@style/LauncherSettingsRowChevron" />
+            </LinearLayout>
+
+            <!-- Share App -->
+            <LinearLayout
+                android:id="@+id/cardShareApp"
+                style="@style/LauncherSettingsRow">
+
+                <FrameLayout
+                    style="@style/LauncherSettingsRowIcon"
+                    android:backgroundTint="@color/ls_accent_drawer">
+
+                    <ImageView
+                        style="@style/LauncherSettingsRowGlyph"
+                        android:src="@drawable/ic_invite" />
+                </FrameLayout>
+
+                <LinearLayout style="@style/LauncherSettingsRowText">
+
+                    <TextView
+                        style="@style/LauncherSettingsRowTitle"
+                        android:text="@string/invite_friends" />
+
+                    <TextView
+                        style="@style/LauncherSettingsRowSubtitle"
+                        android:text="@string/share_the_app_with_friends" />
+                </LinearLayout>
+
+                <ImageView style="@style/LauncherSettingsRowChevron" />
+            </LinearLayout>
+
+            <!-- Rate Us -->
+            <LinearLayout
+                android:id="@+id/cardRateUs"
+                style="@style/LauncherSettingsRow">
+
+                <FrameLayout
+                    style="@style/LauncherSettingsRowIcon"
+                    android:backgroundTint="@color/ls_accent_package">
+
+                    <ImageView
+                        style="@style/LauncherSettingsRowGlyph"
+                        android:src="@drawable/ic_rate" />
+                </FrameLayout>
+
+                <LinearLayout style="@style/LauncherSettingsRowText">
+
+                    <TextView
+                        style="@style/LauncherSettingsRowTitle"
+                        android:text="@string/rate_us" />
+
+                    <TextView
+                        style="@style/LauncherSettingsRowSubtitle"
+                        android:text="@string/share_your_feedback_on_google_play" />
+                </LinearLayout>
+
+                <ImageView style="@style/LauncherSettingsRowChevron" />
+            </LinearLayout>
+
+            <!-- Privacy Policy -->
+            <LinearLayout
+                android:id="@+id/cardPrivacyPolicy"
+                style="@style/LauncherSettingsRow">
+
+                <FrameLayout
+                    style="@style/LauncherSettingsRowIcon"
+                    android:backgroundTint="@color/ls_accent_search">
+
+                    <ImageView
+                        style="@style/LauncherSettingsRowGlyph"
+                        android:src="@drawable/ic_help" />
+                </FrameLayout>
+
+                <LinearLayout style="@style/LauncherSettingsRowText">
+
+                    <TextView
+                        style="@style/LauncherSettingsRowTitle"
+                        android:text="@string/privacy_policy" />
+
+                    <TextView
+                        style="@style/LauncherSettingsRowSubtitle"
+                        android:text="@string/review_our_terms_policy" />
+                </LinearLayout>
+
+                <ImageView style="@style/LauncherSettingsRowChevron" />
+            </LinearLayout>
+
+            <!-- App Version -->
+            <LinearLayout
+                android:id="@+id/cardAppVersion"
+                style="@style/LauncherSettingsRow">
+
+                <FrameLayout
+                    style="@style/LauncherSettingsRowIcon"
+                    android:backgroundTint="@color/ls_accent_home">
+
+                    <ImageView
+                        style="@style/LauncherSettingsRowGlyph"
+                        android:src="@drawable/ic_info" />
+                </FrameLayout>
+
+                <LinearLayout style="@style/LauncherSettingsRowText">
+
+                    <TextView
+                        style="@style/LauncherSettingsRowTitle"
+                        android:text="@string/app_name" />
+
+                    <TextView
+                        android:id="@+id/tvAppVersion"
+                        style="@style/LauncherSettingsRowSubtitle"
+                        android:text="Version 1.0" />
+                </LinearLayout>
+            </LinearLayout>
+
         </LinearLayout>
     </ScrollView>
 

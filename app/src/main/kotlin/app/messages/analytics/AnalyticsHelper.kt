@@ -126,7 +126,11 @@ object AnalyticsHelper {
                 // Add more types if needed
             }
         }
-//        firebaseAnalytics.logEvent(eventName, bundle)
+        try {
+            firebaseAnalytics.logEvent(eventName, bundle)
+        } catch (e: Exception) {
+            Log.e("AnalyticsHelper", "Error logging event: $eventName", e)
+        }
     }
 
     /**

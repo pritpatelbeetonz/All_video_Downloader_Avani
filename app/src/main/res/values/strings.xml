@@ -348,4 +348,8 @@
     <string name="section_interaction">Interaction</string>
     <string name="section_system">System</string>
     <string name="cd_back">Back</string>
+    <string name="section_general">General &amp; About</string>
+    <string name="title_clear_cache">Clear App Cache</string>
+    <string name="desc_clear_cache">Free up temporary cache storage</string>
+    <string name="cache_cleared">Cache cleared successfully</string>
 </resources>

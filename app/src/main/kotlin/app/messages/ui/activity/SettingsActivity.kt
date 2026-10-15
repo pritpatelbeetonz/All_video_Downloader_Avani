@@ -10,8 +10,7 @@ class SettingsActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivitySettingsBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        applySystemBarInsets(R.color.bg_main, !isNightModeActive())
+        startActivity(android.content.Intent(this, app.messages.ui.launcher.settings.LauncherMainSettingsActivity::class.java))
+        finish()
     }
 }

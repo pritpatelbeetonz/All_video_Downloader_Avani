@@ -82,17 +82,9 @@ class SplashActivity : BaseActivity() {
 
         val isPremium = PreferenceHelper.getInstance(this).isPremium()
         
-        if (!isPremium && appOpenCount <= 1) {
-           showSplashBanner(
-                this@SplashActivity,
-                binding.bannerViewAdsFrameLayout.bannerAdFrameLayout,
-                binding.bannerViewAdsFrameLayout.bannerAdShimmerFrameLayout
-            )
-        } else {
-            binding.bannerViewAdsFrameLayout.bannerAdShimmerFrameLayout.visibility = View.GONE
-            binding.bannerViewAdsFrameLayout.bannerAdFrameLayout.visibility = View.GONE
-        }
-
+        // Splash Banner is completely disabled
+        binding.bannerViewAdsFrameLayout.bannerAdShimmerFrameLayout.visibility = View.GONE
+        binding.bannerViewAdsFrameLayout.bannerAdFrameLayout.visibility = View.GONE
 
         incrementAppOpenCount(this)
 
@@ -117,65 +109,7 @@ class SplashActivity : BaseActivity() {
 
     }
 
-    fun showSplashBanner(
-        activity: Activity,
-        frameLayout: FrameLayout,
-        shimmerFrameLayout: FrameLayout
-    ) {
-        if (PreferenceHelper.getInstance(activity).isPremium()) {
-            frameLayout.visibility = View.GONE
-            shimmerFrameLayout.visibility = View.GONE
-            return
-        }
 
-        loadAndShowBanner(
-            activity,
-            frameLayout,
-            shimmerFrameLayout,
-            Constants.AD_ID_SPLASH_BANNER
-        )
-        frameLayout.visibility = View.VISIBLE
-        shimmerFrameLayout.visibility = View.VISIBLE
-
-    }
-
-    private fun loadAndShowBanner(activity: Activity, frameLayout: FrameLayout, shimmerFrameLayout: FrameLayout, adUnitID: String) {
-        //Set flAd View Height to Same As Place Holder
-        val adView = AdView(activity)
-        adView.adUnitId = adUnitID
-        adView.setAdSize(getNormalAdSize(activity))
-        val adRequest = AdRequest.Builder().build()
-        logAds(activity, "banner_req")
-        adView.loadAd(adRequest)
-        adView.adListener = object : AdListener() {
-            override fun onAdLoaded() {
-                super.onAdLoaded()
-                logAds(activity, "banner_loaded")
-                frameLayout.visibility = View.VISIBLE
-                shimmerFrameLayout.visibility = View.GONE
-
-                if (adView.parent != null) {
-                    (adView.parent as ViewGroup).removeView(adView) // <- fix
-                }
-                frameLayout.removeAllViews()
-                logAds(activity, "banner_showed")
-                frameLayout.addView(adView)
-            }
-
-            override fun onAdClicked() {
-                super.onAdClicked()
-                logAds(activity, "banner_clicked")
-//                showBanner(activity, frameLayout, shimmerFrameLayout)
-            }
-
-            override fun onAdFailedToLoad(loadAdError: LoadAdError) {
-                super.onAdFailedToLoad(loadAdError)
-                frameLayout.visibility = View.GONE
-                shimmerFrameLayout.visibility = View.GONE
-                logAds(activity, "banner_failed_to_load_" + loadAdError.code)
-            }
-        }
-    }
 
     private fun adsConfiguration() {
         // 1. Immediately preload the Splash Ad with cached / default Remote Config
