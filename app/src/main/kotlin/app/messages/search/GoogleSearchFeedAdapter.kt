@@ -148,6 +148,9 @@ class GoogleSearchFeedAdapter(
             }
         }
 
+        private var scrollDebounceRunnable: Runnable? = null
+        private val debounceHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
         fun checkVisibilityAndLoad(
             scrollView: NestedScrollView,
             loadedAds: MutableMap<Int, NativeAd>,
@@ -156,12 +159,23 @@ class GoogleSearchFeedAdapter(
             if (currentPlaceholderId < 0) return
             if (loadedAds.containsKey(currentPlaceholderId) || loadingAds.contains(currentPlaceholderId)) return
 
+            scrollDebounceRunnable?.let { debounceHandler.removeCallbacks(it) }
+
             val rect = android.graphics.Rect()
             val isVisible = binding.root.getGlobalVisibleRect(rect)
             val screenHeight = binding.root.resources.displayMetrics.heightPixels
 
-            if (isVisible && rect.top < screenHeight + 400 && rect.bottom > -200) {
-                requestAd(currentPlaceholderId, loadedAds, loadingAds)
+            // Check if slot has scrolled into or near viewport
+            if (isVisible && rect.top < screenHeight + 250 && rect.bottom > -100) {
+                // Debounce by 250ms: Only trigger if user actually stops/pauses on this item!
+                scrollDebounceRunnable = Runnable {
+                    val recheckRect = android.graphics.Rect()
+                    val stillVisible = binding.root.getGlobalVisibleRect(recheckRect)
+                    if (stillVisible && recheckRect.top < screenHeight + 250 && recheckRect.bottom > -100) {
+                        requestAd(currentPlaceholderId, loadedAds, loadingAds)
+                    }
+                }
+                debounceHandler.postDelayed(scrollDebounceRunnable!!, 250L)
             }
         }
 
@@ -189,10 +203,10 @@ class GoogleSearchFeedAdapter(
                     val activity = (context as? android.app.Activity) 
                         ?: ((context as? android.content.ContextWrapper)?.baseContext as? android.app.Activity)
 
-                    if (activity?.isFinishing == true || activity?.isDestroyed == true || !binding.root.isAttachedToWindow) {
-                        // Zero Waste: User closed search or scrolled away -> save to RAM cache for next search!
+                    if (activity?.isFinishing == true || activity?.isDestroyed == true) {
+                        // User closed search activity -> save to RAM cache for next search!
                         app.messages.config.AdsConfigManager.cacheNativeAd(unitId, nativeAd)
-                        Log.d("ADS_GOOGLE_SEARCH", "💾 [SEARCH_CACHE] Activity closed / View detached -> Cached Native Search Ad in RAM for next session!")
+                        Log.d("ADS_GOOGLE_SEARCH", "💾 [SEARCH_CACHE] Activity finishing/destroyed -> Cached Native Search Ad in RAM for next session!")
                         return@loadNativeAd
                     }
 
