@@ -18,77 +18,103 @@ void _logFilter(String message) {
 class PlatformDetector {
   PlatformDetector._();
 
+  /// Host → platform, checked in order. Matching is on the real host (see
+  /// [_hostIs]) so e.g. netflix.com is not mistaken for x.com.
+  static const List<(String, List<String>)> _platformHosts = [
+    // SMDownloader Supported Platforms (29 Platforms)
+    ("instagram", ["instagram.com", "instagr.am"]),
+    ("threads", ["threads.net", "threads.com"]),
+    ("bluesky", ["bsky.app"]),
+    ("tiktok", ["tiktok.com"]),
+    ("youtube", ["youtube.com", "youtu.be"]),
+    ("facebook", ["facebook.com", "fb.watch", "fb.com"]),
+    ("twitter", ["twitter.com", "x.com"]),
+    ("douyin", ["douyin.com"]),
+    ("soundcloud", ["soundcloud.com"]),
+    ("dailymotion", ["dailymotion.com", "dai.ly"]),
+    ("xiaohongshu", ["xiaohongshu.com", "xhslink.com"]),
+    ("weibo", ["weibo.com", "weibo.cn"]),
+    ("kuaishou", ["kuaishou.com"]),
+    ("reddit", ["reddit.com", "redd.it"]),
+    ("vimeo", ["vimeo.com"]),
+    ("vk", ["vk.com"]),
+    ("twitch", ["twitch.tv"]),
+    ("pinterest", ["pinterest.com", "pin.it"]),
+    ("rumble", ["rumble.com"]),
+    ("bilibili", ["bilibili.com"]),
+    ("snapchat", ["snapchat.com"]),
+    ("streamable", ["streamable.com"]),
+    ("bandcamp", ["bandcamp.com"]),
+    ("chzzk", ["chzzk.naver.com"]),
+    ("naver tv", ["tv.naver.com"]),
+    ("soop", ["sooplive.co.kr", "afreecatv.com"]),
+    ("mixcloud", ["mixcloud.com"]),
+    ("ted", ["ted.com"]),
+    ("loom", ["loom.com"]),
+    // Handled via ApiHut fallback
+    ("linkedin", ["linkedin.com"]),
+  ];
+
+  /// Search engines / start pages: never a downloadable video.
+  static const List<String> _searchHosts = [
+    "bing.com",
+    "yahoo.com",
+    "duckduckgo.com",
+    "baidu.com",
+  ];
+
+  static bool _hostIs(String host, String domain) =>
+      host == domain || host.endsWith('.$domain');
+
+  /// Normalised host of [url] (lowercase, without www./m./mobile.), '' if none.
+  static String hostOf(String url) {
+    var host = Uri.tryParse(url.trim())?.host.toLowerCase() ?? '';
+    for (final prefix in const ['www.', 'm.', 'mobile.']) {
+      if (host.startsWith(prefix)) {
+        host = host.substring(prefix.length);
+        break;
+      }
+    }
+    return host;
+  }
+
+  /// google.com, google.co.in, ... (any host with a "google" label).
+  static bool _isGoogleHost(String host) => host.split('.').contains('google');
+
+  /// pinterest.com plus country domains like pinterest.co.uk / pinterest.ca.
+  static bool _isPinterestHost(String host) =>
+      host.split('.').contains('pinterest') || _hostIs(host, 'pin.it');
+
+  static bool _isSearchHost(String host) =>
+      _isGoogleHost(host) ||
+      host.split('.').contains('yandex') ||
+      _searchHosts.any((d) => _hostIs(host, d));
+
+  /// Returns the real target of Google redirect / AMP links
+  /// (google.com/url?q=..., google.com/amp/s/...), otherwise [url] unchanged.
+  static String unwrap(String url) {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null || !_isGoogleHost(hostOf(url))) return url;
+    if (uri.path == '/url') {
+      final target = uri.queryParameters['q'] ?? uri.queryParameters['url'];
+      if (target != null && target.startsWith('http')) return target;
+    }
+    if (uri.path.startsWith('/amp/s/')) {
+      final rest = uri.path.substring('/amp/s/'.length);
+      return 'https://$rest${uri.hasQuery ? '?${uri.query}' : ''}';
+    }
+    return url;
+  }
+
   // 🎯 1. Detect Platform
   static String detectPlatform(String url) {
-    final lowerUrl = url.toLowerCase();
-    String detected;
-
-    // SMDownloader Supported Platforms (29 Platforms)
-    if (lowerUrl.contains("instagram.com")) {
-      detected = "instagram";
-    } else if (lowerUrl.contains("threads.net")) {
-      detected = "threads";
-    } else if (lowerUrl.contains("bsky.app")) {
-      detected = "bluesky";
-    } else if (lowerUrl.contains("tiktok.com")) {
-      detected = "tiktok";
-    } else if (lowerUrl.contains("youtube.com") || lowerUrl.contains("youtu.be")) {
-      detected = "youtube";
-    } else if (lowerUrl.contains("facebook.com") || lowerUrl.contains("fb.watch")) {
-      detected = "facebook";
-    } else if (lowerUrl.contains("twitter.com") || lowerUrl.contains("x.com")) {
-      detected = "twitter";
-    } else if (lowerUrl.contains("douyin.com")) {
-      detected = "douyin";
-    } else if (lowerUrl.contains("soundcloud.com")) {
-      detected = "soundcloud";
-    } else if (lowerUrl.contains("dailymotion.com") || lowerUrl.contains("dai.ly")) {
-      detected = "dailymotion";
-    } else if (lowerUrl.contains("xiaohongshu.com") || lowerUrl.contains("xhslink.com")) {
-      detected = "xiaohongshu";
-    } else if (lowerUrl.contains("weibo.com") || lowerUrl.contains("weibo.cn")) {
-      detected = "weibo";
-    } else if (lowerUrl.contains("kuaishou.com")) {
-      detected = "kuaishou";
-    } else if (lowerUrl.contains("reddit.com") || lowerUrl.contains("redd.it")) {
-      detected = "reddit";
-    } else if (lowerUrl.contains("vimeo.com")) {
-      detected = "vimeo";
-    } else if (lowerUrl.contains("vk.com")) {
-      detected = "vk";
-    } else if (lowerUrl.contains("twitch.tv")) {
-      detected = "twitch";
-    } else if (lowerUrl.contains("pinterest.com") || lowerUrl.contains("pin.it")) {
-      detected = "pinterest";
-    } else if (lowerUrl.contains("rumble.com")) {
-      detected = "rumble";
-    } else if (lowerUrl.contains("bilibili.com")) {
-      detected = "bilibili";
-    } else if (lowerUrl.contains("snapchat.com")) {
-      detected = "snapchat";
-    } else if (lowerUrl.contains("streamable.com")) {
-      detected = "streamable";
-    } else if (lowerUrl.contains("bandcamp.com")) {
-      detected = "bandcamp";
-    } else if (lowerUrl.contains("chzzk.naver.com")) {
-      detected = "chzzk";
-    } else if (lowerUrl.contains("tv.naver.com")) {
-      detected = "naver tv";
-    } else if (lowerUrl.contains("sooplive.co.kr") || lowerUrl.contains("afreecatv.com")) {
-      detected = "soop";
-    } else if (lowerUrl.contains("mixcloud.com")) {
-      detected = "mixcloud";
-    } else if (lowerUrl.contains("ted.com")) {
-      detected = "ted";
-    } else if (lowerUrl.contains("loom.com")) {
-      detected = "loom";
-    } else if (lowerUrl.contains("linkedin.com")) {
-      detected = "linkedin";
-    } else {
-      detected = "unknown";
+    final host = hostOf(unwrap(url));
+    if (host.isEmpty) return "unknown";
+    if (_isPinterestHost(host)) return "pinterest";
+    for (final (platform, domains) in _platformHosts) {
+      if (domains.any((d) => _hostIs(host, d))) return platform;
     }
-
-    return detected;
+    return "unknown";
   }
 
   /// List of all 29 platforms supported natively by SMDownloader
@@ -129,7 +155,27 @@ class PlatformDetector {
     return smDownloaderPlatforms.contains(platform.toLowerCase());
   }
 
-  static bool isValidVideoUrl(String url, String platform) {
+  /// Why a download can't start from [url], or null if it can:
+  /// 'search_page' (Google/Bing/... or blank), 'unsupported_site' (platform
+  /// not recognised) or 'not_a_post' (feed/profile/home of a known platform).
+  static String? rejectReason(String url, String platform) {
+    final target = unwrap(url);
+    final host = hostOf(target);
+    if (target.trim().isEmpty || target == "about:blank" || host.isEmpty || _isSearchHost(host)) {
+      _logFilter("⛔ [URL_REJECTED] Search/blank page, not a video. Host: '$host' | URL: '$target'");
+      return 'search_page';
+    }
+    if (platform.isEmpty || platform == "unknown") {
+      _logFilter("⛔ [URL_REJECTED] Unsupported site. Host: '$host' | URL: '$target'");
+      return 'unsupported_site';
+    }
+    return _matchesPostRule(target, platform) ? null : 'not_a_post';
+  }
+
+  static bool isValidVideoUrl(String url, String platform) =>
+      rejectReason(url, platform) == null;
+
+  static bool _matchesPostRule(String url, String platform) {
     final uri = Uri.tryParse(url);
     if (uri == null) {
       _logFilter("⛔ [URL_REJECTED] Cannot parse URL as valid URI: '$url' (Platform: $platform)");
@@ -421,11 +467,8 @@ class PlatformDetector {
         }
         break;
 
+      // Unrecognised platforms are rejected in rejectReason(); nothing generic here.
       default:
-        if (uri.pathSegments.isNotEmpty) {
-          isValid = true;
-          matchedRule = "Generic URL with path segments";
-        }
         break;
     }
 

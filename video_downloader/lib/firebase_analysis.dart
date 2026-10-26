@@ -34,11 +34,14 @@ class FirebaseAnalyticsService {
           ? platform.trim().toLowerCase().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_')
           : 'unknown';
 
+      final host = _hostOf(url);
+
       // 1. Standard event with platform parameter
       await logEvent(
         eventName: 'download_click',
         parameters: {
           'platform': sanitizedPlatform,
+          if (host.isNotEmpty) 'host': host,
           if (url != null && url.isNotEmpty)
             'page_url': url.length > 100 ? url.substring(0, 100) : url,
         },
@@ -62,6 +65,62 @@ class FirebaseAnalyticsService {
       print("📊✅ [Analytics] Logged download event for platform: $sanitizedPlatform");
     } catch (e) {
       print("❌ [Analytics] Error logging download event: $e");
+    }
+  }
+
+  /// Domain only (never the full URL), max 100 chars for Analytics params.
+  static String _hostOf(String? url) {
+    final host = Uri.tryParse(url?.trim() ?? '')?.host.toLowerCase() ?? '';
+    return host.length > 100 ? host.substring(0, 100) : host;
+  }
+
+  static String _truncate(String value) =>
+      value.length > 100 ? value.substring(0, 100) : value;
+
+  /// Logs a download tap that was blocked before any extraction started.
+  /// [reason]: 'search_page', 'unsupported_site' or 'not_a_post'.
+  static Future<void> logDownloadRejected({
+    required String reason,
+    required String platform,
+    String? url,
+  }) async {
+    try {
+      final host = _hostOf(url);
+      await logEvent(
+        eventName: 'download_rejected',
+        parameters: {
+          'reason': reason,
+          'platform': platform.isNotEmpty ? platform : 'unknown',
+          if (host.isNotEmpty) 'host': host,
+        },
+      );
+      print("📊✅ [Analytics] Download rejected: $reason (platform: $platform, host: $host)");
+    } catch (e) {
+      print("❌ [Analytics] Error logging download rejected event: $e");
+    }
+  }
+
+  /// Logs a download that started but failed.
+  /// [stage]: 'extraction' (no media link) or 'download' (file transfer).
+  static Future<void> logDownloadFailed({
+    required String stage,
+    required String platform,
+    required String extractor,
+    String? reason,
+  }) async {
+    try {
+      await logEvent(
+        eventName: 'download_failed',
+        parameters: {
+          'stage': stage,
+          'platform': platform.isNotEmpty ? platform : 'unknown',
+          'extractor': extractor,
+          if (reason != null && reason.isNotEmpty) 'reason': _truncate(reason),
+        },
+      );
+      print("📊✅ [Analytics] Download failed at $stage (platform: $platform, extractor: $extractor)");
+    } catch (e) {
+      print("❌ [Analytics] Error logging download failed event: $e");
     }
   }
 

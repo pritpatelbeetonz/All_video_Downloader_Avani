@@ -729,14 +729,18 @@ class BrowserState extends ConsumerState<Browser> {
                 backgroundColor: const Color(0xFFFE7338),
                 shape: const CircleBorder(),
                 onPressed: () async {
-                  final url = await browserController.currentUrl();
+                  // Google redirect/AMP links are unwrapped to the real post URL.
+                  final targetUrl = PlatformDetector.unwrap(
+                      await browserController.currentUrl() ?? "");
                   final platform = Platform;
 
-                  final effectivePlatform = (platform.isNotEmpty && platform != "unknown")
-                      ? platform
-                      : PlatformDetector.detectPlatform(url ?? "");
+                  // The page actually open wins over the provider, which can be stale.
+                  final detectedPlatform = PlatformDetector.detectPlatform(targetUrl);
+                  final effectivePlatform = detectedPlatform != "unknown"
+                      ? detectedPlatform
+                      : (platform.isNotEmpty ? platform : "unknown");
 
-                  androidLog('🎯 [DOWNLOAD_CLICK] Current URL: "$url", Detected Platform: "$effectivePlatform"');
+                  androidLog('🎯 [DOWNLOAD_CLICK] Current URL: "$targetUrl", Detected Platform: "$effectivePlatform"');
 
                   if (effectivePlatform == "youtube" && !AdsVariable.isYouTubeEnabled) {
                     androidLog('🛑 [DOWNLOAD_REJECTED] YouTube downloads are disabled by policy');
@@ -744,23 +748,19 @@ class BrowserState extends ConsumerState<Browser> {
                     return;
                   }
 
-                  // Check URL validity
-                  final isDirectPostUrl = PlatformDetector.isValidVideoUrl(
-                    url ?? "unknown",
-                    effectivePlatform,
-                  );
-
-                  final targetUrl = url ?? "";
-
-                  if (targetUrl.isEmpty || targetUrl == "about:blank") {
-                    androidLog('🛑 [DOWNLOAD_REJECTED] Target URL is empty or blank');
-                    showToast('please_play_or_open_post'.tr);
-                    return;
-                  }
-
-                  if (!isDirectPostUrl) {
-                    androidLog('🛑 [DOWNLOAD_REJECTED] URL does not look like a single video/reel post. URL: "$targetUrl" (Platform: $effectivePlatform)');
-                    showToast('please_play_or_open_post'.tr);
+                  // Search pages, unsupported sites and feeds/profiles can't be
+                  // extracted: guide the user instead of starting a failing task.
+                  final rejectReason = PlatformDetector.rejectReason(targetUrl, effectivePlatform);
+                  if (rejectReason != null) {
+                    androidLog('🛑 [DOWNLOAD_REJECTED] Reason: $rejectReason | URL: "$targetUrl" (Platform: $effectivePlatform)');
+                    FirebaseAnalyticsService.logDownloadRejected(
+                      reason: rejectReason,
+                      platform: effectivePlatform,
+                      url: targetUrl,
+                    );
+                    showToast(rejectReason == 'not_a_post'
+                        ? 'please_play_or_open_post'.tr
+                        : 'open_video_on_supported_app'.tr);
                     return;
                   }
 

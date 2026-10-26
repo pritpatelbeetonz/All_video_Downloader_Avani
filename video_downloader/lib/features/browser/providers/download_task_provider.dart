@@ -190,6 +190,13 @@ class DownloadTaskNotifier extends StateNotifier<List<DownloadTask>> {
 
   /// Marks a fetching task as failed if extraction could not succeed.
   void markFetchingFailed(String taskId, [String? error]) {
+    final task = state.where((t) => t.id == taskId).firstOrNull;
+    FirebaseAnalyticsService.logDownloadFailed(
+      stage: 'extraction',
+      platform: task?.platform ?? 'unknown',
+      extractor: (task?.isApiHut ?? false) ? 'apihut' : 'smdownloader',
+      reason: error ?? 'Extraction failed',
+    );
     _updateTask(taskId, (t) => t.copyWith(
       status: DownloadStatus.failed,
       speed: 'Failed to fetch link',
@@ -452,6 +459,12 @@ class DownloadTaskNotifier extends StateNotifier<List<DownloadTask>> {
             speed: 'Failed',
           ));
           Fluttertoast.showToast(msg: "Download interrupted");
+          FirebaseAnalyticsService.logDownloadFailed(
+            stage: 'download',
+            platform: initialTask.platform ?? 'unknown',
+            extractor: initialTask.isApiHut ? 'apihut' : 'smdownloader',
+            reason: e.toString(),
+          );
           _releaseNativeWakeLockIfIdle(state);
         }
       }
