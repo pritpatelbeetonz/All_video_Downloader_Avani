@@ -239,16 +239,23 @@ class AdsLoadUtil extends GetxController {
   static String interstitialId = "";
   static bool isAdLoaded = false;
 
+  /// Drops the preloaded interstitial (disposing it once) so a stale or
+  /// already-shown ad is never reused.
+  static void _clearPreloadedInterstitial() {
+    final old = _interstitialAd;
+    _interstitialAd = null;
+    isAdLoaded = false;
+    old?.dispose();
+  }
+
   static loadPreInterstitialAd({required String adId}) {
     if (!isValidAdId(adId)) {
       showLog("Skipping loadPreInterstitialAd - invalid or '11' adId: $adId");
-      isAdLoaded = false;
+      _clearPreloadedInterstitial();
       return;
     }
     interstitialId = adId;
-    if (_interstitialAd != null) {
-      _interstitialAd!.dispose();
-    }
+    _clearPreloadedInterstitial();
     InterstitialAd.load(
       adUnitId: adId,
       request: const AdRequest(),
@@ -270,6 +277,7 @@ class AdsLoadUtil extends GetxController {
           showLog("Pre Inter Loaded");
         },
         onAdFailedToLoad: (error) {
+          _interstitialAd = null;
           isAdLoaded = false;
           showLog("Pre Inter Failed $error");
         },
@@ -288,15 +296,19 @@ class AdsLoadUtil extends GetxController {
       onDismissed();
       return;
     }
-    if (isAdLoaded && _interstitialAd != null) {
+    final preloadedAd = _interstitialAd;
+    if (isAdLoaded && preloadedAd != null) {
       showLog("IT IS PRE LOADED [$place]");
+      // Take ownership so the ad can't be shown twice or reused after dispose.
+      _interstitialAd = null;
+      isAdLoaded = false;
       loadingScreen.show();
-      // Delay showing the ad for 1500 milliseconds
+      // Delay showing the ad for 500 milliseconds
       Future.delayed(const Duration(milliseconds: 500), () {
         loadingScreen.hide();
 
         // Attach compulsory revenue tracking for this placement
-        _interstitialAd!.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
+        preloadedAd.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
           FirebaseAnalyticsService.logAdImpression(
             adUnitId: ad.adUnitId,
             placement: place,
@@ -307,9 +319,8 @@ class AdsLoadUtil extends GetxController {
           );
         };
 
-        // Show the ad
-        _interstitialAd!.show();
-        _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+        // Callbacks must be set before show() so dismissal is never missed.
+        preloadedAd.fullScreenContentCallback = FullScreenContentCallback(
           onAdImpression: (ad) {
             FirebaseAnalyticsService.logEvent(eventName: 'SHOW_INITIAL_AD');
             showLog("onAdImpression---> true [$place]");
@@ -318,19 +329,16 @@ class AdsLoadUtil extends GetxController {
             showLog("onAdDismissedFullScreenContent---> true");
             onDismissed();
             ad.dispose();
-            _interstitialAd!.dispose().then(
-              (value) => loadPreInterstitialAd(adId: interstitialId),
-            );
+            loadPreInterstitialAd(adId: interstitialId);
           },
           onAdFailedToShowFullScreenContent: (ad, error) {
             showLog("onAdFailedToShowFullScreenContent---> Error $error");
             ad.dispose();
-            _interstitialAd!.dispose().then(
-              (value) => loadPreInterstitialAd(adId: interstitialId),
-            );
+            loadPreInterstitialAd(adId: interstitialId);
             onDismissed();
           },
         );
+        preloadedAd.show();
       });
     } else {
       loadAndShow(
@@ -341,6 +349,8 @@ class AdsLoadUtil extends GetxController {
     }
   }
 
+  /// Loads a fresh interstitial on the spot and shows it. Only reached when no
+  /// preloaded ad is ready, so it never calls back into [showInterstitial].
   static void loadAndShow({
     required String adId,
     String place = "VD_Quick_App",
@@ -353,67 +363,57 @@ class AdsLoadUtil extends GetxController {
     }
     showLog("IT IS LOAD AND SHOW [$place]");
     log("ads id $adId");
-    isAdLoaded = false;
+    // Any leftover (failed/stale) preload is discarded before loading anew.
+    _clearPreloadedInterstitial();
+    interstitialId = adId;
     loadingScreen.show();
 
-    if (_interstitialAd != null) {
-      showLog("onDismissed");
-      showInterstitial(place: place, onDismissed: onDismissed);
-    } else {
-      interstitialId = adId;
-      showLog("dispose");
-      if (_interstitialAd != null) {
-        _interstitialAd!.dispose();
-      }
-      InterstitialAd.load(
-        adUnitId: adId,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (ad) {
-            FirebaseAnalyticsService.logEvent(eventName: 'LOADED_INITIAL_AD');
-            ad.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
-              FirebaseAnalyticsService.logAdImpression(
-                adUnitId: ad.adUnitId,
-                placement: place,
-                format: 'interstitial',
-                revenue: valueMicros / 1000000.0,
-                currency: currencyCode,
-                precision: precision.index,
-              );
-            };
-            _interstitialAd = ad;
-            showLog(ad.toString());
-            showLog(adId);
+    InterstitialAd.load(
+      adUnitId: adId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          FirebaseAnalyticsService.logEvent(eventName: 'LOADED_INITIAL_AD');
+          ad.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
+            FirebaseAnalyticsService.logAdImpression(
+              adUnitId: ad.adUnitId,
+              placement: place,
+              format: 'interstitial',
+              revenue: valueMicros / 1000000.0,
+              currency: currencyCode,
+              precision: precision.index,
+            );
+          };
+          showLog(ad.toString());
+          showLog(adId);
 
-            loadingScreen.hide();
-            _interstitialAd!.show();
-            _interstitialAd!.fullScreenContentCallback =
-                FullScreenContentCallback(
-                  onAdImpression: (ad) {
-                    showLog("onAdImpression [$place]");
-                  },
-                  onAdDismissedFullScreenContent: (ad) {
-                    onDismissed();
-                    ad.dispose();
-                    log("Ad Reloaded");
-                    loadPreInterstitialAd(adId: AdsVariable.interPreLoadIOS);
-                  },
-                  onAdFailedToShowFullScreenContent: (ad, error) {
-                    ad.dispose();
-                    log("Ad Reloaded");
-                    loadPreInterstitialAd(adId: AdsVariable.interPreLoadIOS);
-                    onDismissed();
-                  },
-                );
-          },
-          onAdFailedToLoad: (error) {
-            showLog(error.toString());
-            loadingScreen.hide();
-            onDismissed();
-          },
-        ),
-      );
-    }
+          loadingScreen.hide();
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdImpression: (ad) {
+              showLog("onAdImpression [$place]");
+            },
+            onAdDismissedFullScreenContent: (ad) {
+              onDismissed();
+              ad.dispose();
+              log("Ad Reloaded");
+              loadPreInterstitialAd(adId: AdsVariable.interPreLoadIOS);
+            },
+            onAdFailedToShowFullScreenContent: (ad, error) {
+              ad.dispose();
+              log("Ad Reloaded");
+              loadPreInterstitialAd(adId: AdsVariable.interPreLoadIOS);
+              onDismissed();
+            },
+          );
+          ad.show();
+        },
+        onAdFailedToLoad: (error) {
+          showLog(error.toString());
+          loadingScreen.hide();
+          onDismissed();
+        },
+      ),
+    );
   }
 
   /// --------------------- Native ads load ------------------------------

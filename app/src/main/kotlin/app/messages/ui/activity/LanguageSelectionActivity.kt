@@ -56,8 +56,11 @@ class LanguageSelectionActivity : BaseActivity() {
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] onCreate() entered")
 
         prefs = PreferenceHelper.getInstance(this)
-        isFromSettings = intent.getBooleanExtra("from_settings", false) || (prefs?.isOnboardingDone() == true)
-        
+        // Onboarding marks itself done before this screen, so that flag can't tell
+        // the two apart. A language is only already chosen when coming from
+        // Settings; read it before it is set below.
+        isFromSettings = intent.getBooleanExtra("from_settings", false) || (prefs?.isLanguageSelected() == true)
+
         // Mark as selected immediately so pressing Home/Back doesn't cause a loop
         if (prefs?.isLanguageSelected() == false) {
             Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Setting language selected flag = true (default en)")
@@ -167,7 +170,7 @@ class LanguageSelectionActivity : BaseActivity() {
         }
 
         // Only preload launcher session ads if user is onboarding for the first time
-        val isFirstLaunchOnboarding = !isFromSettings && !prefs!!.isOnboardingDone()
+        val isFirstLaunchOnboarding = !isFromSettings
         if (isFirstLaunchOnboarding) {
             Log.d("ADS_DASHBOARD", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading Native Dashboard Ad...")
             Log.d("ADS_GOOGLE_SEARCH", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading Google Search Native Ad...")
