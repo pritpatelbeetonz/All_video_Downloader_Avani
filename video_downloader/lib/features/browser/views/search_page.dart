@@ -45,7 +45,6 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
   NativeAd? _homeBigNativeAd;
   bool _isLoadingBigNativeAd = false;
   DateTime? _homeAdShownAt;
-  AppLifecycleListener? _lifecycleListener;
 
   /// AdMob's minimum refresh interval; a displayed ad younger than this is kept.
   static const Duration _homeAdMinRefresh = Duration(seconds: 60);
@@ -109,7 +108,13 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
     _refreshHomeBigNativeAd();
     AdsVariable.configUpdatedNotifier.addListener(_onAdsConfigUpdated);
     // Downloader page became visible (swiped to, or launcher foregrounded).
-    _lifecycleListener = AppLifecycleListener(onResume: _refreshHomeBigNativeAd);
+    AppBigNativeAdPool.downloaderVisible.addListener(_onDownloaderVisibilityChanged);
+  }
+
+  void _onDownloaderVisibilityChanged() {
+    if (mounted && AppBigNativeAdPool.downloaderVisible.value) {
+      _refreshHomeBigNativeAd();
+    }
   }
 
   void _onAdsConfigUpdated() {
@@ -210,7 +215,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
   @override
   void dispose() {
     AdsVariable.configUpdatedNotifier.removeListener(_onAdsConfigUpdated);
-    _lifecycleListener?.dispose();
+    AppBigNativeAdPool.downloaderVisible.removeListener(_onDownloaderVisibilityChanged);
     routeObserver.unsubscribe(this);
     AppBigNativeAdPool.detachScreen('SearchPage');
     final adToDispose = _homeBigNativeAd;

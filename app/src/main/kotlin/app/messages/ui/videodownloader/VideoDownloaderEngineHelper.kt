@@ -97,6 +97,9 @@ object VideoDownloaderEngineHelper {
                     "getAdsConfig" -> {
                         result.success(app.messages.config.AdsConfigManager.rawConfigJson)
                     }
+                    "isDownloaderVisible" -> {
+                        result.success(isDownloaderVisible)
+                    }
                     "acquireWakeLock" -> {
                         acquireWakeLock(context)
                         result.success(true)
@@ -158,6 +161,30 @@ object VideoDownloaderEngineHelper {
                 MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
                     .invokeMethod("syncAdsConfig", mapOf("rawConfig" to json))
                 android.util.Log.d("VideoDownloaderEngine", "Dispatched syncAdsConfig to Flutter (${json.length} chars)")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * Whether the downloader page is actually on screen. Flutter's own lifecycle
+     * reports `resumed` for the pre-warmed engine even with no view attached, so
+     * ads in the Flutter module gate on this instead.
+     */
+    @Volatile
+    var isDownloaderVisible: Boolean = false
+        private set
+
+    fun setDownloaderVisible(visible: Boolean) {
+        if (isDownloaderVisible == visible) return
+        isDownloaderVisible = visible
+        try {
+            val flutterEngine = io.flutter.embedding.engine.FlutterEngineCache.getInstance().get(ENGINE_ID)
+            if (flutterEngine != null) {
+                MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+                    .invokeMethod("setDownloaderVisible", mapOf("visible" to visible))
+                android.util.Log.d("VideoDownloaderEngine", "Dispatched setDownloaderVisible($visible) to Flutter")
             }
         } catch (e: Exception) {
             e.printStackTrace()

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'LanguageScreen/translations/app_translations.dart';
 import 'features/home/views/home_page.dart';
 import 'package:video_downloader/utility/shared_prefrence_service.dart';
+import 'for_ads/ads/ads_load_util.dart';
 import 'for_ads/ads/ads_splash_utils.dart';
 import 'for_ads/ads/ads_variable.dart';
 import 'import_all.dart';
@@ -80,8 +81,19 @@ void main() async {
       } catch (e) {
         debugPrint("⚠️ [VideoDownloader] Error in syncAdsConfig: $e");
       }
+    } else if (call.method == 'setDownloaderVisible') {
+      final args = call.arguments;
+      final visible = args is Map ? args['visible'] == true : args == true;
+      AppBigNativeAdPool.setDownloaderVisible(visible);
     }
     return null;
+  });
+
+  // The downloader page may already be on screen if the engine started late.
+  platformMethodChannel.invokeMethod('isDownloaderVisible').then((res) {
+    AppBigNativeAdPool.setDownloaderVisible(res == true);
+  }).catchError((e) {
+    debugPrint("⚠️ [VideoDownloader] Error getting downloader visibility: $e");
   });
 
   // Pull initial ad configuration from Launcher Native if already available

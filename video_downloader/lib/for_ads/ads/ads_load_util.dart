@@ -1066,7 +1066,8 @@ class BannerAdState {
 /// - If ad is in-flight and user moves away / enters another place:
 ///   does not destroy it; caches it! Any new request joins and waits for in-flight ad.
 /// - Never requests while the downloader is off-screen (pre-warmed engine or other
-///   launcher page): the request is parked and fired when the UI is resumed.
+///   launcher page): the request is parked and fired when the launcher reports
+///   the downloader page visible (see setDownloaderVisible).
 class AppBigNativeAdPool {
   static NativeAd? _cachedAd;
   static DateTime? _cachedAt;
@@ -1081,12 +1082,20 @@ class AppBigNativeAdPool {
 
   /// A request made while not visible, replayed on resume (latest screen wins).
   static ({String screenTag, Function(NativeAd) onLoaded, Function() onFailed})? _pending;
-  static AppLifecycleListener? _lifecycleListener;
 
-  /// FlutterFragment reports `resumed` only while the downloader page is the
-  /// current launcher page and the launcher is in the foreground.
-  static bool get _isVisible =>
-      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+  /// Set by the launcher over `nativeChannel`: true only while the downloader
+  /// page is on screen. Flutter's own lifecycle reports `resumed` for the
+  /// pre-warmed engine even with no view attached, so it can't be used here.
+  static final ValueNotifier<bool> downloaderVisible = ValueNotifier(false);
+
+  static bool get _isVisible => downloaderVisible.value;
+
+  static void setDownloaderVisible(bool visible) {
+    if (downloaderVisible.value == visible) return;
+    showLog("👁️ [AppBigNativeAdPool] Downloader visible = $visible");
+    downloaderVisible.value = visible;
+    if (visible) _onVisible();
+  }
 
   static String get _activePlace =>
       (_activeScreenTag?.toLowerCase().contains('loading') == true)
@@ -1158,20 +1167,12 @@ class AppBigNativeAdPool {
       return;
     }
 
-    if (!await AdsVariable.isInternetConnected()) {
-      showLog("🌐❌ [AppBigNativeAdPool] Skipping loadForScreen - no internet");
-      isFailedToLoad.value = true;
-      onFailed();
-      return;
-    }
-
     // Off-screen (pre-warmed engine / other launcher page): park the request
     // instead of loading an ad nobody can see.
     if (!_isInFlight && !_isVisible) {
-      _lifecycleListener ??= AppLifecycleListener(onResume: _onVisible);
       _pending = (screenTag: screenTag, onLoaded: onLoaded, onFailed: onFailed);
       showLog(
-          "⏸️🙈 [AppBigNativeAdPool] Deferred request for $screenTag (not visible, state=${WidgetsBinding.instance.lifecycleState})");
+          "⏸️🙈 [AppBigNativeAdPool] Deferred request for $screenTag (downloader not visible)");
       return;
     }
 
@@ -1188,8 +1189,21 @@ class AppBigNativeAdPool {
       return;
     }
 
-    // 4. No cache & not in-flight: fire a single on-the-spot request
+    // 4. No cache & not in-flight: fire a single on-the-spot request.
+    // Mark in-flight before awaiting so a concurrent call joins instead of
+    // firing a second request.
     _isInFlight = true;
+    if (!await AdsVariable.isInternetConnected()) {
+      showLog("🌐❌ [AppBigNativeAdPool] Skipping loadForScreen - no internet");
+      _isInFlight = false;
+      isFailedToLoad.value = true;
+      final cb = _onAdFailedCallback;
+      _activeScreenTag = null;
+      _onAdLoadedCallback = null;
+      _onAdFailedCallback = null;
+      cb?.call();
+      return;
+    }
     isFailedToLoad.value = false;
     showLog(
         "🚀📡 [AppBigNativeAdPool] IN-FLIGHT START -> Firing on-the-spot AdMob request for $screenTag");

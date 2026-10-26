@@ -37,7 +37,24 @@ class VideoDownloaderContainerFragment : Fragment() {
         }
     }
 
+    private val markVisible = Runnable { VideoDownloaderEngineHelper.setDownloaderVisible(true) }
+
+    // ViewPager2 resumes only the current page, so resumed == on screen. The
+    // launcher briefly selects page 0 before jumping to its landing tab, hence
+    // the short delay before reporting visible.
+    override fun onResume() {
+        super.onResume()
+        view?.postDelayed(markVisible, VISIBLE_DEBOUNCE_MS)
+    }
+
+    override fun onPause() {
+        view?.removeCallbacks(markVisible)
+        VideoDownloaderEngineHelper.setDownloaderVisible(false)
+        super.onPause()
+    }
+
     companion object {
         private const val TAG_FLUTTER = "tag_flutter_video_downloader"
+        private const val VISIBLE_DEBOUNCE_MS = 400L
     }
 }
