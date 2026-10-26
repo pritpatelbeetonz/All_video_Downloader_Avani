@@ -1065,28 +1065,95 @@ class BannerAdState {
 /// - Strictly at most 1 conversation in-flight with AdMob
 /// - If ad is in-flight and user moves away / enters another place:
 ///   does not destroy it; caches it! Any new request joins and waits for in-flight ad.
+/// - Never requests while the downloader is off-screen (pre-warmed engine or other
+///   launcher page): the request is parked and fired when the UI is resumed.
 class AppBigNativeAdPool {
   static NativeAd? _cachedAd;
+  static DateTime? _cachedAt;
   static bool _isInFlight = false;
   static String? _activeScreenTag;
   static Function(NativeAd)? _onAdLoadedCallback;
   static Function()? _onAdFailedCallback;
   static RxBool isFailedToLoad = false.obs;
 
+  /// Native ads expire after ~1 hour; drop cached ones a little before that.
+  static const Duration _cacheTtl = Duration(minutes: 55);
+
+  /// A request made while not visible, replayed on resume (latest screen wins).
+  static ({String screenTag, Function(NativeAd) onLoaded, Function() onFailed})? _pending;
+  static AppLifecycleListener? _lifecycleListener;
+
+  /// FlutterFragment reports `resumed` only while the downloader page is the
+  /// current launcher page and the launcher is in the foreground.
+  static bool get _isVisible =>
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+
   static String get _activePlace =>
       (_activeScreenTag?.toLowerCase().contains('loading') == true)
           ? 'VD_Loading'
           : 'VD_Search';
 
+  static void _onVisible() {
+    final pending = _pending;
+    if (pending == null) return;
+    _pending = null;
+    showLog(
+        "▶️👀 [AppBigNativeAdPool] Downloader visible -> Firing deferred request for ${pending.screenTag}");
+    loadForScreen(
+      screenTag: pending.screenTag,
+      onLoaded: pending.onLoaded,
+      onFailed: pending.onFailed,
+    );
+  }
+
+  static void _storeInCache(NativeAd ad) {
+    _cachedAd?.dispose();
+    _cachedAd = ad;
+    _cachedAt = DateTime.now();
+  }
+
+  /// Returns the cached ad if it is still fresh; expired ones are disposed.
+  static NativeAd? _takeCachedAd() {
+    final ad = _cachedAd;
+    if (ad == null) return null;
+    final cachedAt = _cachedAt;
+    _cachedAd = null;
+    _cachedAt = null;
+    if (cachedAt != null && DateTime.now().difference(cachedAt) > _cacheTtl) {
+      showLog("⌛🗑️ [AppBigNativeAdPool] Cached ad expired -> Disposing it");
+      ad.dispose();
+      return null;
+    }
+    return ad;
+  }
+
+  /// [allowNetwork] false = deliver a cached ad or fail at once, never call AdMob.
   static void loadForScreen({
     required String screenTag,
     required Function(NativeAd) onLoaded,
     required Function() onFailed,
+    bool allowNetwork = true,
   }) async {
     if (AdsVariable.isPurchase ||
         !AdsLoadUtil.isValidAdId(AdsVariable.prAppBigNative)) {
       showLog(
           "🚫 [AppBigNativeAdPool] Skipping loadForScreen - purchase or invalid adId");
+      onFailed();
+      return;
+    }
+
+    // 1. Check if an ad is already cached: show it immediately!
+    final cached = _takeCachedAd();
+    if (cached != null) {
+      showLog(
+          "⚡🟢📦 [AppBigNativeAdPool] CACHE HIT! Found cached ad -> Delivering immediately to $screenTag (Zero Wait, No Shimmer!)");
+      isFailedToLoad.value = false;
+      onLoaded(cached);
+      return;
+    }
+
+    if (!allowNetwork) {
+      showLog("📭 [AppBigNativeAdPool] Cache-only request from $screenTag -> No cached ad");
       onFailed();
       return;
     }
@@ -1098,14 +1165,13 @@ class AppBigNativeAdPool {
       return;
     }
 
-    // 1. Check if an ad is already cached: show it immediately!
-    if (_cachedAd != null) {
+    // Off-screen (pre-warmed engine / other launcher page): park the request
+    // instead of loading an ad nobody can see.
+    if (!_isInFlight && !_isVisible) {
+      _lifecycleListener ??= AppLifecycleListener(onResume: _onVisible);
+      _pending = (screenTag: screenTag, onLoaded: onLoaded, onFailed: onFailed);
       showLog(
-          "⚡🟢📦 [AppBigNativeAdPool] CACHE HIT! Found cached ad -> Delivering immediately to $screenTag (Zero Wait, No Shimmer!)");
-      final ad = _cachedAd!;
-      _cachedAd = null;
-      isFailedToLoad.value = false;
-      onLoaded(ad);
+          "⏸️🙈 [AppBigNativeAdPool] Deferred request for $screenTag (not visible, state=${WidgetsBinding.instance.lifecycleState})");
       return;
     }
 
@@ -1163,8 +1229,7 @@ class AppBigNativeAdPool {
             // Screen moved away or detached while in-flight: DO NOT DESTROY, CACHE IT!
             showLog(
                 "📥💾✨ [AppBigNativeAdPool] AD LOADED BUT SCREEN DETACHED! -> Safely CACHING ad into pool for next visit!");
-            _cachedAd?.dispose();
-            _cachedAd = ad;
+            _storeInCache(ad);
           }
         },
         onAdFailedToLoad: (failedAd, error) {
@@ -1203,6 +1268,10 @@ class AppBigNativeAdPool {
   /// Called when a screen unmounts / moves away.
   /// If an ad is in-flight, detaches so the ad gets cached upon arrival instead of delivered to dead widget or destroyed.
   static void detachScreen(String screenTag) {
+    if (_pending?.screenTag == screenTag) {
+      showLog("🔌⏸️ [AppBigNativeAdPool] Screen $screenTag detached -> Dropping deferred request");
+      _pending = null;
+    }
     if (_activeScreenTag == screenTag) {
       showLog(
           "🔌👋 [AppBigNativeAdPool] Screen $screenTag detached from in-flight request");
@@ -1215,8 +1284,7 @@ class AppBigNativeAdPool {
   /// If an ad was loaded but not displayed, cache it instead of disposing it.
   static void cacheUnshownAd(NativeAd ad) {
     showLog("📥📦 [AppBigNativeAdPool] Storing unshown ad into cache");
-    _cachedAd?.dispose();
-    _cachedAd = ad;
+    _storeInCache(ad);
   }
 }
 

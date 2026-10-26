@@ -31,6 +31,7 @@ class LoadingChartWidget extends ConsumerStatefulWidget {
 class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
   bool _showButton = false;
   Timer? _fallbackButtonTimer;
+  Timer? _adRequestTimer;
   bool _hasTriggeredAutoClose = false;
 
   NativeAd? _loadingNativeAd;
@@ -62,43 +63,59 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
       showLog("🚫 [Loading Screen Ad] Skipping load - purchase or invalid adId");
       return;
     }
-    setState(() {
-      _isLoadingNativeAd = true;
-    });
 
+    // Show a cached ad instantly; only hit AdMob if the screen stays open long
+    // enough for the ad to be seen (fast extractions close it in <1s).
     AppBigNativeAdPool.loadForScreen(
       screenTag: 'LoadingChartWidget',
-      onLoaded: (newAd) {
-        if (!mounted) {
-          showLog("📦💾 [Loading Screen Ad] Screen closed before arrival -> Caching ad into pool");
-          AppBigNativeAdPool.cacheUnshownAd(newAd);
-          return;
-        }
-        showLog("🎉🖼️ [Loading Screen Ad] Big Native Ad loaded -> Displaying on Loading screen");
-        final oldAd = _loadingNativeAd;
-        setState(() {
-          _loadingNativeAd = newAd;
-          _isLoadingNativeAd = false;
-        });
-        if (oldAd != null && oldAd != newAd) {
-          Future.delayed(const Duration(milliseconds: 600), () {
-            oldAd.dispose();
-          });
-        }
-      },
+      allowNetwork: false,
+      onLoaded: _onBigNativeAdLoaded,
       onFailed: () {
-        showLog("⚠️❌ [Loading Screen Ad] Big Native Ad load failed");
-        if (!mounted) return;
-        setState(() {
-          _isLoadingNativeAd = false;
+        _adRequestTimer = Timer(const Duration(milliseconds: 2500), () {
+          if (!mounted || _loadingNativeAd != null) return;
+          showLog("⏱️ [Loading Screen Ad] Screen still open after 2.5s -> Requesting Big Native Ad");
+          setState(() {
+            _isLoadingNativeAd = true;
+          });
+          AppBigNativeAdPool.loadForScreen(
+            screenTag: 'LoadingChartWidget',
+            onLoaded: _onBigNativeAdLoaded,
+            onFailed: () {
+              showLog("⚠️❌ [Loading Screen Ad] Big Native Ad load failed");
+              if (!mounted) return;
+              setState(() {
+                _isLoadingNativeAd = false;
+              });
+            },
+          );
         });
       },
     );
   }
 
+  void _onBigNativeAdLoaded(NativeAd newAd) {
+    if (!mounted) {
+      showLog("📦💾 [Loading Screen Ad] Screen closed before arrival -> Caching ad into pool");
+      AppBigNativeAdPool.cacheUnshownAd(newAd);
+      return;
+    }
+    showLog("🎉🖼️ [Loading Screen Ad] Big Native Ad loaded -> Displaying on Loading screen");
+    final oldAd = _loadingNativeAd;
+    setState(() {
+      _loadingNativeAd = newAd;
+      _isLoadingNativeAd = false;
+    });
+    if (oldAd != null && oldAd != newAd) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        oldAd.dispose();
+      });
+    }
+  }
+
   @override
   void dispose() {
     _fallbackButtonTimer?.cancel();
+    _adRequestTimer?.cancel();
     AppBigNativeAdPool.detachScreen('LoadingChartWidget');
     final adToDispose = _loadingNativeAd;
     _loadingNativeAd = null;

@@ -44,6 +44,11 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
   bool checkFocus = true;
   NativeAd? _homeBigNativeAd;
   bool _isLoadingBigNativeAd = false;
+  DateTime? _homeAdShownAt;
+  AppLifecycleListener? _lifecycleListener;
+
+  /// AdMob's minimum refresh interval; a displayed ad younger than this is kept.
+  static const Duration _homeAdMinRefresh = Duration(seconds: 60);
 
   static const List<_QuickAccessItem> _quickAccessItems = [
     _QuickAccessItem(
@@ -103,6 +108,8 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
     });
     _refreshHomeBigNativeAd();
     AdsVariable.configUpdatedNotifier.addListener(_onAdsConfigUpdated);
+    // Downloader page became visible (swiped to, or launcher foregrounded).
+    _lifecycleListener = AppLifecycleListener(onResume: _refreshHomeBigNativeAd);
   }
 
   void _onAdsConfigUpdated() {
@@ -152,6 +159,13 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
       showLog("🚫 [Home Native Ad] Skipping refresh - purchase or invalid adId");
       return;
     }
+    final shownAt = _homeAdShownAt;
+    if (_homeBigNativeAd != null &&
+        shownAt != null &&
+        DateTime.now().difference(shownAt) < _homeAdMinRefresh) {
+      showLog("🧊 [Home Native Ad] Displayed ad is fresh enough (<60s) -> Skipping refresh");
+      return;
+    }
     // Only show shimmer if no ad is currently displayed
     if (_homeBigNativeAd == null) {
       showLog("⏳✨ [Home Native Ad] Cold start (no ad on screen) -> Showing Shimmer and loading");
@@ -174,6 +188,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
         final oldAd = _homeBigNativeAd;
         setState(() {
           _homeBigNativeAd = newAd;
+          _homeAdShownAt = DateTime.now();
           _isLoadingBigNativeAd = false;
         });
         if (oldAd != null && oldAd != newAd) {
@@ -195,6 +210,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
   @override
   void dispose() {
     AdsVariable.configUpdatedNotifier.removeListener(_onAdsConfigUpdated);
+    _lifecycleListener?.dispose();
     routeObserver.unsubscribe(this);
     AppBigNativeAdPool.detachScreen('SearchPage');
     final adToDispose = _homeBigNativeAd;
