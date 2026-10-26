@@ -348,7 +348,7 @@ class PermissionActivity : BaseActivity() {
 
 
     private fun areAllPermissionsGranted(): Boolean {
-        return isNotificationPermissionGranted() && isDefaultSmsApp()
+        return isNotificationPermissionGranted()
     }
 
     private fun isNotificationPermissionGranted(): Boolean {
@@ -362,19 +362,12 @@ class PermissionActivity : BaseActivity() {
     }
 
 
-    private fun isPhoneStatePermissionGranted(): Boolean {
-        return ContextCompat.checkSelfPermission(
-            this, Manifest.permission.READ_PHONE_STATE
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-
     private fun isOverlayPermissionGranted(): Boolean {
         return Settings.canDrawOverlays(this)
     }
 
     private fun requestDefaultAppPermission() {
-//        stopPermissionCheck()
-        requestDefaultSmsRole()
+        requestNextPermissionNew()
     }
 
     private fun isDefaultSmsApp(): Boolean {

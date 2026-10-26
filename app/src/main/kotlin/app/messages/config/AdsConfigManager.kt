@@ -1,10 +1,8 @@
 package app.messages.config
 
 import android.content.Context
-import android.os.Bundle
 import android.util.Log
 import com.google.firebase.FirebaseApp
-import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 import com.google.gson.Gson
@@ -31,7 +29,7 @@ object AdsConfigManager {
      * - SplashActivity (initial load)
      * ====================================================================================
      */
-    const val KEY_ADS_CONFIG = "video_downlader_launcher_v2"
+    const val KEY_ADS_CONFIG = "video_downlader_launcher_v2"//"app_john_all_video_downloader_com_v1"
 
     private const val KEY_BANNER_SPLASH = "banner_ad_id_splash"
     private const val KEY_BANNER_CONTACT_HOME = "banner_ad_id_contact_home"
@@ -105,21 +103,12 @@ object AdsConfigManager {
     const val KEY_SPLASH_APP_OPEN_ON = "splashAppOpenOn"
     const val KEY_SPLASH_APP_OPEN_ON_ALT = "splash_app_open_on"
     const val KEY_SPLASH_APP_OPEN_PRELOAD = "splashAppOpenAdPreload"
-    const val KEY_SEND_REVENUE_SPLASH_ADS = "sendRevenueSplashAds"
-    const val KEY_SEND_REVENUE_SPLASH_ADS_ALT = "send_revenue_splash_ads"
-    const val KEY_SEND_REVENUE_SPLASH_INTER_LEGACY = "sendRevenueSplashInter"
-    const val KEY_SEND_REVENUE_SPLASH_APP_OPEN_LEGACY = "sendRevenueSplashAppOpen"
     const val KEY_APP_OPEN_INTRO_SCREEN = "app_open_ad_id_IntroScreen"
     const val KEY_APP_OPEN_INTRO_SCREEN_ALT = "pr_introAppOpen"
     const val KEY_APP_OPEN_INTRO_SCREEN_ALT2 = "app_open_ad_id_intro"
     const val KEY_INTRO_APP_OPEN_ON = "introAppOpenOn"
     const val KEY_INTRO_APP_OPEN_ON_ALT = "intro_app_open_on"
     const val KEY_INTRO_APP_OPEN_PRELOAD = "introAppOpenAdPreload"
-    const val KEY_SEND_REVENUE_INTRO_APP_OPEN = "sendRevenueIntroAppOpen"
-    const val KEY_SEND_REVENUE_VD_INTER = "sendRevenueVideoDownloaderInter"
-    const val KEY_SEND_REVENUE_VD_INTER_ALT = "send_revenue_video_downloader_inter"
-    const val KEY_SEND_REVENUE_VD_NATIVE = "sendRevenueVideoDownloaderNative"
-    const val KEY_SEND_REVENUE_VD_NATIVE_ALT = "send_revenue_video_downloader_native"
     private const val KEY_ONESIGNAL_APP_ID = "oneSignalAppId"
     private const val KEY_ONESIGNAL_APP_ID_ALT = "onesignal_app_id"
     private const val KEY_PRIVACY_POLICY_URL = "privacyPolicyUrl"
@@ -344,9 +333,9 @@ object AdsConfigManager {
 
     private fun getRemoteConfigJsonString(remoteConfig: FirebaseRemoteConfig): String {
         var json = remoteConfig.getString(KEY_ADS_CONFIG)
-        if (json.isBlank()) {
-            json = remoteConfig.getString("messages_chat_sms_text_launcher_app_v2")
-        }
+//        if (json.isBlank()) {
+//            json = remoteConfig.getString("messages_chat_sms_text_launcher_app_v2")
+//        }
         if (json.isBlank()) {
             json = remoteConfig.getString("ads_config")
         }
@@ -490,11 +479,6 @@ object AdsConfigManager {
                 ?: fromJson.splashAppOpenOn,
             splashAppOpenAdPreload = remoteConfig.optionalBoolean(KEY_SPLASH_APP_OPEN_PRELOAD)
                 ?: fromJson.splashAppOpenAdPreload,
-            sendRevenueSplashAds = remoteConfig.optionalBoolean(KEY_SEND_REVENUE_SPLASH_ADS)
-                ?: remoteConfig.optionalBoolean(KEY_SEND_REVENUE_SPLASH_ADS_ALT)
-                ?: remoteConfig.optionalBoolean(KEY_SEND_REVENUE_SPLASH_INTER_LEGACY)
-                ?: remoteConfig.optionalBoolean(KEY_SEND_REVENUE_SPLASH_APP_OPEN_LEGACY)
-                ?: fromJson.sendRevenueSplashAds,
             appOpenAdIdIntroScreen = remoteConfig.optionalString(KEY_APP_OPEN_INTRO_SCREEN)
                 ?: remoteConfig.optionalString(KEY_APP_OPEN_INTRO_SCREEN_ALT)
                 ?: remoteConfig.optionalString(KEY_APP_OPEN_INTRO_SCREEN_ALT2)
@@ -504,14 +488,6 @@ object AdsConfigManager {
                 ?: fromJson.introAppOpenOn,
             introAppOpenAdPreload = remoteConfig.optionalBoolean(KEY_INTRO_APP_OPEN_PRELOAD)
                 ?: fromJson.introAppOpenAdPreload,
-            sendRevenueIntroAppOpen = remoteConfig.optionalBoolean(KEY_SEND_REVENUE_INTRO_APP_OPEN)
-                ?: fromJson.sendRevenueIntroAppOpen,
-            sendRevenueVideoDownloaderInter = remoteConfig.optionalBoolean(KEY_SEND_REVENUE_VD_INTER)
-                ?: remoteConfig.optionalBoolean(KEY_SEND_REVENUE_VD_INTER_ALT)
-                ?: fromJson.sendRevenueVideoDownloaderInter,
-            sendRevenueVideoDownloaderNative = remoteConfig.optionalBoolean(KEY_SEND_REVENUE_VD_NATIVE)
-                ?: remoteConfig.optionalBoolean(KEY_SEND_REVENUE_VD_NATIVE_ALT)
-                ?: fromJson.sendRevenueVideoDownloaderNative,
         )
     }
 
@@ -600,84 +576,19 @@ object AdsConfigManager {
     }
 
     /**
-     * Checks whether ad revenue analytics should be logged for a specific placement.
+     * ad_impression fires only when the master switch is on and the ad unit ID
+     * is in the Remote Config allow-list `adImpressionEventAllowed`.
      */
-    fun shouldSendRevenueForPlacement(placement: String): Boolean {
-        if (!config.sendRevenueToAnalytics) return false
-        return when (placement.lowercase()) {
-            "drawer_native", "native_drawer" -> config.sendRevenueDrawerNative
-            "dashboard_native", "native_dashboard" -> config.sendRevenueDashboardNative
-            "google_search_native", "native_google_search" -> config.sendRevenueGoogleSearchNative
-            "language_native", "native_language" -> config.sendRevenueLanguageNative
-            "language_inter", "inter_language" -> config.sendRevenueLanguageInter
-            "native_chat", "chat_native" -> config.sendRevenueChatNative
-            "native_menu", "menu_native" -> config.sendRevenueMenuNative
-            "native_setting", "setting_native" -> config.sendRevenueSettingNative
-            "native_launcher_setting", "launcher_setting_native", "native_launcher_screen" -> config.sendRevenueLauncherSettingNative
-            "app_click_inter", "app_click_interstitial" -> config.sendRevenueAppClickInter
-            "swipe_inter", "swipe_interstitial" -> config.sendRevenueSwipeInter
-            "set_default_inter", "set_default_interstitial" -> config.sendRevenueSetDefaultInter
-            "splash_inter", "splash_interstitial", "splash_app_open", "app_open_splash" -> config.sendRevenueSplashAds
-            "intro_app_open", "app_open_intro" -> config.sendRevenueIntroAppOpen
-            "app_open", "swipe_app_open", "app_click_open", "app_open_language" -> config.sendRevenueAppOpen
-            "banner", "banner_splash", "banner_home", "banner_drawer", "banner_language" -> config.sendRevenueBanner
-            "video_downloader_inter", "inter_video_downloader" -> config.sendRevenueVideoDownloaderInter
-            "video_downloader_native", "native_video_downloader" -> config.sendRevenueVideoDownloaderNative
-            else -> true
-        }
+    fun shouldSendAdImpression(adUnitId: String?): Boolean {
+        if (!config.sendRevenueToAnalytics || adUnitId.isNullOrBlank()) return false
+        val id = adUnitId.trim()
+        return config.adImpressionEventAllowed.orEmpty().any { it.trim() == id }
     }
 
-    fun sendRevenue(placement: String, adValue: com.google.android.gms.ads.AdValue) {
+    fun sendRevenue(adUnitId: String?, placement: String, adValue: com.google.android.gms.ads.AdValue) {
         val revenue = adValue.valueMicros / 1000000.0
         app.messages.Controller.getInstance()
-            .sendRevenueToAnalytics(placement, revenue, adValue.currencyCode, adValue.precisionType)
-    }
-
-    /**
-     * Unconditionally logs ad impression occurrence event: Show_<Format>_<Place>.
-     */
-    fun logAdShow(format: String, place: String) {
-        val eventName = "Show_${format}_${place}"
-        Log.d("AdEvents", "Logging ad show event: $eventName")
-        try {
-            val bundle = Bundle().apply {
-                putString("ad_format", format)
-                putString("ad_place", place)
-            }
-            FirebaseAnalytics.getInstance(app.messages.Controller.getInstance())
-                .logEvent(eventName, bundle)
-        } catch (e: Exception) {
-            Log.e("AdEvents", "Error logging $eventName", e)
-        }
-    }
-
-    /**
-     * Unconditionally logs ad revenue event: Rev_<Format>_<Place> with full AdMob revenue parameters,
-     * and triggers standard ad_impression logging for Firebase/AdMob dashboards.
-     */
-    fun logAdRevenue(format: String, place: String, adValue: com.google.android.gms.ads.AdValue) {
-        val eventName = "Rev_${format}_${place}"
-        val revenue = adValue.valueMicros / 1000000.0
-        val currency = adValue.currencyCode.takeIf { !it.isNullOrBlank() } ?: "USD"
-        val precision = adValue.precisionType
-        Log.d("AdEvents", "Logging ad revenue event: $eventName -> $revenue $currency")
-        try {
-            val bundle = Bundle().apply {
-                putString(FirebaseAnalytics.Param.AD_PLATFORM, "admob")
-                putString(FirebaseAnalytics.Param.AD_SOURCE, "AdMob")
-                putString(FirebaseAnalytics.Param.AD_FORMAT, format)
-                putDouble(FirebaseAnalytics.Param.VALUE, revenue)
-                putString(FirebaseAnalytics.Param.CURRENCY, currency)
-                putInt("precision_type", precision)
-                putString("ad_place", place)
-            }
-            FirebaseAnalytics.getInstance(app.messages.Controller.getInstance())
-                .logEvent(eventName, bundle)
-        } catch (e: Exception) {
-            Log.e("AdEvents", "Error logging $eventName", e)
-        }
-        // Also trigger standard sendRevenue for backward compatibility & Firebase ad_impression dashboard
-        sendRevenue("${format.lowercase()}_${place.lowercase()}", adValue)
+            .sendRevenueToAnalytics(adUnitId, placement, revenue, adValue.currencyCode, adValue.precisionType)
     }
 
     /**
@@ -698,15 +609,11 @@ object AdsConfigManager {
         com.google.android.gms.ads.AdLoader.Builder(context.applicationContext, id)
             .forNativeAd { nativeAd ->
                 Log.d("ADS_LANGUAGE", "✅ [LANGUAGE_PRELOAD] Language Native Ad loaded successfully and stored in RAM cache! (UnitId: $id)")
-                nativeAd.setOnPaidEventListener { adValue -> logAdRevenue("Native", "Language", adValue) }
+                nativeAd.setOnPaidEventListener { }
                 preloadedNativeAds[id] = nativeAd
                 loadingNativeAds[id] = false
             }
             .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdImpression() {
-                    super.onAdImpression()
-                    logAdShow("Native", "Language")
-                }
                 override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
                     Log.e("ADS_LANGUAGE", "❌ [LANGUAGE_PRELOAD] Failed to preload Language Native Ad: ${error.message} (code=${error.code})")
                     loadingNativeAds[id] = false
@@ -734,15 +641,11 @@ object AdsConfigManager {
         com.google.android.gms.ads.AdLoader.Builder(context.applicationContext, id)
             .forNativeAd { nativeAd ->
                 Log.d("ADS_DASHBOARD", "✅ [DASHBOARD_PRELOAD] Background preload SUCCEEDED and cached in RAM! (UnitId: $id)")
-                nativeAd.setOnPaidEventListener { adValue -> logAdRevenue("Native", "Dashboard", adValue) }
+                nativeAd.setOnPaidEventListener { adValue -> sendRevenue(id, "native_dashboard", adValue) }
                 preloadedNativeAds[id] = nativeAd
                 loadingNativeAds[id] = false
             }
             .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdImpression() {
-                    super.onAdImpression()
-                    logAdShow("Native", "Dashboard")
-                }
                 override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
                     Log.e("ADS_DASHBOARD", "❌ [DASHBOARD_PRELOAD] Failed to preload dashboard native ad: ${error.message} (code=${error.code})")
                     loadingNativeAds[id] = false
@@ -770,15 +673,11 @@ object AdsConfigManager {
         com.google.android.gms.ads.AdLoader.Builder(context.applicationContext, id)
             .forNativeAd { nativeAd ->
                 Log.d("ADS_GOOGLE_SEARCH", "✅ [SEARCH_PRELOAD] Background preload SUCCEEDED and cached in RAM! (UnitId: $id)")
-                nativeAd.setOnPaidEventListener { adValue -> logAdRevenue("Native", "Google_Search", adValue) }
+                nativeAd.setOnPaidEventListener { adValue -> sendRevenue(id, "native_google_search", adValue) }
                 preloadedNativeAds[id] = nativeAd
                 loadingNativeAds[id] = false
             }
             .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdImpression() {
-                    super.onAdImpression()
-                    logAdShow("Native", "Google_Search")
-                }
                 override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
                     Log.e("ADS_GOOGLE_SEARCH", "❌ [SEARCH_PRELOAD] Failed to preload Google search native ad: ${error.message} (code=${error.code})")
                     loadingNativeAds[id] = false
@@ -805,15 +704,11 @@ object AdsConfigManager {
         com.google.android.gms.ads.AdLoader.Builder(context.applicationContext, id)
             .forNativeAd { nativeAd ->
                 Log.d("ADS_DRAWER", "✅ [DRAWER_PRELOAD] Background preload SUCCEEDED and cached in RAM! (UnitId: $id)")
-                nativeAd.setOnPaidEventListener { adValue -> logAdRevenue("Native", "Drawer", adValue) }
+                nativeAd.setOnPaidEventListener { adValue -> sendRevenue(id, "native_drawer", adValue) }
                 preloadedNativeAds[id] = nativeAd
                 loadingNativeAds[id] = false
             }
             .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdImpression() {
-                    super.onAdImpression()
-                    logAdShow("Native", "Drawer")
-                }
                 override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
                     Log.e("ADS_DRAWER", "❌ [DRAWER_PRELOAD] Failed to preload drawer native ad: ${error.message} (code=${error.code})")
                     loadingNativeAds[id] = false
@@ -861,7 +756,7 @@ object AdsConfigManager {
             val adView = com.google.android.gms.ads.AdView(context)
             adView.setAdSize(com.google.android.gms.ads.AdSize.BANNER)
             adView.adUnitId = id
-            adView.setOnPaidEventListener { adValue -> sendRevenue("banner_splash", adValue) }
+            adView.setOnPaidEventListener { adValue -> sendRevenue(adView.adUnitId, "banner_splash", adValue) }
             adView.adListener = object : com.google.android.gms.ads.AdListener() {
                 override fun onAdLoaded() {
                     preloadedBannerAds[id] = adView
@@ -892,7 +787,7 @@ object AdsConfigManager {
         val adView = com.google.android.gms.ads.AdView(context)
         adView.setAdSize(com.google.android.gms.ads.AdSize.BANNER)
         adView.adUnitId = targetId
-        adView.setOnPaidEventListener { adValue -> sendRevenue("banner_home", adValue) }
+        adView.setOnPaidEventListener { adValue -> sendRevenue(adView.adUnitId, "banner_home", adValue) }
         return adView
     }
 
@@ -949,22 +844,10 @@ object AdsConfigManager {
                     config.nativeAdIdSettingScreen, config.nativeAdIdLauncherScreen -> "Launcher_Setting"
                     else -> "Drawer"
                 }
-                nativeAd.setOnPaidEventListener { adValue -> logAdRevenue("Native", place, adValue) }
+                nativeAd.setOnPaidEventListener { adValue -> sendRevenue(targetAdUnitId, "native_${place.lowercase()}", adValue) }
                 onLoaded(nativeAd)
             }
             .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdImpression() {
-                    super.onAdImpression()
-                    val place = when (targetAdUnitId) {
-                        config.nativeAdIdDashboard -> "Dashboard"
-                        config.nativeAdIdGoogleSearch -> "Google_Search"
-                        config.nativeAdIdAppDrawer -> "Drawer"
-                        config.nativeAdIdLanguage -> "Language"
-                        config.nativeAdIdSettingScreen, config.nativeAdIdLauncherScreen -> "Launcher_Setting"
-                        else -> "Drawer"
-                    }
-                    logAdShow("Native", place)
-                }
                 override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
                     Log.e(TAG, "[RemoteConfig] loadNativeAd: Failed to load on-demand native ad for unit $targetAdUnitId: ${error.message}")
                     onFailed()
@@ -989,7 +872,7 @@ object AdsConfigManager {
         val adView = com.google.android.gms.ads.AdView(context)
         adView.adUnitId = targetAdUnitId
         adView.setAdSize(com.google.android.gms.ads.AdSize.MEDIUM_RECTANGLE)
-        adView.setOnPaidEventListener { adValue -> sendRevenue("banner_language", adValue) }
+        adView.setOnPaidEventListener { adValue -> sendRevenue(adView.adUnitId, "banner_language", adValue) }
 
         adView.adListener = object : com.google.android.gms.ads.AdListener() {
             override fun onAdLoaded() {
@@ -1016,7 +899,7 @@ object AdsConfigManager {
         val adView = com.google.android.gms.ads.AdView(context)
         adView.adUnitId = targetAdUnitId
         adView.setAdSize(com.google.android.gms.ads.AdSize.BANNER)
-        adView.setOnPaidEventListener { adValue -> sendRevenue("banner_language", adValue) }
+        adView.setOnPaidEventListener { adValue -> sendRevenue(adView.adUnitId, "banner_language", adValue) }
 
         adView.adListener = object : com.google.android.gms.ads.AdListener() {
             override fun onAdLoaded() {
@@ -1047,7 +930,7 @@ object AdsConfigManager {
             adRequest,
             object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
-                    ad.setOnPaidEventListener { adValue -> sendRevenue("app_click_inter", adValue) }
+                    ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "app_click_inter", adValue) }
                     interstitialAd = ad
                     isInterstitialLoading = false
                 }
@@ -1155,7 +1038,7 @@ object AdsConfigManager {
             object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
                     Log.d("SetDefaultFlow", "📥 [AdsConfigManager] SetAsDefault interstitial loaded successfully into RAM!")
-                    ad.setOnPaidEventListener { adValue -> logAdRevenue("Inter", "Set_Default", adValue) }
+                    ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_set_default", adValue) }
                     isSetAsDefaultInterLoading = false
                     val pending = pendingSetAsDefaultShow
                     if (pending != null) {
@@ -1202,12 +1085,11 @@ object AdsConfigManager {
         fun showAd(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
             Log.d("SetDefaultFlow", "📺 [AdsConfigManager] Displaying SetAsDefault Interstitial Ad to user now")
             ad.setOnPaidEventListener { adValue ->
-                logAdRevenue("Inter", "Set_Default", adValue)
+                sendRevenue(ad.adUnitId, "inter_set_default", adValue)
             }
             ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "SetAsDefault Interstitial onAdImpression")
-                    logAdShow("Inter", "Set_Default")
                 }
                 override fun onAdDismissedFullScreenContent() {
                     Log.d("SetDefaultFlow", "✅ [AdsConfigManager] SetAsDefault Interstitial Ad dismissed by user")
@@ -1298,7 +1180,7 @@ object AdsConfigManager {
                     override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         Log.d("SetDefaultFlow", "📥 [AdsConfigManager] On-demand SetAsDefault Interstitial loaded successfully!")
-                        ad.setOnPaidEventListener { adValue -> logAdRevenue("Inter", "Set_Default", adValue) }
+                        ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_set_default", adValue) }
                         try { loader?.dismiss() } catch (e: Exception) {}
                         showAd(ad)
                     }
@@ -1355,7 +1237,7 @@ object AdsConfigManager {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
                     Log.d("SplashAd", "✅ [AdsConfigManager] Splash Interstitial loaded successfully!")
                     ad.setOnPaidEventListener { adValue ->
-                        logAdRevenue("Inter", "Splash", adValue)
+                        sendRevenue(ad.adUnitId, "inter_splash", adValue)
                     }
                     isSplashInterLoading = false
                     val pending = pendingSplashShow
@@ -1416,12 +1298,11 @@ object AdsConfigManager {
             }
             Log.d("SplashAd", "📺 [AdsConfigManager] Displaying Splash Interstitial Ad to user now")
             ad.setOnPaidEventListener { adValue ->
-                logAdRevenue("Inter", "Splash", adValue)
+                sendRevenue(ad.adUnitId, "inter_splash", adValue)
             }
             ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "Splash Interstitial onAdImpression")
-                    logAdShow("Inter", "Splash")
                 }
 
                 override fun onAdDismissedFullScreenContent() {
@@ -1533,7 +1414,7 @@ object AdsConfigManager {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
                     Log.d("SplashAd", "✅ [AdsConfigManager] Splash App Open Ad loaded successfully!")
                     ad.setOnPaidEventListener { adValue ->
-                        logAdRevenue("AppOpen", "Splash", adValue)
+                        sendRevenue(ad.adUnitId, "appopen_splash", adValue)
                     }
                     isSplashAppOpenLoading = false
                     val pending = pendingSplashAppOpenShow
@@ -1591,12 +1472,11 @@ object AdsConfigManager {
             }
             Log.d("SplashAd", "📺 [AdsConfigManager] Displaying Splash App Open Ad to user now")
             ad.setOnPaidEventListener { adValue ->
-                logAdRevenue("AppOpen", "Splash", adValue)
+                sendRevenue(ad.adUnitId, "appopen_splash", adValue)
             }
             ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "Splash App Open onAdImpression")
-                    logAdShow("AppOpen", "Splash")
                 }
 
                 override fun onAdDismissedFullScreenContent() {
@@ -1747,7 +1627,7 @@ object AdsConfigManager {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
                     Log.d("IntroAd", "✅ [AdsConfigManager] Intro App Open Ad loaded successfully!")
                     ad.setOnPaidEventListener { adValue ->
-                        logAdRevenue("AppOpen", "Intro", adValue)
+                        sendRevenue(ad.adUnitId, "appopen_intro", adValue)
                     }
                     isIntroAppOpenLoading = false
                     val pending = pendingIntroAppOpenShow
@@ -1802,12 +1682,11 @@ object AdsConfigManager {
         fun showAd(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
             onLoadingStateChanged?.invoke(false)
             ad.setOnPaidEventListener { adValue ->
-                logAdRevenue("AppOpen", "Intro", adValue)
+                sendRevenue(ad.adUnitId, "appopen_intro", adValue)
             }
             ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "Intro App Open onAdImpression")
-                    logAdShow("AppOpen", "Intro")
                 }
 
                 override fun onAdDismissedFullScreenContent() {
@@ -1910,7 +1789,7 @@ object AdsConfigManager {
             object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
                     Log.d("SetDefaultFlow", "[AdsConfigManager] Language Interstitial loaded successfully!")
-                    ad.setOnPaidEventListener { adValue -> logAdRevenue("Inter", "Language", adValue) }
+                    ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_language", adValue) }
                     isLanguageInterLoading = false
                     val pending = pendingLanguageShow
                     if (pending != null) {
@@ -1961,12 +1840,11 @@ object AdsConfigManager {
             }
             Log.d("SetDefaultFlow", "[AdsConfigManager] Displaying Language Interstitial Ad to user")
             ad.setOnPaidEventListener { adValue ->
-                logAdRevenue("Inter", "Language", adValue)
+                sendRevenue(ad.adUnitId, "inter_language", adValue)
             }
             ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "Language Interstitial onAdImpression")
-                    logAdShow("Inter", "Language")
                 }
                 override fun onAdDismissedFullScreenContent() {
                     Log.d("SetDefaultFlow", "[AdsConfigManager] Language Interstitial Ad dismissed by user")
@@ -2047,7 +1925,7 @@ object AdsConfigManager {
                     override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         Log.d("SetDefaultFlow", "📥 [AdsConfigManager] On-demand Language Interstitial loaded successfully!")
-                        ad.setOnPaidEventListener { adValue -> logAdRevenue("Inter", "Language", adValue) }
+                        ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_language", adValue) }
                         try { loader?.dismiss() } catch (e: Exception) {}
                         showAd(ad)
                     }
@@ -2080,7 +1958,7 @@ object AdsConfigManager {
             adRequest,
             object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
-                    ad.setOnPaidEventListener { adValue -> sendRevenue("app_open", adValue) }
+                    ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "app_open", adValue) }
                     appOpenAd = ad
                     isAppOpenLoading = false
                 }
@@ -2225,12 +2103,11 @@ object AdsConfigManager {
             }
 
             ad.setOnPaidEventListener { adValue ->
-                logAdRevenue("Inter", place, adValue)
+                sendRevenue(ad.adUnitId, "inter_${place.lowercase()}", adValue)
             }
             ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "Interstitial onAdImpression for place: $place")
-                    logAdShow("Inter", place)
                 }
                 override fun onAdDismissedFullScreenContent() {
                     interstitialAd = null
@@ -2269,7 +2146,7 @@ object AdsConfigManager {
                 object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
                     override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
-                        ad.setOnPaidEventListener { adValue -> logAdRevenue("Inter", place, adValue) }
+                        ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_${place.lowercase()}", adValue) }
                         interstitialAd = ad
                         try { loader?.dismiss() } catch (e: Exception) {}
                         if (isActivitySafeToShowAd(activity)) {
@@ -2309,7 +2186,7 @@ object AdsConfigManager {
             com.google.android.gms.ads.AdRequest.Builder().build(),
             object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
-                    ad.setOnPaidEventListener { adValue -> sendRevenue("app_click_open", adValue) }
+                    ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "app_click_open", adValue) }
                     appClickOpenAd = ad
                     isAppClickOpenAdLoading = false
                 }
@@ -2349,12 +2226,11 @@ object AdsConfigManager {
             }
 
             ad.setOnPaidEventListener { adValue ->
-                logAdRevenue("AppOpen", "App_Click", adValue)
+                sendRevenue(ad.adUnitId, "appopen_app_click", adValue)
             }
             ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "AppOpen onAdImpression for App_Click")
-                    logAdShow("AppOpen", "App_Click")
                 }
 
                 override fun onAdDismissedFullScreenContent() {
@@ -2398,7 +2274,7 @@ object AdsConfigManager {
             object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
                     timeoutHandler.removeCallbacks(timeoutRunnable)
-                    ad.setOnPaidEventListener { adValue -> logAdRevenue("AppOpen", "App_Click", adValue) }
+                    ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "appopen_app_click", adValue) }
                     appClickOpenAd = ad
                     try { loader?.dismiss() } catch (_: Exception) {}
                     if (isActivitySafeToShowAd(activity)) {
@@ -2441,12 +2317,11 @@ object AdsConfigManager {
             }
 
             ad.setOnPaidEventListener { adValue ->
-                logAdRevenue("AppOpen", "Swipe", adValue)
+                sendRevenue(ad.adUnitId, "appopen_swipe", adValue)
             }
             ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "AppOpen onAdImpression for Swipe")
-                    logAdShow("AppOpen", "Swipe")
                 }
                 override fun onAdDismissedFullScreenContent() {
                     appOpenAd = null
@@ -2485,7 +2360,7 @@ object AdsConfigManager {
                 object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
                     override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
-                        ad.setOnPaidEventListener { adValue -> logAdRevenue("AppOpen", "Swipe", adValue) }
+                        ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "appopen_swipe", adValue) }
                         appOpenAd = ad
                         try { loader?.dismiss() } catch (_: Exception) {}
                         if (isActivitySafeToShowAd(activity)) {

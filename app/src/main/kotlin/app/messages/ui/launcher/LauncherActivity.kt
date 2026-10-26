@@ -325,12 +325,7 @@ class LauncherActivity : AppCompatActivity() {
         if (hasPromptedRuntimePermissions) return
         hasPromptedRuntimePermissions = true
 
-        val permissions = mutableListOf(
-            android.Manifest.permission.READ_PHONE_STATE,
-            android.Manifest.permission.READ_CONTACTS,
-            android.Manifest.permission.READ_SMS,
-            android.Manifest.permission.SEND_SMS
-        )
+        val permissions = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(android.Manifest.permission.POST_NOTIFICATIONS)
         }

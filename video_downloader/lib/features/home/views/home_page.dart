@@ -53,64 +53,69 @@ class HomePageState extends ConsumerState<HomePage> {
               ),
             ),
           ),
-          child: BottomNavigationBar(
-            selectedItemColor: const Color(0xffFF6A2B),
-            unselectedItemColor: Colors.grey,
-
-            selectedLabelStyle: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              focusColor: Colors.transparent,
             ),
+            child: BottomNavigationBar(
+              selectedItemColor: const Color(0xffFF6A2B),
+              unselectedItemColor: Colors.grey,
 
-            unselectedLabelStyle: const TextStyle(
-              fontSize: 12,
-            ),
+              selectedLabelStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
 
-            elevation: 0,
-            backgroundColor: const Color(0xFFFAFAFA),
-            type: BottomNavigationBarType.fixed,
-            currentIndex: currentIndex,
-            onTap: (index) {
-              if (index != currentIndex && currentIndex == 0) {
-                AppBigNativeAdPool.detachScreen('SearchPage');
-              }
-              AdsVariable.onShowAds(
-                context,
-                place: 'VD_Quick_App',
-                onComplete: () {
-                  ref.read(bottomNavProvider.notifier).changeTab(index);
-                },
-              );
-            },
-            items: [
-              BottomNavigationBarItem(
-                icon: currentIndex == 0
-                    ? Image.asset(
-                  "assets/icons/Home_s.png",
-                  width: 28,
-                  height: 28,
-                )
-                    : Image.asset(
-                  "assets/icons/Home.png",
-                  width: 28,
-                  height: 28,
-                ),
-                label: 'home'.tr,
+              unselectedLabelStyle: const TextStyle(
+                fontSize: 12,
               ),
-              BottomNavigationBarItem(
-                icon: currentIndex == 1
-                    ? Image.asset(
-                  "assets/icons/Library_s.png",
-                  width: 28,
-                  height: 28,
-                )
-                    : Image.asset(
-                  "assets/icons/Library.png",
-                  width: 28,
-                  height: 28,
+
+              elevation: 0,
+              backgroundColor: const Color(0xFFFAFAFA),
+              type: BottomNavigationBarType.fixed,
+              currentIndex: currentIndex,
+              onTap: (index) {
+                if (index != currentIndex && currentIndex == 0) {
+                  AppBigNativeAdPool.detachScreen('SearchPage');
+                }
+                AdsVariable.onShowAds(
+                  context,
+                  place: 'VD_Quick_App',
+                  onComplete: () {
+                    ref.read(bottomNavProvider.notifier).changeTab(index);
+                  },
+                );
+              },
+              items: [
+                BottomNavigationBarItem(
+                  icon: Image.asset(
+                    "assets/icons/Home.png",
+                    width: 28,
+                    height: 28,
+                  ),
+                  activeIcon: Image.asset(
+                    "assets/icons/Home_s.png",
+                    width: 28,
+                    height: 28,
+                  ),
+                  label: 'home'.tr,
                 ),
-                label: 'library'.tr,
-              ),
+                BottomNavigationBarItem(
+                  icon: Image.asset(
+                    "assets/icons/Library.png",
+                    width: 28,
+                    height: 28,
+                  ),
+                  activeIcon: Image.asset(
+                    "assets/icons/Library_s.png",
+                    width: 28,
+                    height: 28,
+                  ),
+                  label: 'library'.tr,
+                ),
               BottomNavigationBarItem(
                 icon: Stack(
                   clipBehavior: Clip.none,
@@ -150,6 +155,7 @@ class HomePageState extends ConsumerState<HomePage> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

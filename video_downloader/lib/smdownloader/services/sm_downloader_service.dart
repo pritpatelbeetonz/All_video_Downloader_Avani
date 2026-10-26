@@ -1,7 +1,22 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import '../models/sm_session.dart';
 import '../models/sm_extraction_result.dart';
+
+const MethodChannel _nativeLogChannel = MethodChannel("nativeChannel");
+
+void _smLog(String msg) {
+  developer.log(msg, name: 'SM_DOWNLOADER');
+  print('⚡ [SMDownloader] $msg');
+  try {
+    _nativeLogChannel.invokeMethod('logNative', {
+      'tag': 'SM_DOWNLOADER',
+      'message': msg,
+    });
+  } catch (_) {}
+}
 
 /// Custom exception for SMDownloader operations.
 /// Sanitizes session tokens so they are never exposed in exception strings or logs.
@@ -39,6 +54,10 @@ class SmDownloaderService {
   void setSessionForTesting(SmSession? session) {
     _session = session;
   }
+
+  /// Browser User-Agent to prevent Cloudflare/SMDownloader bot detection
+  static const String browserUserAgent =
+      "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
   /// Official list of 29 platforms supported by SMDownloader
   static const List<String> supportedPlatforms = [
@@ -125,7 +144,7 @@ class SmDownloaderService {
 
   /// Performs `GET https://www.smdownloader.com/api/session`
   Future<SmSession> _fetchNewSession() async {
-    print('🔑 [SMDownloader] Requesting new session from /api/session...');
+    _smLog('🔑 Requesting new session from /api/session...');
     try {
       final response = await _dio.get(
         "https://www.smdownloader.com/api/session",
@@ -134,6 +153,7 @@ class SmDownloaderService {
             "Accept": "*/*",
             "Origin": "https://www.smdownloader.com",
             "Referer": "https://www.smdownloader.com/link-video-downloader",
+            "User-Agent": browserUserAgent,
           },
           sendTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 15),
@@ -172,17 +192,17 @@ class SmDownloaderService {
       }
 
       final session = SmSession(token: token, expiresAt: expiresAt);
-      print('✅ [SMDownloader] New session obtained (Expires in: ${session.remainingSeconds}s)');
+      _smLog('✅ New session obtained (Expires in: ${session.remainingSeconds}s)');
       return session;
     } on DioException catch (e) {
-      print('❌ [SMDownloader] Session network error: ${e.message}');
+      _smLog('❌ Session network error: ${e.message}');
       throw SmDownloaderException(
         "Failed to obtain SMDownloader session: ${e.message ?? 'Network error'}",
         statusCode: e.response?.statusCode,
       );
     } catch (e) {
       if (e is SmDownloaderException) rethrow;
-      print('❌ [SMDownloader] Session error: $e');
+      _smLog('❌ Session error: $e');
       throw SmDownloaderException("Failed to obtain SMDownloader session: $e");
     }
   }
@@ -253,6 +273,7 @@ class SmDownloaderService {
             "Origin": "https://www.smdownloader.com",
             "Referer": "https://www.smdownloader.com/link-video-downloader",
             "x-sd-session": session.token,
+            "User-Agent": browserUserAgent,
           },
           sendTimeout: const Duration(seconds: 20),
           receiveTimeout: const Duration(seconds: 20),
@@ -262,7 +283,7 @@ class SmDownloaderService {
 
       final statusCode = response.statusCode ?? 500;
       final data = response.data;
-      print('📦 [SMDownloader] Response payload: $data');
+      _smLog('📦 Response statusCode=$statusCode, ok=${data is Map ? data["ok"] : null}');
 
       // Check if response indicates unauthorized (HTTP 401 or JSON code == 'UNAUTHORIZED')
       final isUnauthorized = statusCode == 401 ||

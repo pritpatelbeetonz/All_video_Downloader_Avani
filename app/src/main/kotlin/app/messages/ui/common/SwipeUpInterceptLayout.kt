@@ -33,7 +33,7 @@ class SwipeUpInterceptLayout @JvmOverloads constructor(
     }
 
     var callback: Callback? = null
-    var enabledIntercept: Boolean = true
+    var enabledIntercept: Boolean = false
     var drawerHeightPx: Float = 0f
 
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop

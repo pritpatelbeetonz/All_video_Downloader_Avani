@@ -76,5 +76,5 @@ flutter:
 
   module:
     androidX: true
-    androidPackage: com.videodownloader.video_downloader
+    androidPackage: app.john.all.video.downloader.com
     iosBundleIdentifier: com.videodownloader.videoDownloader

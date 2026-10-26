@@ -52,8 +52,10 @@ class AdsVariable {
         apiHutKeys = savedKeys;
       }
       isApiHutKeyRotationOn = prefs.getBool("is_apihut_rotation_on") ?? isApiHutKeyRotationOn;
+      sendRevenueToAnalytics = prefs.getBool("sendRevenueToAnalytics") ?? sendRevenueToAnalytics;
+      adImpressionEventAllowed = prefs.getStringList("adImpressionEventAllowed") ?? adImpressionEventAllowed;
 
-      debugPrint("📦 [AdsVariable] Loaded from cache: prAppBigNative=$prAppBigNative, apiHutKeys=${apiHutKeys.length}, rotation=$isApiHutKeyRotationOn");
+      debugPrint("📦 [AdsVariable] Loaded from cache: prAppBigNative=$prAppBigNative, apiHutKeys=${apiHutKeys.length}, rotation=$isApiHutKeyRotationOn, sendRevenueToAnalytics=$sendRevenueToAnalytics, adImpressionEventAllowed=${adImpressionEventAllowed.length}");
     } catch (e) {
       debugPrint("⚠️ [AdsVariable] Error loading from prefs: $e");
     }
@@ -130,24 +132,30 @@ class AdsVariable {
           mapValues["send_revenue_to_analytics"] == true ||
           mapValues["sendRevenueToAnalytics"].toString().toLowerCase() == "true";
     }
-    if (mapValues.containsKey("sendRevenueVideoDownloaderInter") ||
-        mapValues.containsKey("send_revenue_video_downloader_inter") ||
-        mapValues.containsKey("sendRevenueVDInter")) {
-      var v = mapValues["sendRevenueVideoDownloaderInter"] ??
-          mapValues["send_revenue_video_downloader_inter"] ??
-          mapValues["sendRevenueVDInter"];
-      sendRevenueVDInter = v == true || v.toString().toLowerCase() == "true";
-    }
-    if (mapValues.containsKey("sendRevenueVideoDownloaderNative") ||
-        mapValues.containsKey("send_revenue_video_downloader_native") ||
-        mapValues.containsKey("sendRevenueVDNative")) {
-      var v = mapValues["sendRevenueVideoDownloaderNative"] ??
-          mapValues["send_revenue_video_downloader_native"] ??
-          mapValues["sendRevenueVDNative"];
-      sendRevenueVDNative = v == true || v.toString().toLowerCase() == "true";
+    // Parse ad unit IDs allowed to fire ad_impression (missing/empty → nothing fires)
+    if (mapValues.containsKey("adImpressionEventAllowed") ||
+        mapValues.containsKey("ad_impression_event_allowed")) {
+      var rawIds = mapValues["adImpressionEventAllowed"] ??
+          mapValues["ad_impression_event_allowed"];
+      if (rawIds is List) {
+        adImpressionEventAllowed = rawIds
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      } else if (rawIds is String) {
+        adImpressionEventAllowed = rawIds
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      } else {
+        adImpressionEventAllowed = [];
+      }
+    } else {
+      adImpressionEventAllowed = [];
     }
 
-    debugPrint("✅ [AdsVariable] Synced from Launcher RemoteConfig: prAppBigNative=$prAppBigNative, prPreInterstitialAd=$prPreInterstitialAd, revenueInter=$sendRevenueVDInter, revenueNative=$sendRevenueVDNative");
+    debugPrint("✅ [AdsVariable] Synced from Launcher RemoteConfig: prAppBigNative=$prAppBigNative, prPreInterstitialAd=$prPreInterstitialAd, sendRevenueToAnalytics=$sendRevenueToAnalytics, adImpressionEventAllowed=$adImpressionEventAllowed");
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -165,8 +173,7 @@ class AdsVariable {
       prefs.setStringList("apihut_keys", apiHutKeys);
       prefs.setBool("is_apihut_rotation_on", isApiHutKeyRotationOn);
       prefs.setBool("sendRevenueToAnalytics", sendRevenueToAnalytics);
-      prefs.setBool("sendRevenueVDInter", sendRevenueVDInter);
-      prefs.setBool("sendRevenueVDNative", sendRevenueVDNative);
+      prefs.setStringList("adImpressionEventAllowed", adImpressionEventAllowed);
     } catch (_) {}
 
     try {
@@ -230,15 +237,13 @@ class AdsVariable {
 
   /// Revenue / Ad Impression Analytics Flags
   static bool sendRevenueToAnalytics = true;
-  static bool sendRevenueVDInter = true;
-  static bool sendRevenueVDNative = true;
+  static List<String> adImpressionEventAllowed = [];
 
-  static bool shouldSendRevenue(String placement) {
+  static bool shouldSendAdImpression(String? adUnitId) {
     if (!sendRevenueToAnalytics) return false;
-    final p = placement.toLowerCase();
-    if (p.contains("inter")) return sendRevenueVDInter;
-    if (p.contains("native")) return sendRevenueVDNative;
-    return true;
+    if (adUnitId == null || adUnitId.trim().isEmpty) return false;
+    final id = adUnitId.trim();
+    return adImpressionEventAllowed.any((e) => e.trim() == id);
   }
 
   /// Backward-compatibility aliases

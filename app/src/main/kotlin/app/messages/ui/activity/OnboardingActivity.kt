@@ -76,13 +76,13 @@ class OnboardingActivity : BaseActivity() {
         onboardingPages = listOf(
             OnboardingModel(
                 imageRes = R.drawable.img_intro_1,
-                title = "Video Downloader",
-                message = "Download videos instantly using any link."
+                title = getString(R.string.intro_title_1),
+                message = getString(R.string.intro_message_1)
             ),
             OnboardingModel(
                 imageRes = 0,
-                title = "High Speed Downloader",
-                message = "Download videos from links easily.\nWatch offline anytime.",
+                title = getString(R.string.intro_title_2),
+                message = getString(R.string.intro_message_2),
                 videoRes = R.raw.intro2_video
             )
         )

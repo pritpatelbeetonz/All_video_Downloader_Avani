@@ -97,9 +97,56 @@ object VideoDownloaderEngineHelper {
                     "getAdsConfig" -> {
                         result.success(app.messages.config.AdsConfigManager.rawConfigJson)
                     }
+                    "acquireWakeLock" -> {
+                        acquireWakeLock(context)
+                        result.success(true)
+                    }
+                    "releaseWakeLock" -> {
+                        releaseWakeLock()
+                        result.success(true)
+                    }
+                    "logNative" -> {
+                        try {
+                            val tag = call.argument<String>("tag") ?: "FLUTTER_LOG"
+                            val msg = call.argument<String>("message") ?: ""
+                            android.util.Log.d(tag, msg)
+                        } catch (_: Exception) {}
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+
+    fun acquireWakeLock(context: Context) {
+        try {
+            if (wakeLock == null) {
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                wakeLock = powerManager.newWakeLock(
+                    android.os.PowerManager.PARTIAL_WAKE_LOCK,
+                    "VideoDownloader:DownloadWakeLock"
+                )
+            }
+            if (wakeLock?.isHeld == false) {
+                wakeLock?.acquire(30 * 60 * 1000L) // 30 mins max timeout safety
+                android.util.Log.d("WAKELOCK", "⚡ [WAKELOCK] Acquired wake lock for background download")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("WAKELOCK", "Failed to acquire wake lock: ${e.message}")
+        }
+    }
+
+    fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+                android.util.Log.d("WAKELOCK", "💤 [WAKELOCK] Released wake lock")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("WAKELOCK", "Failed to release wake lock: ${e.message}")
+        }
     }
 
     fun syncAdsConfigToFlutter(rawJson: String? = null) {

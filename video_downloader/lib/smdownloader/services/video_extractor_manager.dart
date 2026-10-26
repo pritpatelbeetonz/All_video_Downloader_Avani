@@ -1,7 +1,22 @@
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
+import 'package:flutter/services.dart';
+import '../../firebase_analysis.dart';
 import 'sm_downloader_service.dart';
 import 'apihut_service.dart';
 import '../models/sm_extraction_result.dart';
+
+const MethodChannel _nativeLogChannel = MethodChannel("nativeChannel");
+
+void _extractorLog(String msg) {
+  developer.log(msg, name: 'EXTRACTOR');
+  print('⚡ [Extractor] $msg');
+  try {
+    _nativeLogChannel.invokeMethod('logNative', {
+      'tag': 'EXTRACTOR',
+      'message': msg,
+    });
+  } catch (_) {}
+}
 
 /// Coordinates primary extraction via SMDownloader and automatic fallback via ApiHut.
 class VideoExtractorManager {
@@ -59,29 +74,73 @@ class VideoExtractorManager {
     required String platform,
     void Function()? onFallbackToApiHut,
   }) async {
-    print('⚡ [Extractor] Processing video stream request for platform: $platform');
+    _extractorLog('Processing video stream request for platform: $platform');
     final isSmSupported = smSupportedPlatforms.contains(platform.toLowerCase());
+    String fallbackReason = 'none';
 
     // 1. Primary: SMDownloader for its 29 supported platforms
     if (isSmSupported) {
       try {
-        print('🎯 [Extractor] Primary extractor: Using SMDownloader API for $platform...');
+        _extractorLog('Primary extractor: Using SMDownloader API for $platform...');
         final result = await smDownloaderService.extractMedia(url);
-        print('✅ [Extractor] SMDownloader extraction successful!');
+        _extractorLog('✅ SMDownloader extraction successful!');
+
+        // 📊 Firebase Event: SMDownloader succeeded as primary
+        FirebaseAnalyticsService.logExtractorEvent(
+          extractor: 'smdownloader',
+          platform: platform,
+          isFallback: false,
+          fallbackReason: 'none',
+          status: 'success',
+          url: url,
+        );
+
         return result;
       } catch (e) {
-        print('⚠️ [Extractor] SMDownloader extraction encountered an issue: $e');
+        _extractorLog('⚠️ SMDownloader extraction encountered an issue: $e');
+        fallbackReason = 'smdownloader_failed';
+
+        // 📊 Firebase Event: SMDownloader primary extraction failed
+        FirebaseAnalyticsService.logExtractorEvent(
+          extractor: 'smdownloader',
+          platform: platform,
+          isFallback: false,
+          fallbackReason: 'none',
+          status: 'failed',
+          url: url,
+          errorMessage: e.toString(),
+        );
 
         // If fallback is explicitly disabled, DO NOT call ApiHut!
         if (disableFallbackInDebug) {
-          print('🛑 [Extractor] Fallback to ApiHut is disabled.');
+          _extractorLog('🛑 Fallback to ApiHut is disabled.');
           return null;
         }
 
-        print('🔀 [Extractor] Seamlessly switching to Fallback (ApiHut with Key Rotation)...');
+        // 📊 Firebase Event: Log fallback initiation from SMDownloader to ApiHut
+        FirebaseAnalyticsService.logExtractorFallback(
+          fromExtractor: 'smdownloader',
+          toExtractor: 'apihut',
+          fallbackReason: fallbackReason,
+          platform: platform,
+          url: url,
+          errorMessage: e.toString(),
+        );
+
+        _extractorLog('🔀 Seamlessly switching to Fallback (ApiHut with Key Rotation)...');
       }
     } else {
-      print('ℹ️ [Extractor] Platform "$platform" is not in SMDownloader list. Routing directly to Fallback ApiHut...');
+      fallbackReason = 'unsupported_platform';
+      _extractorLog('ℹ️ Platform "$platform" is not in SMDownloader list. Routing directly to Fallback ApiHut...');
+
+      // 📊 Firebase Event: Log fallback initiation due to unsupported platform in SMDownloader
+      FirebaseAnalyticsService.logExtractorFallback(
+        fromExtractor: 'smdownloader',
+        toExtractor: 'apihut',
+        fallbackReason: fallbackReason,
+        platform: platform,
+        url: url,
+      );
     }
 
     // Fallback: ApiHut with API key rotation
@@ -92,11 +151,44 @@ class VideoExtractorManager {
         platform: platform,
       );
       if (fallbackResult != null) {
-        print('✅ [Extractor] Fallback ApiHut successfully extracted media.');
+        _extractorLog('✅ Fallback ApiHut successfully extracted media.');
+
+        // 📊 Firebase Event: ApiHut fallback succeeded
+        FirebaseAnalyticsService.logExtractorEvent(
+          extractor: 'apihut',
+          platform: platform,
+          isFallback: true,
+          fallbackReason: fallbackReason,
+          status: 'success',
+          url: url,
+        );
+
         return fallbackResult;
+      } else {
+        // 📊 Firebase Event: ApiHut returned null stream
+        FirebaseAnalyticsService.logExtractorEvent(
+          extractor: 'apihut',
+          platform: platform,
+          isFallback: true,
+          fallbackReason: fallbackReason,
+          status: 'failed',
+          url: url,
+          errorMessage: 'ApiHut returned null',
+        );
       }
     } catch (e) {
-      print('❌ [Extractor] Fallback ApiHut error: $e');
+      _extractorLog('❌ Fallback ApiHut error: $e');
+
+      // 📊 Firebase Event: ApiHut fallback failed with exception
+      FirebaseAnalyticsService.logExtractorEvent(
+        extractor: 'apihut',
+        platform: platform,
+        isFallback: true,
+        fallbackReason: fallbackReason,
+        status: 'failed',
+        url: url,
+        errorMessage: e.toString(),
+      );
     }
 
     print('❌ [Extractor] All extraction attempts failed for: $url');

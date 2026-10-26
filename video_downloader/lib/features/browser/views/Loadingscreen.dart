@@ -169,7 +169,7 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
                 // ═══════════════════════════════════════════════════════════
                 // UPSIDE: STATUS & LOADER
                 // ═══════════════════════════════════════════════════════════
-                const SizedBox(height: 8),
+                const SizedBox(height: 20),
 
                 // Visual indicator based on status
                 if (isCompleted) ...[
@@ -321,7 +321,7 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
                   ),
                 ],
 
-                const SizedBox(height: 18),
+                const SizedBox(height: 30),
 
                 // ═══════════════════════════════════════════════════════════
                 // DOWNSIDE: BIG NATIVE AD (POOL)
@@ -360,25 +360,50 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
                     ),
                   ),
                 ] else if (!isCompleted && shouldShowButton) ...[
-                  SizedBox(
+                  Container(
                     width: double.infinity,
                     height: 50,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0,
-                        backgroundColor: const Color(0xFFFE7338),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFB7829), Color(0xFFFF0048)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
                       ),
-                      onPressed: _handleClose,
-                      icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-                      label: Text(
-                        'continue_in_background'.tr,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFB7829).withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(30),
+                        onTap: _handleClose,
+                        child: Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.arrow_forward_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'continue_in_background'.tr,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

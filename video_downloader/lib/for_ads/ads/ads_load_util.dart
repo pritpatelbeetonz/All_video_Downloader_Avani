@@ -257,7 +257,9 @@ class AdsLoadUtil extends GetxController {
           FirebaseAnalyticsService.logEvent(eventName: 'SHOW_PRE_INTERSTITIAL');
           ad.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
             FirebaseAnalyticsService.logAdImpression(
+              adUnitId: ad.adUnitId,
               placement: 'video_downloader_inter',
+              format: 'interstitial',
               revenue: valueMicros / 1000000.0,
               currency: currencyCode,
               precision: precision.index,
@@ -295,9 +297,10 @@ class AdsLoadUtil extends GetxController {
 
         // Attach compulsory revenue tracking for this placement
         _interstitialAd!.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
-          FirebaseAnalyticsService.logAdRevenueEvent(
-            format: 'Inter',
-            place: place,
+          FirebaseAnalyticsService.logAdImpression(
+            adUnitId: ad.adUnitId,
+            placement: place,
+            format: 'interstitial',
             revenue: valueMicros / 1000000.0,
             currency: currencyCode,
             precision: precision.index,
@@ -308,7 +311,6 @@ class AdsLoadUtil extends GetxController {
         _interstitialAd!.show();
         _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
           onAdImpression: (ad) {
-            FirebaseAnalyticsService.logAdShowEvent(format: 'Inter', place: place);
             FirebaseAnalyticsService.logEvent(eventName: 'SHOW_INITIAL_AD');
             showLog("onAdImpression---> true [$place]");
           },
@@ -370,9 +372,10 @@ class AdsLoadUtil extends GetxController {
           onAdLoaded: (ad) {
             FirebaseAnalyticsService.logEvent(eventName: 'LOADED_INITIAL_AD');
             ad.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
-              FirebaseAnalyticsService.logAdRevenueEvent(
-                format: 'Inter',
-                place: place,
+              FirebaseAnalyticsService.logAdImpression(
+                adUnitId: ad.adUnitId,
+                placement: place,
+                format: 'interstitial',
                 revenue: valueMicros / 1000000.0,
                 currency: currencyCode,
                 precision: precision.index,
@@ -387,7 +390,6 @@ class AdsLoadUtil extends GetxController {
             _interstitialAd!.fullScreenContentCallback =
                 FullScreenContentCallback(
                   onAdImpression: (ad) {
-                    FirebaseAnalyticsService.logAdShowEvent(format: 'Inter', place: place);
                     showLog("onAdImpression [$place]");
                   },
                   onAdDismissedFullScreenContent: (ad) {
@@ -456,7 +458,9 @@ class AdsLoadUtil extends GetxController {
       listener: NativeAdListener(
         onPaidEvent: (ad, valueMicros, precision, currencyCode) {
           FirebaseAnalyticsService.logAdImpression(
+            adUnitId: ad.adUnitId,
             placement: 'video_downloader_native',
+            format: 'native',
             revenue: valueMicros / 1000000.0,
             currency: currencyCode,
             precision: precision.index,
@@ -498,7 +502,9 @@ class AdsLoadUtil extends GetxController {
       listener: NativeAdListener(
         onPaidEvent: (ad, valueMicros, precision, currencyCode) {
           FirebaseAnalyticsService.logAdImpression(
+            adUnitId: ad.adUnitId,
             placement: 'video_downloader_native',
+            format: 'native',
             revenue: valueMicros / 1000000.0,
             currency: currencyCode,
             precision: precision.index,
@@ -556,7 +562,9 @@ class AdsLoadUtil extends GetxController {
       listener: NativeAdListener(
         onPaidEvent: (ad, valueMicros, precision, currencyCode) {
           FirebaseAnalyticsService.logAdImpression(
+            adUnitId: ad.adUnitId,
             placement: 'video_downloader_native',
+            format: 'native',
             revenue: valueMicros / 1000000.0,
             currency: currencyCode,
             precision: precision.index,
@@ -613,7 +621,9 @@ class AdsLoadUtil extends GetxController {
       listener: NativeAdListener(
         onPaidEvent: (ad, valueMicros, precision, currencyCode) {
           FirebaseAnalyticsService.logAdImpression(
+            adUnitId: ad.adUnitId,
             placement: 'video_downloader_native',
+            format: 'native',
             revenue: valueMicros / 1000000.0,
             currency: currencyCode,
             precision: precision.index,
@@ -653,7 +663,9 @@ class AdsLoadUtil extends GetxController {
       listener: NativeAdListener(
         onPaidEvent: (ad, valueMicros, precision, currencyCode) {
           FirebaseAnalyticsService.logAdImpression(
+            adUnitId: ad.adUnitId,
             placement: 'video_downloader_native',
+            format: 'native',
             revenue: valueMicros / 1000000.0,
             currency: currencyCode,
             precision: precision.index,
@@ -1121,16 +1133,11 @@ class AppBigNativeAdPool {
       adUnitId: AdsVariable.prAppBigNative,
       factoryId: 'bigNativeAds',
       listener: NativeAdListener(
-        onAdImpression: (ad) {
-          FirebaseAnalyticsService.logAdShowEvent(
-            format: 'Native',
-            place: _activePlace,
-          );
-        },
         onPaidEvent: (ad, valueMicros, precision, currencyCode) {
-          FirebaseAnalyticsService.logAdRevenueEvent(
-            format: 'Native',
-            place: _activePlace,
+          FirebaseAnalyticsService.logAdImpression(
+            adUnitId: ad.adUnitId,
+            placement: _activePlace,
+            format: 'native',
             revenue: valueMicros / 1000000.0,
             currency: currencyCode,
             precision: precision.index,
@@ -1245,17 +1252,9 @@ class AppBigNativeAdWidget extends StatelessWidget {
           ),
           width: width,
           height: height / 2.5,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350),
-            switchInCurve: Curves.easeIn,
-            switchOutCurve: Curves.easeOut,
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-            child: AdWidget(
-              key: ValueKey('big_native_${showNativeAd.hashCode}'),
-              ad: showNativeAd!,
-            ),
+          child: AdWidget(
+            key: GlobalObjectKey(showNativeAd!),
+            ad: showNativeAd!,
           ),
         );
       } else if (isLoading) {

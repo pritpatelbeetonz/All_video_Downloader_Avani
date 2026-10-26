@@ -1,4 +1,6 @@
 import 'package:lottie/lottie.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:video_downloader/for_ads/ads/ads_splash_utils.dart';
 import 'package:video_downloader/for_ads/ads/ads_variable.dart';
 import 'package:video_downloader/import_all.dart';
@@ -11,7 +13,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import '../providers/Bookmark_Provider.dart';
 import '../views/Bookmart.dart';
-import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import '../providers/download_task_provider.dart';
@@ -21,11 +22,21 @@ import 'Loadingscreen.dart';
 
 import '../../../smdownloader/smdownloader.dart';
 import '../../../utility/app_storage_utils.dart';
+import '../../../firebase_analysis.dart';
 import 'package:get/get.dart';
 import 'dart:developer' as developer;
 
+const MethodChannel _nativeLogChannel = MethodChannel("nativeChannel");
+
 void androidLog(String msg) {
   developer.log(msg, name: 'WEBVIEW_EVENT');
+  print('🌐 [WEBVIEW_EVENT] $msg');
+  try {
+    _nativeLogChannel.invokeMethod('logNative', {
+      'tag': 'WEBVIEW_EVENT',
+      'message': msg,
+    });
+  } catch (_) {}
 }
 
 class Browser extends ConsumerStatefulWidget {
@@ -186,7 +197,7 @@ class BrowserState extends ConsumerState<Browser> {
 
     final state = ref.read(BrowserURl);
     final url = state["url"] ?? "";
-    searchbar.text = url;
+    searchbar.text = (url == "https://www.google.com") ? "" : url;
 
     browserController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -195,21 +206,25 @@ class BrowserState extends ConsumerState<Browser> {
     // Apply platform-specific performance optimizations if on Android
     final platformController = browserController.platform;
     if (platformController is AndroidWebViewController) {
-      platformController.setMediaPlaybackRequiresUserGesture(true);
+      // Must be false so Reels and videos autoplay automatically when scrolled into view,
+      // preventing the black paused screen / manual tap prompt on every new reel.
+      platformController.setMediaPlaybackRequiresUserGesture(false);
     }
 
     browserController
-      ..setOnScrollPositionChange((ScrollPositionChange change) {
-        try {
-          androidLog('📜 [WEBVIEW_SCROLL] x: ${change.x.toInt()}, y: ${change.y.toInt()}');
-        } catch (_) {}
-      })
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
             try {
               if (progress % 25 == 0 || progress == 100) {
                 androidLog('⏳ [WEBVIEW_PROGRESS] Loading: $progress%');
+              }
+              if (progress >= 85 && _isLoading) {
+                if (mounted) {
+                  setState(() {
+                    _isLoading = false;
+                  });
+                }
               }
             } catch (_) {}
           },
@@ -269,25 +284,6 @@ class BrowserState extends ConsumerState<Browser> {
               setState(() {
                 _isLoading = false;
               });
-
-              // Ensure webpage can scroll and has padding above floating buttons
-              try {
-                await browserController.runJavaScript('''
-                  (function() {
-                    try {
-                      var style = document.getElementById('vd-scroll-fix');
-                      if (!style) {
-                        style = document.createElement('style');
-                        style.id = 'vd-scroll-fix';
-                        style.innerHTML = 'html, body { overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; } body { padding-bottom: 90px !important; }';
-                        (document.head || document.documentElement).appendChild(style);
-                      }
-                    } catch(e) {}
-                  })();
-                ''');
-              } catch (e) {
-                // Ignore JS errors on unsupported schemes
-              }
 
               // If navigation was triggered internally, ignore provider update
               if (_isInternalNavigation) {
@@ -356,7 +352,16 @@ class BrowserState extends ConsumerState<Browser> {
       if (nextUrl == currentWebViewUrl) return;
       _isInternalNavigation = true;
       browserController.loadRequest(Uri.parse(nextUrl));
-      searchbar.text = nextUrl;
+      searchbar.text = (nextUrl == "https://www.google.com") ? "" : nextUrl;
+    });
+
+    /// ✅ LISTEN FOR TAB CHANGES (new tab or tab switch)
+    ref.listenManual(tabsProvider, (prev, next) {
+      final prevCount = (prev?['tabs'] as List?)?.length ?? 0;
+      final nextCount = (next['tabs'] as List?)?.length ?? 0;
+      if (nextCount > prevCount) {
+        searchbar.clear();
+      }
     });
     widget.onControllerReady?.call(browserController);
   }
@@ -424,10 +429,8 @@ class BrowserState extends ConsumerState<Browser> {
                       InkWell(
                         customBorder: const CircleBorder(),
                         onTap: () {
-                          ref
-                              .read(tabsProvider.notifier)
-                              .updateUrl("https://www.google.com", title: "Google");
-                          ref.read(BrowserURl.notifier).goHome();
+                          FocusScope.of(context).unfocus();
+                          ref.read(browserViewProvider.notifier).closeBrowser();
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(5),
@@ -689,7 +692,14 @@ class BrowserState extends ConsumerState<Browser> {
               Expanded(
                   child: Stack(
                     children: [
-                      WebViewWidget(controller: browserController),
+                      WebViewWidget(
+                        controller: browserController,
+                        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                          Factory<OneSequenceGestureRecognizer>(
+                            () => EagerGestureRecognizer(),
+                          ),
+                        },
+                      ),
                       if (_isLoading)
                         Container(
                           color: Colors.white,
@@ -712,85 +722,119 @@ class BrowserState extends ConsumerState<Browser> {
       floatingActionButton: (Platform == "youtube" && !AdsVariable.isYouTubeEnabled)
           ? null
           : SizedBox(
-              width: 56,
-              height: 56,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  FloatingActionButton(
-                    elevation: 5,
-                    backgroundColor: const Color(0xFFFF7134),
-                    shape: const CircleBorder(),
-                    onPressed: () async {
-                      final url = await browserController.currentUrl();
-                      print("====>current url $url");
+              width: 58,
+              height: 58,
+              child: FloatingActionButton(
+                elevation: 6,
+                backgroundColor: const Color(0xFFFE7338),
+                shape: const CircleBorder(),
+                onPressed: () async {
+                  final url = await browserController.currentUrl();
+                  final platform = Platform;
 
-                      final platform = Platform;
-                      print("===>platform $platform");
+                  final effectivePlatform = (platform.isNotEmpty && platform != "unknown")
+                      ? platform
+                      : PlatformDetector.detectPlatform(url ?? "");
 
-                      final effectivePlatform = (platform.isNotEmpty && platform != "unknown")
-                          ? platform
-                          : PlatformDetector.detectPlatform(url ?? "");
+                  androidLog('🎯 [DOWNLOAD_CLICK] Current URL: "$url", Detected Platform: "$effectivePlatform"');
 
-                      if (effectivePlatform == "youtube" && !AdsVariable.isYouTubeEnabled) {
-                        showToast('youtube_download_restricted'.tr);
-                        return;
-                      }
+                  if (effectivePlatform == "youtube" && !AdsVariable.isYouTubeEnabled) {
+                    androidLog('🛑 [DOWNLOAD_REJECTED] YouTube downloads are disabled by policy');
+                    showToast('youtube_download_restricted'.tr);
+                    return;
+                  }
 
-                      // Check URL validity
-                      final isDirectPostUrl = PlatformDetector.isValidVideoUrl(
-                        url ?? "unknown",
-                        effectivePlatform,
-                      );
+                  // Check URL validity
+                  final isDirectPostUrl = PlatformDetector.isValidVideoUrl(
+                    url ?? "unknown",
+                    effectivePlatform,
+                  );
 
-                      final targetUrl = url ?? "";
+                  final targetUrl = url ?? "";
 
-                      if (targetUrl.isEmpty || targetUrl == "about:blank") {
-                        showToast('please_play_or_open_post'.tr);
-                        return;
-                      }
+                  if (targetUrl.isEmpty || targetUrl == "about:blank") {
+                    androidLog('🛑 [DOWNLOAD_REJECTED] Target URL is empty or blank');
+                    showToast('please_play_or_open_post'.tr);
+                    return;
+                  }
 
-                      ref.read(BrowserURl.notifier).setUrlFromWeb(targetUrl);
-                      print("====> Triggering download for URL: $targetUrl");
+                  if (!isDirectPostUrl) {
+                    androidLog('🛑 [DOWNLOAD_REJECTED] URL does not look like a single video/reel post. URL: "$targetUrl" (Platform: $effectivePlatform)');
+                    showToast('please_play_or_open_post'.tr);
+                    return;
+                  }
 
-                      final resolvedPlatform = ref.read(BrowserURl)["platform"] ?? effectivePlatform;
-                      final taskId = ref.read(downloadTaskProvider.notifier).createFetchingTask(
-                        pageUrl: targetUrl,
-                        platform: resolvedPlatform,
-                      );
+                  androidLog('✅ [DOWNLOAD_ALLOWED] Direct video post URL confirmed: "$targetUrl"');
 
-                      _isLoadingScreenOpen = true;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => LoadingChartWidget(
-                            taskId: taskId,
-                            onContinueInBackground: () {
-                              _isLoadingScreenOpen = false;
-                              if (Navigator.canPop(context)) {
-                                Navigator.pop(context);
-                              }
-                            },
-                          ),
-                        ),
-                      ).then((_) {
-                        _isLoadingScreenOpen = false;
-                      });
+                  ref.read(BrowserURl.notifier).setUrlFromWeb(targetUrl);
+                  final resolvedPlatform = ref.read(BrowserURl)["platform"] ?? effectivePlatform;
+                  final downloadPlatform = (resolvedPlatform.toString().isNotEmpty && resolvedPlatform != "unknown")
+                      ? resolvedPlatform.toString()
+                      : (effectivePlatform.isNotEmpty ? effectivePlatform : 'other');
+                  androidLog('🚀 [DOWNLOAD_TASK_START] Creating task for URL: "$targetUrl" (Platform: $downloadPlatform)');
 
-                      startDownload(
+                  // Log Firebase Analytics Event for user clicking download button
+                  FirebaseAnalyticsService.logDownloadClick(
+                    platform: downloadPlatform,
+                    url: targetUrl,
+                  );
+
+                  final taskId = ref.read(downloadTaskProvider.notifier).createFetchingTask(
+                    pageUrl: targetUrl,
+                    platform: downloadPlatform,
+                  );
+
+                  _isLoadingScreenOpen = true;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => LoadingChartWidget(
                         taskId: taskId,
-                        explicitTargetUrl: targetUrl,
-                        platform: resolvedPlatform,
-                      );
-                    },
+                        onContinueInBackground: () {
+                          _isLoadingScreenOpen = false;
+                          if (Navigator.canPop(context)) {
+                            Navigator.pop(context);
+                          }
+                        },
+                      ),
+                    ),
+                  ).then((_) {
+                    _isLoadingScreenOpen = false;
+                  });
+
+                  startDownload(
+                    taskId: taskId,
+                    explicitTargetUrl: targetUrl,
+                    platform: resolvedPlatform,
+                  );
+                },
+                child: Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF8542), Color(0xFFFE7338)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFE7338).withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
                     child: Image.asset(
                       "assets/icons/download_.png",
-                      width: 24,
-                      height: 24,
+                      width: 26,
+                      height: 26,
                       color: Colors.white,
                     ),
                   ),
-                ],
+                ),
               ),
             ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,

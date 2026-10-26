@@ -146,85 +146,15 @@ data class AdsConfig(
     @SerializedName("sendRevenueToAnalytics")
     val sendRevenueToAnalytics: Boolean = true,
 
-    @SerializedName(value = "sendRevenueDrawerNative", alternate = ["send_revenue_drawer_native"])
-    val sendRevenueDrawerNative: Boolean = true,
-
-    @SerializedName(value = "sendRevenueDashboardNative", alternate = ["send_revenue_dashboard_native"])
-    val sendRevenueDashboardNative: Boolean = true,
-
-    @SerializedName(value = "sendRevenueGoogleSearchNative", alternate = ["send_revenue_google_search_native"])
-    val sendRevenueGoogleSearchNative: Boolean = true,
-
-    @SerializedName(value = "sendRevenueLanguageNative", alternate = ["send_revenue_language_native"])
-    val sendRevenueLanguageNative: Boolean = true,
-
-    @SerializedName(value = "sendRevenueAppClickInter", alternate = ["send_revenue_app_click_inter"])
-    val sendRevenueAppClickInter: Boolean = true,
-
-    @SerializedName(value = "sendRevenueSwipeInter", alternate = ["send_revenue_swipe_inter"])
-    val sendRevenueSwipeInter: Boolean = true,
-
-    @SerializedName(value = "sendRevenueSetDefaultInter", alternate = ["send_revenue_set_default_inter"])
-    val sendRevenueSetDefaultInter: Boolean = true,
-
-    @SerializedName(value = "sendRevenueAppOpen", alternate = ["send_revenue_app_open"])
-    val sendRevenueAppOpen: Boolean = true,
-
-    @SerializedName(value = "sendRevenueLanguageInter", alternate = ["send_revenue_language_inter"])
-    val sendRevenueLanguageInter: Boolean = true,
-
-    @SerializedName(value = "sendRevenueChatNative", alternate = ["send_revenue_chat_native"])
-    val sendRevenueChatNative: Boolean = true,
-
-    @SerializedName(value = "sendRevenueMenuNative", alternate = ["send_revenue_menu_native"])
-    val sendRevenueMenuNative: Boolean = true,
-
-    @SerializedName(value = "sendRevenueSettingNative", alternate = ["send_revenue_setting_native"])
-    val sendRevenueSettingNative: Boolean = true,
-
-    @SerializedName(value = "sendRevenueLauncherSettingNative", alternate = ["send_revenue_launcher_setting_native", "send_revenue_launcher_screen_native", "sendRevenueLauncherScreenNative"])
-    val sendRevenueLauncherSettingNative: Boolean = true,
-
-    @SerializedName(value = "sendRevenueBanner", alternate = ["send_revenue_banner"])
-    val sendRevenueBanner: Boolean = false,
-
-    @SerializedName(
-        value = "sendRevenueSplashAds",
-        alternate = [
-            "send_revenue_splash_ads",
-            "sendRevenueSplashInter",
-            "send_revenue_splash_inter",
-            "sendRevenueSplashAppOpen",
-            "send_revenue_splash_app_open"
-        ]
-    )
-    val sendRevenueSplashAds: Boolean = true,
-
-    @SerializedName(
-        value = "sendRevenueVideoDownloaderInter",
-        alternate = [
-            "send_revenue_video_downloader_inter",
-            "sendRevenueVDInter",
-            "send_revenue_vd_inter"
-        ]
-    )
-    val sendRevenueVideoDownloaderInter: Boolean = true,
-
-    @SerializedName(
-        value = "sendRevenueVideoDownloaderNative",
-        alternate = [
-            "send_revenue_video_downloader_native",
-            "sendRevenueVDNative",
-            "send_revenue_vd_native"
-        ]
-    )
-    val sendRevenueVideoDownloaderNative: Boolean = true,
+    /** Only ads whose unit ID is in this list fire ad_impression; empty = none. */
+    @SerializedName(value = "adImpressionEventAllowed", alternate = ["ad_impression_event_allowed"])
+    val adImpressionEventAllowed: List<String>? = emptyList(),
 
     @SerializedName("shareAppLink")
-    val shareAppLink: String = "https://play.google.com/store/apps/details?id=com.example.qrcodescannerwithlauncher",
+    val shareAppLink: String = "https://play.google.com/store/apps/details?id=app.john.all.video.downloader.com",
 
     @SerializedName(value = "privacyPolicyUrl", alternate = ["privacy_policy_url", "privacyPolicy", "privacy_policy"])
-    val privacyPolicyUrl: String = "https://textmessageprivacypolicy.blogspot.com/2026/04/last-updated-april-6-2026-this-privacy.html",
+    val privacyPolicyUrl: String = "https://johnrileyblogs.blogspot.com/2022/06/privacy-policy.html",
 
     @SerializedName("termsAndConditionsUrl")
     val termsAndConditionsUrl: String = "https://policies.google.com/terms",
@@ -282,9 +212,6 @@ data class AdsConfig(
 
     @SerializedName("introAppOpenAdPreload")
     val introAppOpenAdPreload: Boolean = true,
-
-    @SerializedName(value = "sendRevenueIntroAppOpen", alternate = ["send_revenue_intro_app_open", "sendRevenueIntroAds"])
-    val sendRevenueIntroAppOpen: Boolean = true,
 ) {
     val canShowBanner: Boolean get() = isBannerOn
     val canShowBannerSplash: Boolean get() = isBannerOn && isBannerSplashOn

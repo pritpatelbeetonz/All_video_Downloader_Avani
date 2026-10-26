@@ -23,47 +23,30 @@ class _PrivacyPolicyViewState extends State<PrivacyPolicyView> {
     super.initState();
     FirebaseAnalyticsService.logEvent(eventName: 'PRIVACY_POLICY_SCREEN');
     try {
-      if (Platform.isAndroid) {
-        controller = WebViewController()
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..enableZoom(true)
-          ..loadFlutterAsset('assets/luka_privacy.html')
-          ..setNavigationDelegate(
-            NavigationDelegate(
-              onPageStarted: (url) {
-                setState(() {
-                  isLoading.value = true;
-                });
-              },
-              onPageFinished: (url) {
-                setState(() {
-                  isLoading.value = false;
-                });
-                injectDarkCss();
-              },
-            ),
-          );
-        controller.setBackgroundColor(Colors.white);
-      } else {
-        controller = WebViewController()
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..setNavigationDelegate(
-            NavigationDelegate(
-              onPageStarted: (url) {
+      controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..enableZoom(true)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (url) {
+              setState(() {
                 isLoading.value = true;
-              },
-              onPageFinished: (url) {
+              });
+            },
+            onPageFinished: (url) {
+              setState(() {
                 isLoading.value = false;
-                injectDarkCss();
-              },
-            ),
-          )
-          ..loadRequest(
-            Uri.parse(
-              'https://nidhirola.blogspot.com/2025/01/privacy-policy.html',
-            ),
-          );
-      }
+              });
+              injectDarkCss();
+            },
+          ),
+        )
+        ..loadRequest(
+          Uri.parse(
+            'https://johnrileyblogs.blogspot.com/2022/06/privacy-policy.html',
+          ),
+        );
+      controller.setBackgroundColor(Colors.white);
     } catch (e) {
       log("Webview Error :- $e");
     }

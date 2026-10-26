@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Video Downloader</string>
+    <string name="app_name">All Video Downloader</string>
     <string name="continue_text">Continue</string>
+    <string name="intro_title_1">Video Downloader</string>
+    <string name="intro_message_1">Download videos instantly\nusing any link.</string>
+    <string name="intro_title_2">High Speed Downloader</string>
+    <string name="intro_message_2">Download videos from links easily.\nWatch offline anytime.</string>
 
     <!-- Top-level navigation -->
     <string name="title_messages">Messages</string>

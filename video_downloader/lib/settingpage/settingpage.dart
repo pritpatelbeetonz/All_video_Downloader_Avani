@@ -94,7 +94,7 @@ class Settingpage extends StatelessWidget {
       }
     } else {
       const String storeURL =
-          'https://play.google.com/store/apps/developer?id=Pahal+Tech';
+          'https://play.google.com/store/apps/developer?id=John+riley';
       if (await canLaunchUrl(Uri.parse(storeURL))) {
         await launchUrl(Uri.parse(storeURL));
       } else {

@@ -268,21 +268,22 @@ open class Controller : Application() {
     }
 
     fun sendRevenueToAnalytics(
-        placement: String = "general",
+        adUnitId: String?,
+        placement: String,
         revenue: Double,
         currency: String?,
         precision: Int
     ) {
-        if (!app.messages.config.AdsConfigManager.shouldSendRevenueForPlacement(placement)) {
-            Log.d("AdRevenue", "sendRevenueToAnalytics skipped for placement: $placement")
-            return
-        }
-        Log.d("AdRevenue", "sendRevenueToAnalytics [$placement] -> revenue: $revenue, currency: $currency, precision: $precision")
+        val allowed = app.messages.config.AdsConfigManager.shouldSendAdImpression(adUnitId)
+        Log.d("AdRevenue", "ad_impression [$placement] unit=$adUnitId allowed=$allowed revenue=$revenue $currency")
+        if (!allowed) return
         val analytics = FirebaseAnalytics.getInstance(instance)
         val bundle = Bundle().apply {
             putString(FirebaseAnalytics.Param.AD_PLATFORM, "admob")
             putString(FirebaseAnalytics.Param.AD_SOURCE, "AdMob")
-            putString(FirebaseAnalytics.Param.AD_FORMAT, placement)
+            putString(FirebaseAnalytics.Param.AD_FORMAT, adFormatOf(placement))
+            putString(FirebaseAnalytics.Param.AD_UNIT_NAME, adUnitId)
+            putString("ad_placement", placement)
             putDouble(FirebaseAnalytics.Param.VALUE, revenue)
             putString(FirebaseAnalytics.Param.CURRENCY, currency?.takeIf { it.isNotBlank() } ?: "USD")
             putInt("precision_type", precision)
@@ -290,8 +291,16 @@ open class Controller : Application() {
         analytics.logEvent(FirebaseAnalytics.Event.AD_IMPRESSION, bundle)
     }
 
-    fun sendRevenueToAnalytics(revenue: Double, currency: String?, precision: Int) {
-        sendRevenueToAnalytics("general", revenue, currency, precision)
+    /** Maps a placement key like "inter_splash" or "app_click_open" to its ad format. */
+    private fun adFormatOf(placement: String): String {
+        val p = placement.lowercase()
+        return when {
+            "native" in p -> "native"
+            "banner" in p -> "banner"
+            "appopen" in p || "app_open" in p || p.endsWith("_open") -> "app_open"
+            "inter" in p -> "interstitial"
+            else -> "unknown"
+        }
     }
 
     fun showAppOpenAds(

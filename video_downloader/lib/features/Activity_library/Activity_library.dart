@@ -39,6 +39,12 @@ class ActivityLibraryState extends ConsumerState<ActivityLibrary> {
     }
 
     try {
+      final file = File(path);
+      if (!file.existsSync() || file.lengthSync() < 1024) {
+        thumbnailCache[path] = null;
+        return null;
+      }
+
       final bytes = await VideoThumbnail.thumbnailData(
         video: path,
         imageFormat: ImageFormat.JPEG,
@@ -73,12 +79,19 @@ class ActivityLibraryState extends ConsumerState<ActivityLibrary> {
             .whereType<File>()
             .where((file) {
               final p = file.path.toLowerCase();
-              return p.endsWith(".mp4") ||
+              final isVideo = p.endsWith(".mp4") ||
                   p.endsWith(".mkv") ||
                   p.endsWith(".webm") ||
                   p.endsWith(".mov") ||
                   p.endsWith(".avi") ||
                   p.endsWith(".flv");
+              if (!isVideo) return false;
+              try {
+                // Ignore empty or corrupted 0-byte placeholders
+                return file.lengthSync() > 1024;
+              } catch (_) {
+                return false;
+              }
             });
         allVideos.addAll(videos);
       }
@@ -115,25 +128,53 @@ class ActivityLibraryState extends ConsumerState<ActivityLibrary> {
     }
   }
 
-  // Video duration helper
+  // Video duration helper with safe fallback to file size
   Future<String> getVideoDuration(String path) async {
     if (durationCache.containsKey(path)) {
       return durationCache[path]!;
     }
 
-    final controller = VideoPlayerController.file(File(path));
-    await controller.initialize();
+    final file = File(path);
+    if (!file.existsSync()) {
+      return "";
+    }
 
-    final duration = controller.value.duration;
-    controller.dispose();
+    VideoPlayerController? controller;
+    try {
+      controller = VideoPlayerController.file(file);
+      await controller.initialize();
 
-    final minutes = duration.inMinutes;
-    final seconds = duration.inSeconds % 60;
+      final duration = controller.value.duration;
+      final minutes = duration.inMinutes;
+      final seconds = duration.inSeconds % 60;
 
-    final result = "$minutes min $seconds sec";
-    durationCache[path] = result;
-
-    return result;
+      final result = "$minutes min $seconds sec";
+      durationCache[path] = result;
+      return result;
+    } catch (e) {
+      debugPrint("Duration extraction error for $path: $e");
+      // Safe fallback: format file size instead of failing or staying on Loading...
+      try {
+        final bytes = file.lengthSync();
+        if (bytes < 1024 * 1024) {
+          final kb = (bytes / 1024).toStringAsFixed(1);
+          final res = "$kb KB";
+          durationCache[path] = res;
+          return res;
+        } else {
+          final mb = (bytes / (1024 * 1024)).toStringAsFixed(1);
+          final res = "$mb MB";
+          durationCache[path] = res;
+          return res;
+        }
+      } catch (_) {
+        return "Video";
+      }
+    } finally {
+      try {
+        await controller?.dispose();
+      } catch (_) {}
+    }
   }
 
   @override
@@ -226,13 +267,26 @@ class ActivityLibraryState extends ConsumerState<ActivityLibrary> {
             subtitle: FutureBuilder<String>(
               future: getVideoDuration(video.path),
               builder: (context, snapshot) {
-                if (!snapshot.hasData) {
+                if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                   return Text('loading'.tr);
                 }
-                return Text(
-                  snapshot.data!,
-                  style: const TextStyle(color: Colors.grey, fontSize: 13),
-                );
+                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  return Text(
+                    snapshot.data!,
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  );
+                }
+                // Fallback display if error occurs
+                try {
+                  final bytes = video.lengthSync();
+                  final mb = (bytes / (1024 * 1024)).toStringAsFixed(1);
+                  return Text(
+                    "$mb MB",
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  );
+                } catch (_) {
+                  return const Text("Video", style: TextStyle(color: Colors.grey, fontSize: 13));
+                }
               },
             ),
             trailing: Image.asset(

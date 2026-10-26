@@ -212,7 +212,7 @@ class NativeAdManager @Inject constructor(
             val adLoader = AdLoader.Builder(context, nativeUnitId)
                 .forNativeAd { nativeAd ->
                     nativeAd.setOnPaidEventListener { adValue ->
-                        app.messages.config.AdsConfigManager.sendRevenue("native_chat", adValue)
+                        app.messages.config.AdsConfigManager.sendRevenue(nativeUnitId, "native_chat", adValue)
                     }
                     loadingCount = (loadingCount - 1).coerceAtLeast(0)
                     totalFilled++

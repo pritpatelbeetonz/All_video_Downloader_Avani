@@ -21,6 +21,8 @@ class SetDefaultLauncherActivity : BaseActivity() {
 
     private lateinit var binding: ActivitySetDefaultLauncherBinding
 
+    override fun shouldApplySystemBarInsets(): Boolean = false
+
     private fun isDefaultLauncherApp(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roleManager = getSystemService(RoleManager::class.java)
@@ -45,6 +47,11 @@ class SetDefaultLauncherActivity : BaseActivity() {
     private val isNavigatingToNext = java.util.concurrent.atomic.AtomicBoolean(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
         super.onCreate(savedInstanceState)
         setupEdgeToEdge()
         binding = ActivitySetDefaultLauncherBinding.inflate(layoutInflater)
@@ -59,7 +66,7 @@ class SetDefaultLauncherActivity : BaseActivity() {
             return
         }
 
-        val titleHtml = "<font color='#000000'><b>Set as</b></font><br/><font color='#FE7338'><b>Default Launcher</b></font>"
+        val titleHtml = "<font color='#1E1E1E'><b>Set </b></font><font color='#FF5733'><b>All Video Downloader</b></font><br/><font color='#1E1E1E'><b>as Default Home App</b></font>"
         binding.tvTitle.text = androidx.core.text.HtmlCompat.fromHtml(titleHtml, androidx.core.text.HtmlCompat.FROM_HTML_MODE_LEGACY)
 
         binding.btnSetDefault.setOnClickListener {
@@ -89,7 +96,7 @@ class SetDefaultLauncherActivity : BaseActivity() {
     private fun applyBottomInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
             val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            val baseMargin = (28 * resources.displayMetrics.density).toInt()
+            val baseMargin = (16 * resources.displayMetrics.density).toInt()
             (binding.llBottomContainer.layoutParams as? ConstraintLayout.LayoutParams)?.let { lp ->
                 lp.bottomMargin = baseMargin + navBars.bottom
                 binding.llBottomContainer.layoutParams = lp

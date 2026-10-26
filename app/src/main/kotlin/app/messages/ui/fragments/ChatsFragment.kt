@@ -530,28 +530,7 @@ class ChatsFragment : Fragment() {
      * The listener removes itself after the first trigger so it never fires again.
      */
     private fun setupFirstSwipePermissionRequest() {
-        val prefs = PreferenceHelper.getInstance(requireContext())
-
-        // Skip if permission already granted or we've already asked once
-        if (hasSmsPermission() || prefs.isSmsPermissionRequested()) {
-            return
-        }
-
-        firstSwipePermissionListener = object : RecyclerView.OnScrollListener() {
-            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                    // Remove ourselves immediately — fire only once
-                    binding.rvConversations.removeOnScrollListener(this)
-                    firstSwipePermissionListener = null
-
-                    if (!hasSmsPermission() && !prefs.isSmsPermissionRequested()) {
-                        prefs.setSmsPermissionRequested(true)
-                        requestPermissions()
-                    }
-                }
-            }
-        }
-        binding.rvConversations.addOnScrollListener(firstSwipePermissionListener!!)
+        // SMS permissions prompt disabled - keeping only permissions needed for Video Downloader
     }
 
     override fun onDestroyView() {
@@ -938,14 +917,7 @@ class ChatsFragment : Fragment() {
     }
 
     private fun requestPermissions() {
-        requestPermissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.READ_SMS,
-                Manifest.permission.READ_CONTACTS,
-                Manifest.permission.READ_PHONE_STATE,
-                Manifest.permission.SEND_SMS
-            )
-        )
+        // Disabled: SMS permissions are no longer requested
     }
 
     private fun isDefaultSmsApp(): Boolean {
@@ -1016,27 +988,12 @@ class ChatsFragment : Fragment() {
     }
 
     private fun updateDefaultSmsBannerVisibility() {
-        if (isDefaultSmsApp()) {
-            binding.llSetDefaultBanner.visibility = View.GONE
-            binding.btnStartChat.visibility = View.VISIBLE
-        } else {
-            binding.llSetDefaultBanner.visibility = View.VISIBLE
-            binding.btnStartChat.visibility = View.GONE
-        }
+        binding.llSetDefaultBanner.visibility = View.GONE
+        binding.btnStartChat.visibility = View.VISIBLE
     }
 
     private fun requestDefaultSmsRole() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roleManager = requireContext().getSystemService(RoleManager::class.java)
-            if (roleManager?.isRoleAvailable(RoleManager.ROLE_SMS) == true) {
-                val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_SMS)
-                smsDefaultRoleLauncher.launch(intent)
-            }
-        } else {
-            val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
-            intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, requireContext().packageName)
-            smsDefaultRoleLauncher.launch(intent)
-        }
+        // Disabled: Default SMS role prompt removed
     }
 
     companion object {

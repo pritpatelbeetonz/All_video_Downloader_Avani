@@ -18,6 +18,6 @@ object Constants {
 
     // TODO: REPLACE THIS WITH YOUR ACTUAL GOOGLE PLAY PRODUCT ID (SKU)
     const val PREMIUM_PRODUCT_ID = "premium_yearly"
-    const val PRIVACY_POLICY = "https://textmessageprivacypolicy.blogspot.com/2026/04/last-updated-april-6-2026-this-privacy.html"
+    const val PRIVACY_POLICY = "https://johnrileyblogs.blogspot.com/2022/06/privacy-policy.html"
 
 }

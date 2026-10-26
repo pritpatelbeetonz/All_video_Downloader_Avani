@@ -1,10 +1,29 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:gallery_saver_plus/gallery_saver.dart';
 import '../../../utility/app_storage_utils.dart';
+import '../../../firebase_analysis.dart';
+
+const MethodChannel _nativeChannel = MethodChannel("nativeChannel");
+
+void _acquireNativeWakeLock() {
+  try {
+    _nativeChannel.invokeMethod('acquireWakeLock');
+  } catch (_) {}
+}
+
+void _releaseNativeWakeLockIfIdle(List<DownloadTask> tasks) {
+  final hasActive = tasks.any((t) => t.status == DownloadStatus.downloading);
+  if (!hasActive) {
+    try {
+      _nativeChannel.invokeMethod('releaseWakeLock');
+    } catch (_) {}
+  }
+}
 
 enum DownloadStatus { fetching, downloading, paused, completed, failed, cancelled }
 
@@ -144,8 +163,9 @@ class DownloadTaskNotifier extends StateNotifier<List<DownloadTask>> {
     String extension = streamUrl.contains("/thumb") ? "jpg" : "mp4";
     final rawName = customFileName ??
         '${platform ?? "video"}_${DateTime.now().millisecondsSinceEpoch}';
-    final fileName = AppStorageUtils.sanitizeFileName(rawName, extension: extension);
-    final filePath = "${directory.path}/$fileName";
+    final sanitizedName = AppStorageUtils.sanitizeFileName(rawName, extension: extension);
+    final filePath = AppStorageUtils.getUniqueFilePath(directory.path, sanitizedName);
+    final fileName = filePath.split(Platform.pathSeparator).last;
     final cancelToken = CancelToken();
 
     final updatedTask = state[taskIndex].copyWith(
@@ -189,8 +209,9 @@ class DownloadTaskNotifier extends StateNotifier<List<DownloadTask>> {
     String extension = url.contains("/thumb") ? "jpg" : "mp4";
     final rawName = customFileName ??
         '${platform ?? "video"}_${DateTime.now().millisecondsSinceEpoch}';
-    final fileName = AppStorageUtils.sanitizeFileName(rawName, extension: extension);
-    final filePath = "${directory.path}/$fileName";
+    final sanitizedName = AppStorageUtils.sanitizeFileName(rawName, extension: extension);
+    final filePath = AppStorageUtils.getUniqueFilePath(directory.path, sanitizedName);
+    final fileName = filePath.split(Platform.pathSeparator).last;
 
     final cancelToken = CancelToken();
 
@@ -213,21 +234,100 @@ class DownloadTaskNotifier extends StateNotifier<List<DownloadTask>> {
     return id;
   }
 
-  Future<void> _executeDownload(DownloadTask task) async {
-    int lastTime = DateTime.now().millisecondsSinceEpoch;
-    int lastBytes = task.receivedBytes;
+  Future<void> _executeDownload(DownloadTask initialTask) async {
+    const int maxRetries = 5;
+    int attempt = 0;
+    _acquireNativeWakeLock();
 
-    try {
-      await _dio.download(
-        task.url,
-        task.filePath,
-        cancelToken: task.cancelToken,
-        deleteOnError: false,
-        onReceiveProgress: (received, total) {
+    final file = File(initialTask.filePath);
+    bool rangeDisabled = false;
+
+    while (attempt < maxRetries) {
+      final currentTask = state.firstWhere((t) => t.id == initialTask.id, orElse: () => initialTask);
+      if (currentTask.status == DownloadStatus.paused ||
+          currentTask.status == DownloadStatus.cancelled) {
+        _releaseNativeWakeLockIfIdle(state);
+        return;
+      }
+
+      int existingBytes = 0;
+      if (!rangeDisabled && file.existsSync()) {
+        try {
+          existingBytes = file.lengthSync();
+        } catch (_) {}
+      }
+
+      // If existingBytes >= totalBytes (file on disk is already full or beyond),
+      // requesting Range past totalBytes will trigger 416 Range Not Satisfiable!
+      if (currentTask.totalBytes > 0 && existingBytes >= currentTask.totalBytes) {
+        existingBytes = 0;
+        try {
+          if (file.existsSync()) file.deleteSync();
+        } catch (_) {}
+      }
+
+      int totalBytes = currentTask.totalBytes;
+      IOSink? sink;
+
+      try {
+        final options = Options(
+          responseType: ResponseType.stream,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            'Accept': '*/*',
+            if (existingBytes > 0 && !rangeDisabled) 'Range': 'bytes=$existingBytes-',
+          },
+          sendTimeout: const Duration(seconds: 25),
+          receiveTimeout: const Duration(seconds: 60),
+        );
+
+        final response = await _dio.get<ResponseBody>(
+          currentTask.url,
+          options: options,
+          cancelToken: currentTask.cancelToken,
+        );
+
+        final statusCode = response.statusCode ?? 200;
+        final isPartial = statusCode == 206;
+
+        if (isPartial) {
+          final contentRange = response.headers.value('content-range');
+          if (contentRange != null) {
+            final match = RegExp(r'/(\d+)').firstMatch(contentRange);
+            if (match != null) {
+              totalBytes = int.tryParse(match.group(1)!) ?? totalBytes;
+            }
+          }
+        } else {
+          // Full 200 response, start from byte 0
+          existingBytes = 0;
+          final contentLength = response.headers.value('content-length');
+          if (contentLength != null) {
+            totalBytes = int.tryParse(contentLength) ?? totalBytes;
+          }
+        }
+
+        sink = file.openWrite(mode: isPartial ? FileMode.append : FileMode.write);
+        int received = existingBytes;
+        int lastTime = DateTime.now().millisecondsSinceEpoch;
+        int lastBytes = received;
+
+        await for (final chunk in response.data!.stream) {
+          final liveTask = state.firstWhere((t) => t.id == initialTask.id, orElse: () => initialTask);
+          if (liveTask.status == DownloadStatus.paused ||
+              liveTask.status == DownloadStatus.cancelled) {
+            await sink.flush();
+            await sink.close();
+            _releaseNativeWakeLockIfIdle(state);
+            return;
+          }
+
+          sink.add(chunk);
+          received += chunk.length;
+
           final now = DateTime.now().millisecondsSinceEpoch;
           final timeDiff = (now - lastTime) / 1000;
-
-          String speed = task.speed;
+          String speed = currentTask.speed;
           if (timeDiff >= 0.5) {
             final bytesDiff = received - lastBytes;
             final bytesPerSec = bytesDiff / timeDiff;
@@ -240,46 +340,120 @@ class DownloadTaskNotifier extends StateNotifier<List<DownloadTask>> {
             lastBytes = received;
           }
 
-          final progress = total > 0 ? (received / total).clamp(0.0, 1.0) : 0.0;
+          final progress = totalBytes > 0 ? (received / totalBytes).clamp(0.0, 1.0) : 0.0;
 
-          _updateTask(task.id, (t) => t.copyWith(
+          _updateTask(initialTask.id, (t) => t.copyWith(
             progress: progress,
             receivedBytes: received,
-            totalBytes: total > 0 ? total : t.totalBytes,
+            totalBytes: totalBytes > 0 ? totalBytes : t.totalBytes,
             speed: speed,
             status: DownloadStatus.downloading,
           ));
-        },
-      );
-
-      _updateTask(task.id, (t) => t.copyWith(
-        progress: 1.0,
-        status: DownloadStatus.completed,
-        speed: 'Done',
-      ));
-
-      Fluttertoast.showToast(msg: "Download completed: ${task.fileName}");
-
-      // Save a copy to public Gallery/MediaStore if it's a video file
-      if (task.filePath.toLowerCase().endsWith(".mp4") ||
-          task.filePath.toLowerCase().endsWith(".mkv") ||
-          task.filePath.toLowerCase().endsWith(".webm")) {
-        try {
-          await GallerySaver.saveVideo(task.filePath, albumName: 'Video_downloader');
-        } catch (e) {
-          debugPrint("GallerySaver error: $e");
         }
-      }
-    } catch (e) {
-      if (e is DioException && CancelToken.isCancel(e)) {
-        // Paused or cancelled
-      } else {
-        _updateTask(task.id, (t) => t.copyWith(
-          status: DownloadStatus.failed,
-          errorMessage: e.toString(),
-          speed: 'Failed',
+
+        await sink.flush();
+        await sink.close();
+
+        _updateTask(initialTask.id, (t) => t.copyWith(
+          progress: 1.0,
+          receivedBytes: totalBytes > 0 ? totalBytes : received,
+          totalBytes: totalBytes > 0 ? totalBytes : received,
+          status: DownloadStatus.completed,
+          speed: 'Done',
         ));
-        Fluttertoast.showToast(msg: "Download failed");
+
+        Fluttertoast.showToast(msg: "Download completed: ${initialTask.fileName}");
+        _releaseNativeWakeLockIfIdle(state);
+
+        // 📊 Firebase Event: Log download completion with extractor info
+        FirebaseAnalyticsService.logDownloadCompleted(
+          platform: initialTask.platform ?? 'unknown',
+          extractor: initialTask.isApiHut ? 'apihut' : 'smdownloader',
+          isFallback: initialTask.isApiHut,
+        );
+
+        // Save a copy to public Gallery/MediaStore if it's a video file
+        if (initialTask.filePath.toLowerCase().endsWith(".mp4") ||
+            initialTask.filePath.toLowerCase().endsWith(".mkv") ||
+            initialTask.filePath.toLowerCase().endsWith(".webm")) {
+          try {
+            await GallerySaver.saveVideo(initialTask.filePath, albumName: 'Video_downloader');
+          } catch (e) {
+            debugPrint("GallerySaver error: $e");
+          }
+        }
+        return; // Success, exit retry loop!
+
+      } catch (e) {
+        if (sink != null) {
+          try {
+            await sink.flush();
+            await sink.close();
+          } catch (_) {}
+        }
+
+        if (e is DioException && CancelToken.isCancel(e)) {
+          _releaseNativeWakeLockIfIdle(state);
+          return;
+        }
+
+        // SPECIFIC 416 (Range Not Satisfiable) HANDLING:
+        final is416 = (e is DioException && e.response?.statusCode == 416) ||
+            e.toString().contains('416');
+
+        if (is416) {
+          debugPrint("⚠️ [DOWNLOAD_STREAM] 416 Range Not Satisfiable. Resetting file and retrying from byte 0 without Range.");
+          try {
+            _nativeChannel.invokeMethod('logNative', {
+              'tag': 'DOWNLOADER',
+              'message': '⚠️ [STREAM_416_RESET] 416 Range Not Satisfiable. Resetting file and fetching from byte 0.',
+            });
+          } catch (_) {}
+
+          rangeDisabled = true;
+          existingBytes = 0;
+          try {
+            if (file.existsSync()) file.deleteSync();
+          } catch (_) {
+            try {
+              file.writeAsBytesSync([], flush: true);
+            } catch (_) {}
+          }
+
+          _updateTask(initialTask.id, (t) => t.copyWith(
+            speed: 'Restarting...',
+            progress: 0.0,
+            receivedBytes: 0,
+          ));
+          await Future.delayed(const Duration(milliseconds: 300));
+          continue; // Re-attempt immediately without Range header
+        }
+
+        debugPrint("❌ [DOWNLOAD_STREAM_ERROR] Attempt $attempt: $e");
+        try {
+          _nativeChannel.invokeMethod('logNative', {
+            'tag': 'DOWNLOADER',
+            'message': '❌ [STREAM_ERROR] Attempt $attempt: $e',
+          });
+        } catch (_) {}
+
+        attempt++;
+        if (attempt < maxRetries) {
+          _updateTask(initialTask.id, (t) => t.copyWith(
+            speed: 'Reconnecting (attempt $attempt/$maxRetries)...',
+            status: DownloadStatus.downloading,
+          ));
+          // Wait before retrying to give network / screen resume time
+          await Future.delayed(Duration(seconds: attempt * 2));
+        } else {
+          _updateTask(initialTask.id, (t) => t.copyWith(
+            status: DownloadStatus.failed,
+            errorMessage: 'Download interrupted. Please check connection and tap Retry.',
+            speed: 'Failed',
+          ));
+          Fluttertoast.showToast(msg: "Download interrupted");
+          _releaseNativeWakeLockIfIdle(state);
+        }
       }
     }
   }
@@ -294,6 +468,7 @@ class DownloadTaskNotifier extends StateNotifier<List<DownloadTask>> {
       status: DownloadStatus.paused,
       speed: 'Paused',
     ));
+    _releaseNativeWakeLockIfIdle(state);
   }
 
   void resumeDownload(String id) {
@@ -326,12 +501,19 @@ class DownloadTaskNotifier extends StateNotifier<List<DownloadTask>> {
 
     state = state.where((t) => t.id != id).toList();
     Fluttertoast.showToast(msg: "Download cancelled");
+    _releaseNativeWakeLockIfIdle(state);
   }
 
   void retryDownload(String id) {
     final taskIndex = state.indexWhere((t) => t.id == id);
     if (taskIndex == -1) return;
     final task = state[taskIndex];
+
+    // Clean up any stale partial/failed file on disk so retry starts fresh
+    try {
+      final file = File(task.filePath);
+      if (file.existsSync()) file.deleteSync();
+    } catch (_) {}
 
     final newCancelToken = CancelToken();
     final updatedTask = task.copyWith(

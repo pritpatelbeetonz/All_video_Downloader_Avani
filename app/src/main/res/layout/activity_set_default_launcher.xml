@@ -6,11 +6,11 @@
     android:layout_height="match_parent"
     android:background="#FFFFFF">
 
-    <!-- Full Background Graphic with Phone Illustration -->
+    <!-- Full Background Graphic with Phone Illustration edge to edge -->
     <ImageView
         android:id="@+id/ivBackground"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:contentDescription="@null"
         android:scaleType="fitXY"
         android:src="@drawable/bg_setlauncher"
@@ -19,14 +19,15 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Text Section: Left Aligned right above the button, matching the reference -->
+    <!-- Text Section: Centered right above the button, matching the reference -->
     <LinearLayout
         android:id="@+id/llTextContainer"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
         android:layout_marginEnd="24dp"
-        android:layout_marginBottom="28dp"
+        android:layout_marginBottom="10dp"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
         app:layout_constraintBottom_toTopOf="@+id/llBottomContainer"
         app:layout_constraintEnd_toEndOf="parent"
@@ -36,23 +37,19 @@
             android:id="@+id/tvTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-black"
-            android:lineSpacingExtra="2dp"
-            android:text="Set as\nDefault Launcher"
-            android:textColor="#000000"
-            android:textSize="30sp"
-            android:textStyle="bold" />
+            android:fontFamily="@font/geist_bold"
+            android:gravity="center"
+            android:lineSpacingExtra="4dp"
+            android:text="Set All Video Downloader\nas Default Home App"
+            android:textAlignment="center"
+            android:textColor="#1E1E1E"
+            android:textSize="26sp" />
 
         <TextView
             android:id="@+id/tvSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:fontFamily="sans-serif"
-            android:lineSpacingExtra="3dp"
-            android:text="Access fast video downloading and\nsmart tools directly from your home screen."
-            android:textColor="#666666"
-            android:textSize="15sp" />
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- Bottom Actions Container: Full prominent width matching reference -->
@@ -62,7 +59,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
         android:layout_marginEnd="24dp"
-        android:layout_marginBottom="28dp"
+        android:layout_marginBottom="16dp"
         android:gravity="center"
         android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -72,7 +69,7 @@
         <FrameLayout
             android:id="@+id/btnSetDefault"
             android:layout_width="match_parent"
-            android:layout_height="58dp"
+            android:layout_height="56dp"
             android:clickable="true"
             android:focusable="true">
 
@@ -85,15 +82,15 @@
                 android:src="@drawable/btn_launcher" />
 
             <TextView
-                android:id="@+id/tvBtnText"
+                android:id="@+id/tvBtnSetDefault"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:fontFamily="sans-serif-black"
-                android:text="Set as Default"
+                android:fontFamily="@font/geist_bold"
+                android:text="@string/set_as_default"
                 android:textColor="@color/white"
-                android:textSize="17sp"
-                android:textStyle="bold" />
+                android:textSize="17sp" />
+
         </FrameLayout>
     </LinearLayout>
 

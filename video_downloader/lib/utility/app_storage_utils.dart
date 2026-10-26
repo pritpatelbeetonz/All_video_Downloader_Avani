@@ -5,7 +5,8 @@ import 'package:path_provider/path_provider.dart';
 class AppStorageUtils {
   AppStorageUtils._();
 
-  static const String publicDownloadPath = "/storage/emulated/0/Download/Video_downloader";
+  static const String publicDownloadPath = "/storage/emulated/0/Download";
+  static const String legacyDownloadPath = "/storage/emulated/0/Download/Video_downloader";
 
   /// Kept as safe no-op so no OS permission popups interrupt the user.
   /// Downloads are saved without requiring runtime permission dialogs.
@@ -14,7 +15,7 @@ class AppStorageUtils {
   }
 
   /// Gets the best directory to save downloaded videos without triggering permission dialogs.
-  /// 1. Tries public /storage/emulated/0/Download/Video_downloader directly.
+  /// 1. Tries public /storage/emulated/0/Download directly.
   /// 2. If blocked by Android Scoped Storage, falls back to app external downloads dir.
   static Future<Directory> getDownloadDirectory() async {
     if (Platform.isAndroid) {
@@ -74,6 +75,11 @@ class AppStorageUtils {
       if (await publicDir.exists()) list.add(publicDir);
     } catch (_) {}
 
+    try {
+      final legacyDir = Directory(legacyDownloadPath);
+      if (await legacyDir.exists()) list.add(legacyDir);
+    } catch (_) {}
+
     if (Platform.isAndroid) {
       try {
         final extDirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
@@ -129,5 +135,22 @@ class AppStorageUtils {
     }
 
     return '$clean.$extension';
+  }
+
+  /// Returns a non-colliding file path by appending (1), (2), etc. if the file already exists.
+  static String getUniqueFilePath(String dirPath, String fileName) {
+    var candidate = File('$dirPath/$fileName');
+    if (!candidate.existsSync()) return candidate.path;
+
+    final dotIndex = fileName.lastIndexOf('.');
+    final base = dotIndex != -1 ? fileName.substring(0, dotIndex) : fileName;
+    final ext = dotIndex != -1 ? fileName.substring(dotIndex) : '';
+
+    int counter = 1;
+    while (candidate.existsSync()) {
+      candidate = File('$dirPath/$base ($counter)$ext');
+      counter++;
+    }
+    return candidate.path;
   }
 }

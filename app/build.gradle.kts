@@ -13,13 +13,13 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.test.app.testfeature.apps"
+        applicationId = "app.john.all.video.downloader.com"
         // Android 7+ floor. RoleManager.ROLE_SMS (default-handler) requires API 29+;
         // 24–28 falls back to read-only mode (banner: "Set as default to send messages").
         minSdk = 27
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

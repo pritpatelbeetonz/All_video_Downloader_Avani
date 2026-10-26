@@ -248,6 +248,25 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(tabsProvider, (prev, next) {
+      final prevIndex = prev?['currentIndex'] as int? ?? 0;
+      final nextIndex = next['currentIndex'] as int? ?? 0;
+      final prevCount = (prev?['tabs'] as List?)?.length ?? 0;
+      final nextCount = (next['tabs'] as List?)?.length ?? 0;
+
+      // When a new tab is created or switched to a fresh/empty tab, clear search bar
+      if (nextCount > prevCount) {
+        searchbarController.clear();
+      } else if (nextIndex != prevIndex) {
+        final currentUrl = ref.read(tabsProvider.notifier).currentUrl;
+        if (currentUrl.isEmpty || currentUrl == "https://www.google.com") {
+          searchbarController.clear();
+        } else {
+          searchbarController.text = currentUrl;
+        }
+      }
+    });
+
     final showBrowser = ref.watch(browserViewProvider);
     return showBrowser
         ? const BrowserWrapper()
@@ -311,6 +330,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                           ],
                         ),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             const Icon(
                               Icons.link_rounded,
@@ -321,6 +341,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                             Expanded(
                               child: TextField(
                                 controller: searchbarController,
+                                textAlignVertical: TextAlignVertical.center,
                                 onTapOutside: (_) {
                                   FocusManager.instance.primaryFocus?.unfocus();
                                 },
@@ -333,9 +354,11 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                                 textInputAction: TextInputAction.go,
                                 autocorrect: false,
                                 enableSuggestions: false,
+                                maxLines: 1,
                                 decoration: InputDecoration(
                                   border: InputBorder.none,
                                   isDense: true,
+                                  contentPadding: EdgeInsets.zero,
                                   hintText: 'search_or_paste_url'.tr,
                                   hintStyle: GoogleFonts.ibmPlexSans(
                                     fontWeight: FontWeight.w400,
@@ -346,7 +369,19 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                                 onSubmitted: (_) => _submitSearch(),
                               ),
                             ),
-                            const SizedBox(width: 6),
+                            ValueListenableBuilder<TextEditingValue>(
+                              valueListenable: searchbarController,
+                              builder: (context, val, _) {
+                                if (val.text.isEmpty) return const SizedBox.shrink();
+                                return IconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                  icon: const Icon(Icons.cancel, size: 20, color: Color(0xFF94A3B8)),
+                                  onPressed: () => searchbarController.clear(),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 4),
                             Material(
                               color: Colors.transparent,
                               child: InkWell(

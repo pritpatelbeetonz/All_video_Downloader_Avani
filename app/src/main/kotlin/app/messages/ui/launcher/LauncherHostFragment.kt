@@ -106,6 +106,7 @@ class LauncherHostFragment : Fragment() {
                     if (_binding != null) {
                         binding.viewPager.setCurrentItem(initialTab, false)
                         updateChrome(initialTab)
+                        updateSwipeEnabled()
                         android.util.Log.d("FLOW_CHECK", "✅ [FIRST_SCREEN_RENDERED] viewPager.setCurrentItem($initialTab) executed successfully!")
                     }
                 }
@@ -116,6 +117,7 @@ class LauncherHostFragment : Fragment() {
             binding.viewPager.post {
                 if (_binding != null) {
                     updateChrome(binding.viewPager.currentItem)
+                    updateSwipeEnabled()
                 }
             }
         }
@@ -126,6 +128,7 @@ class LauncherHostFragment : Fragment() {
             binding.swipeUpIntercept.drawerHeightPx = h
             drawerMotion.reset()
             updateChrome(binding.viewPager.currentItem)
+            updateSwipeEnabled()
         }
     }
 
@@ -280,7 +283,6 @@ class LauncherHostFragment : Fragment() {
         ensureDrawerHeight()
         drawerMotion.closeAppDrawer {
             viewModel.setDrawerOpenState(false)
-            binding.viewPager.isUserInputEnabled = true
             updateSwipeEnabled()
             updateChrome(binding.viewPager.currentItem)
         }
@@ -290,7 +292,6 @@ class LauncherHostFragment : Fragment() {
         if (_binding == null || !::drawerMotion.isInitialized) return
         drawerMotion.reset()
         viewModel.setDrawerOpenState(false)
-        binding.viewPager.isUserInputEnabled = true
         updateSwipeEnabled()
         updateChrome(binding.viewPager.currentItem)
     }
@@ -306,14 +307,16 @@ class LauncherHostFragment : Fragment() {
 
     private fun updateSwipeEnabled() {
         if (_binding == null || !::drawerMotion.isInitialized) return
-        val onHome = binding.viewPager.currentItem == LauncherPagerAdapter.PAGE_HOME
+        val current = binding.viewPager.currentItem
+        val onHome = current == LauncherPagerAdapter.PAGE_HOME
         val isDrawerClosed = !drawerMotion.isOpen && !drawerMotion.isAnimating && drawerMotion.progress < 0.01f
         binding.swipeUpIntercept.enabledIntercept = onHome && isDrawerClosed
         
-        // Ensure pager allows swipes whenever the drawer isn't actively taking over input.
-        if (!onHome || isDrawerClosed) {
-            binding.viewPager.isUserInputEnabled = true
-        }
+        // On Video Downloader (page 0), disable ViewPager2 swipe gesture so that full-screen webview,
+        // Reels vertical/diagonal swipes, and browser gestures are never intercepted by ViewPager2.
+        // Swiping between Home (1) and Messages/Dashboard (2) remains enabled when drawer is closed.
+        binding.viewPager.isUserInputEnabled = (current != LauncherPagerAdapter.PAGE_VIDEO_DOWNLOADER) && (!onHome || isDrawerClosed)
+        android.util.Log.d("GESTURE_CHECK", "🖐️ [SWIPE_ENABLED] page=$current, onHome=$onHome, isDrawerClosed=$isDrawerClosed -> isUserInputEnabled=${binding.viewPager.isUserInputEnabled}")
     }
 
     private fun observe() {

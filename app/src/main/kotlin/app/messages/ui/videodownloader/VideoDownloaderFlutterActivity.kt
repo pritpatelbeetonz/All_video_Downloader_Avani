@@ -47,8 +47,8 @@ class VideoDownloaderFlutterActivity : FlutterActivity() {
         }
     }
 
-    private var startColor: String = "#FE7338"
-    private var endColor: String = "#FE7338"
+    private var startColor: String = "#FB7829"
+    private var endColor: String = "#FF0048"
     private var backgroundColor: String = "#FFF8F5"
     private var headLineTextColor: String = "#000000"
     private var bodyTextColor: String = "#000000"
@@ -168,7 +168,7 @@ class NativeAdFactorySmall(
         adView.callToActionView = adView.findViewById(R.id.ad_call_to_action)
         val buttonGradientDrawable = GradientDrawable(
             GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FE7338")), safeParseColor(endColor, Color.parseColor("#FE7338")))
+            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
         )
         buttonGradientDrawable.cornerRadius = 14f * adView.context.resources.displayMetrics.density
         adView.callToActionView?.background = buttonGradientDrawable
@@ -179,7 +179,7 @@ class NativeAdFactorySmall(
         adView.priceView = adView.findViewById(R.id.native_ad_attribution_small)
         val priceGradientDrawable = GradientDrawable(
             GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FE7338")), safeParseColor(endColor, Color.parseColor("#FE7338")))
+            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
         ).apply {
             cornerRadii = floatArrayOf(
                 10f * adView.context.resources.displayMetrics.density, 10f * adView.context.resources.displayMetrics.density,
@@ -254,7 +254,7 @@ class NativeAdFactoryBig(
             setColor(safeParseColor(backgroundColor, Color.parseColor("#FFF8F5")))
             this.cornerRadius = cornerRadius
             val strokeWidth = (1.5f * adView.context.resources.displayMetrics.density).toInt()
-            setStroke(strokeWidth, safeParseColor(startColor, Color.parseColor("#FE7338")))
+            setStroke(strokeWidth, safeParseColor(startColor, Color.parseColor("#FB7829")))
         }
         circularLayoutBackground.background = backgroundGradientDrawable
 
@@ -269,7 +269,7 @@ class NativeAdFactoryBig(
         adView.callToActionView = adView.findViewById(R.id.ad_call_to_action)
         val buttonGradientDrawable = GradientDrawable(
             GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FE7338")), safeParseColor(endColor, Color.parseColor("#FE7338")))
+            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
         )
         buttonGradientDrawable.cornerRadius = 14f * adView.context.resources.displayMetrics.density
         adView.callToActionView?.background = buttonGradientDrawable
@@ -280,7 +280,7 @@ class NativeAdFactoryBig(
         adView.priceView = adView.findViewById(R.id.native_ad_attribution_small)
         val priceGradientDrawable = GradientDrawable(
             GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FE7338")), safeParseColor(endColor, Color.parseColor("#FE7338")))
+            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
         ).apply {
             cornerRadii = floatArrayOf(
                 10f * adView.context.resources.displayMetrics.density, 10f * adView.context.resources.displayMetrics.density,
@@ -368,7 +368,7 @@ class NativeAdFactoryFull(
         adView.callToActionView = adView.findViewById(R.id.ad_call_to_action)
         val buttonGradientDrawable = GradientDrawable(
             GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FE7338")), safeParseColor(endColor, Color.parseColor("#FE7338")))
+            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
         )
         buttonGradientDrawable.cornerRadius = 14f * adView.context.resources.displayMetrics.density
         adView.callToActionView?.background = buttonGradientDrawable
@@ -379,7 +379,7 @@ class NativeAdFactoryFull(
         adView.priceView = adView.findViewById(R.id.native_ad_attribution_small)
         val priceGradientDrawable = GradientDrawable(
             GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FE7338")), safeParseColor(endColor, Color.parseColor("#FE7338")))
+            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
         ).apply {
             cornerRadii = floatArrayOf(
                 10f * adView.context.resources.displayMetrics.density, 10f * adView.context.resources.displayMetrics.density,

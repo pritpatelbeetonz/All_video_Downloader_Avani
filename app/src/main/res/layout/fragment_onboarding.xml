@@ -55,7 +55,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="20dp"
-        android:layout_marginBottom="90dp"
+        android:layout_marginBottom="94dp"
         android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -67,10 +67,12 @@
             android:layout_height="wrap_content"
             android:fontFamily="@font/geist_bold"
             android:gravity="start"
+            android:includeFontPadding="false"
             android:text="Video Downloader"
             android:textAlignment="viewStart"
-            android:textColor="@color/colorTextBlack"
-            android:textSize="26sp" />
+            android:textColor="#000000"
+            android:textSize="30sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvMessage"
@@ -79,11 +81,12 @@
             android:layout_marginTop="8dp"
             android:fontFamily="@font/geist_medium"
             android:gravity="start"
-            android:lineSpacingExtra="3dp"
-            android:text="Download videos instantly using any link."
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="4dp"
+            android:text="Download videos instantly\nusing any link."
             android:textAlignment="viewStart"
-            android:textColor="#333333"
-            android:textSize="16sp" />
+            android:textColor="#454545"
+            android:textSize="17sp" />
 
     </LinearLayout>
 
