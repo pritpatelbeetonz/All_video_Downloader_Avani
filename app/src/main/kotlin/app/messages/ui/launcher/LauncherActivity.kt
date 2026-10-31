@@ -147,6 +147,10 @@ class LauncherActivity : AppCompatActivity() {
             host?.reapplyPageSystemBars()
         }
         // Default-launcher prompt removed: SetDefaultLauncherActivity handles this before we reach here.
+
+        // An app tap that earned an ad opened the app straight away; show that ad
+        // now that the user is back on the launcher.
+        app.messages.config.AdsConfigManager.onLauncherReturned(this)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -346,6 +350,7 @@ class LauncherActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        app.messages.config.AdsConfigManager.onLauncherStopped(this)
         // DO NOT unregister package receiver here so we can catch installs when in background
     }
     

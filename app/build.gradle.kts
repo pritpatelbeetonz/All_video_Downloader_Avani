@@ -11,6 +11,10 @@ plugins {
 android {
     namespace = "app.messages"
     compileSdk = 36
+    // Same NDK the Flutter module uses (FlutterExtension.ndkVersion). Without it AGP
+    // looks for its own default NDK, which isn't installed, and silently skips
+    // stripping debug symbols from libflutter.so (~147 MB per ABI instead of ~11 MB).
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         applicationId = "app.john.all.video.downloader.com"
@@ -18,8 +22,8 @@ android {
         // 24–28 falls back to read-only mode (banner: "Set as default to send messages").
         minSdk = 27
         targetSdk = 36
-        versionCode = 2
-        versionName = "2.0.0"
+        versionCode = 3
+        versionName = "3.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -42,6 +46,9 @@ android {
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Uploads native symbols to Play (not shipped to users) so stripped
+            // native crashes stay readable in Play Console.
+            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

@@ -29,7 +29,7 @@ object AdsConfigManager {
      * - SplashActivity (initial load)
      * ====================================================================================
      */
-    const val KEY_ADS_CONFIG = "video_downlader_launcher_v2"//"app_john_all_video_downloader_com_v1"
+    const val KEY_ADS_CONFIG = "video_downlader_launcher_v2"//"app_john_all_video_downloader_com_v3"//"app_john_all_video_downloader_com_v1"
 
     private const val KEY_BANNER_SPLASH = "banner_ad_id_splash"
     private const val KEY_BANNER_CONTACT_HOME = "banner_ad_id_contact_home"
@@ -534,6 +534,7 @@ object AdsConfigManager {
      */
     private var appClickOpenAd: com.google.android.gms.ads.appopen.AppOpenAd? = null
     private var isAppClickOpenAdLoading = false
+    private var appClickOpenAdLoadedAt = 0L
 
     private var swipeCount = 0
 
@@ -542,6 +543,7 @@ object AdsConfigManager {
     private val preloadedBannerAds = java.util.concurrent.ConcurrentHashMap<String, com.google.android.gms.ads.AdView>()
 
     private var isInterstitialLoading = false
+    private var interstitialLoadedAt = 0L
     private var isSetAsDefaultInterLoading = false
     private var isAppOpenLoading = false
     private val loadingNativeAds = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
@@ -932,6 +934,7 @@ object AdsConfigManager {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
                     ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "app_click_inter", adValue) }
                     interstitialAd = ad
+                    interstitialLoadedAt = System.currentTimeMillis()
                     isInterstitialLoading = false
                 }
                 override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
@@ -2123,6 +2126,13 @@ object AdsConfigManager {
             ad.show(activity)
         }
 
+        if (interstitialAd != null &&
+            System.currentTimeMillis() - interstitialLoadedAt > CACHED_AD_MAX_AGE_MS
+        ) {
+            Log.d(TAG, "[showInterstitialWithLoader] Cached interstitial older than 1h -> discarding, loading fresh")
+            interstitialAd = null
+        }
+
         if (interstitialAd != null) {
             if (isActivitySafeToShowAd(activity)) {
                 interstitialAd?.let { showAd(it) } ?: completeOnce()
@@ -2148,6 +2158,7 @@ object AdsConfigManager {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_${place.lowercase()}", adValue) }
                         interstitialAd = ad
+                        interstitialLoadedAt = System.currentTimeMillis()
                         try { loader?.dismiss() } catch (e: Exception) {}
                         if (isActivitySafeToShowAd(activity)) {
                             showAd(ad)
@@ -2188,6 +2199,7 @@ object AdsConfigManager {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
                     ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "app_click_open", adValue) }
                     appClickOpenAd = ad
+                    appClickOpenAdLoadedAt = System.currentTimeMillis()
                     isAppClickOpenAdLoading = false
                 }
 
@@ -2248,6 +2260,13 @@ object AdsConfigManager {
             ad.show(activity)
         }
 
+        if (appClickOpenAd != null &&
+            System.currentTimeMillis() - appClickOpenAdLoadedAt > CACHED_AD_MAX_AGE_MS
+        ) {
+            Log.d(TAG, "[showAppClickOpenAdWithLoader] Cached app-open older than 1h -> discarding, loading fresh")
+            appClickOpenAd = null
+        }
+
         val cached = appClickOpenAd
         if (cached != null) {
             if (isActivitySafeToShowAd(activity)) {
@@ -2276,6 +2295,7 @@ object AdsConfigManager {
                     timeoutHandler.removeCallbacks(timeoutRunnable)
                     ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "appopen_app_click", adValue) }
                     appClickOpenAd = ad
+                    appClickOpenAdLoadedAt = System.currentTimeMillis()
                     try { loader?.dismiss() } catch (_: Exception) {}
                     if (isActivitySafeToShowAd(activity)) {
                         showAd(ad)
@@ -2425,6 +2445,98 @@ object AdsConfigManager {
         adStatePrefs(context).edit().putInt(KEY_APP_CLICK_COUNT, value).apply()
     }
 
+    private const val KEY_RETURN_AD_PENDING = "return_ad_pending"
+    private const val KEY_RETURN_AD_PENDING_AT = "return_ad_pending_at"
+
+    /** The launcher must stop this soon after the counted tap for it to count as "left for the app". */
+    private const val RETURN_AD_LEAVE_WINDOW_MS = 5_000L
+
+    /** Preloaded full-screen ads expire after ~1 h; older ones are discarded and reloaded. */
+    private const val CACHED_AD_MAX_AGE_MS = 60 * 60 * 1000L
+
+    /**
+     * Set once the launcher left the foreground for the tapped app. Null = not
+     * decided yet in this process: a persisted pending flag found after the
+     * process was killed means the launcher did leave, so it counts as awaiting.
+     */
+    private var awaitingReturn: Boolean? = null
+    private var isReturnAdInProgress = false
+
+    /**
+     * An app tap earned an ad: remember it (persisted, the launcher process is often
+     * killed while the user is in the other app) and warm the ad so it is ready
+     * when the user comes back.
+     */
+    private fun markReturnAdPending(context: Context) {
+        adStatePrefs(context).edit()
+            .putBoolean(KEY_RETURN_AD_PENDING, true)
+            .putLong(KEY_RETURN_AD_PENDING_AT, System.currentTimeMillis())
+            .apply()
+        awaitingReturn = false
+        when (config.appClickAdFormat) {
+            AppClickAdFormat.APP_OPEN -> preloadAppClickOpenAd(context)
+            AppClickAdFormat.INTERSTITIAL -> preloadInterstitial(context)
+            AppClickAdFormat.NONE -> Unit
+        }
+    }
+
+    private fun clearReturnAdPending(context: Context) {
+        adStatePrefs(context).edit()
+            .remove(KEY_RETURN_AD_PENDING)
+            .remove(KEY_RETURN_AD_PENDING_AT)
+            .apply()
+        awaitingReturn = false
+    }
+
+    /**
+     * Called from LauncherActivity.onStop. Only a stop shortly after the counted tap
+     * means the tapped app opened; a later stop (screen off, lock) must not turn
+     * the next resume into an ad.
+     */
+    fun onLauncherStopped(context: Context) {
+        val prefs = adStatePrefs(context)
+        if (!prefs.getBoolean(KEY_RETURN_AD_PENDING, false)) return
+        val pendingAt = prefs.getLong(KEY_RETURN_AD_PENDING_AT, 0L)
+        if (System.currentTimeMillis() - pendingAt <= RETURN_AD_LEAVE_WINDOW_MS) {
+            awaitingReturn = true
+            Log.d(TAG, "appClick return-ad: launcher left for the tapped app -> awaiting return")
+        }
+    }
+
+    /**
+     * Called from LauncherActivity.onResume: shows the app-tap ad earned by an
+     * earlier tap now that the user is back on the launcher (Home, Back or recents).
+     */
+    fun onLauncherReturned(activity: android.app.Activity) {
+        val prefs = adStatePrefs(activity)
+        if (!prefs.getBoolean(KEY_RETURN_AD_PENDING, false)) return
+        if (awaitingReturn == null) awaitingReturn = true // process was killed while away
+        if (awaitingReturn != true || isReturnAdInProgress) return
+
+        val appPrefs = app.messages.preferences.PreferenceHelper.getInstance(activity)
+        if (!appPrefs.isLanguageSelected() || appPrefs.isPremium()) {
+            clearReturnAdPending(activity)
+            return
+        }
+
+        // Cleared before showing: dismissing the ad resumes the launcher again.
+        clearReturnAdPending(activity)
+        isReturnAdInProgress = true
+        val done = { isReturnAdInProgress = false }
+        Log.d(TAG, "appClick return-ad: user back on launcher -> SHOW format=${config.appClickAdFormat}")
+        activity.window.decorView.post {
+            if (activity.isFinishing || activity.isDestroyed) {
+                done()
+                return@post
+            }
+            when (config.appClickAdFormat) {
+                AppClickAdFormat.APP_OPEN -> showAppClickOpenAdWithLoader(activity, done)
+                AppClickAdFormat.INTERSTITIAL -> showInterstitialWithLoader(activity, place = "App_Click", done)
+                AppClickAdFormat.NONE -> done()
+            }
+        }
+    }
+
     /**
      * Ad gate for a launcher tap on [packageName].
      *
@@ -2481,14 +2593,16 @@ object AdsConfigManager {
             AppClickAdScope.ALL_APPS -> Unit
         }
 
-        // The format comes from the app-click switches, not from
-        // `intertitialoropenads` — that string still steers swipe / back / plus.
+        // The tapped app always opens immediately; an earned ad is shown when the
+        // user comes back to the launcher (see onLauncherReturned). The format comes
+        // from the app-click switches, not from `intertitialoropenads` — that
+        // string still steers swipe / back / plus.
         fun show() {
-            when (config.appClickAdFormat) {
-                AppClickAdFormat.APP_OPEN -> showAppClickOpenAdWithLoader(activity, onComplete)
-                AppClickAdFormat.INTERSTITIAL -> showInterstitialWithLoader(activity, place = "App_Click", onComplete)
-                AppClickAdFormat.NONE -> onComplete()
+            if (config.appClickAdFormat != AppClickAdFormat.NONE) {
+                markReturnAdPending(activity)
+                Log.d(TAG, "appClick[$packageName] DEFERRED to launcher return format=${config.appClickAdFormat}")
             }
+            onComplete()
         }
 
         // Ad-consuming apps are a small slice of the drawer, so a tap on one is
@@ -2497,7 +2611,7 @@ object AdsConfigManager {
         if (scope == AppClickAdScope.AD_CONSUMING_ONLY) {
             Log.d(
                 TAG,
-                "appClick[$packageName] SHOW scope=AD_CONSUMING_ONLY " +
+                "appClick[$packageName] DUE scope=AD_CONSUMING_ONLY " +
                     "format=${config.appClickAdFormat} (every tap, inter_count ignored)"
             )
             show()
