@@ -3,6 +3,7 @@ package app.messages.attribution
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
+import app.messages.BuildConfig
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import kotlinx.coroutines.CoroutineScope
@@ -21,14 +22,16 @@ import kotlin.coroutines.resume
  * Runs in the background from MessagesApplication.onCreate and never blocks startup.
  *
  * Order (first match wins):
- *   0. isEnabled off in Remote Config         -> regular, nothing saved (checked again next launch)
+ *   0. isShowRegularToAll on in Remote Config -> regular, nothing saved (src_regular_to_all, every launch)
  *   1. Source already saved                   -> reused, no checks
  *   2. Installed before this detection existed -> regular (src_existing_user)
  *   3. Firestore has this phone (reinstall)   -> its earlier ad source (src_<source>_from_firestore)
- *   4. Google   (GoogleSourceDetector)        -> google   (src_from_google)
- *   5. Facebook (FacebookSourceDetector)      -> facebook (src_from_facebook)
- *   6. Unity    (UnitySourceDetector)         -> unity    (src_from_unity)
- *   7. Nothing matched, or the check timed out -> regular (src_organic)
+ *   4. isSimCheckAllow && no SIM card         -> regular  (src_no_sim; release builds only)
+ *   5. Country in blockedCountriesForFacebookContent -> regular (src_blocked_country_<CC>)
+ *   6. Google   (GoogleSourceDetector)        -> google   (src_from_google)
+ *   7. Facebook (FacebookSourceDetector)      -> facebook (src_from_facebook; off by default)
+ *   8. Unity    (UnitySourceDetector)         -> unity    (src_from_unity; off by default)
+ *   9. Nothing matched, or the check timed out -> regular (src_organic)
  *
  * The decision is saved in prefs, set as the GA4 user property "install_source" and logged once
  * as a src_* event. Ad sources are also written to Firestore (FirestoreSourceStore) so a reinstall
@@ -61,14 +64,18 @@ object InstallSourceManager {
     private var started = false
 
     private val _source = MutableStateFlow<String?>(null)
-    /** The decided source, or null until the first-launch check has finished. */
+    /** The saved source, or null until the first-launch check has finished. Ignores isShowRegularToAll. */
     val source: StateFlow<String?> = _source.asStateFlow()
 
-    /** The decided source, "regular" until decided. */
-    fun currentSource(): String = _source.value ?: REGULAR
+    /** isShowRegularToAll was on at this launch: everyone is treated as regular. */
+    @Volatile
+    private var regularToAll = false
 
-    /** True for a decided google / facebook / unity install. */
-    fun isAdInstall(): Boolean = _source.value in AD_SOURCES
+    /** What the app acts on: "regular" while isShowRegularToAll is on or before the source is decided. */
+    fun currentSource(): String = if (regularToAll) REGULAR else _source.value ?: REGULAR
+
+    /** True for a decided google / facebook / unity install while isShowRegularToAll is off. */
+    fun isAdInstall(): Boolean = currentSource() in AD_SOURCES
 
     fun init(context: Context) {
         if (started) return
@@ -81,8 +88,13 @@ object InstallSourceManager {
         if (saved != null) {
             AttributionLog.d("💾 Source from prefs: $saved (matched_by=${prefs.getString(KEY_MATCHED_BY, null)}). No checks")
             _source.value = saved
-            setUserProperty(saved)
-            onSourceDecided(saved, fromPrefs = true)
+            // Later launches don't wait for a fetch: the values activated on an earlier launch decide
+            if (AttributionConfig.fromJson(cachedConfigJson()).isShowRegularToAll) {
+                applyRegularToAll()
+            } else {
+                setUserProperty(saved)
+                onSourceDecided(saved, fromPrefs = true)
+            }
             // An ad source whose Firestore write failed earlier is written now
             if (prefs.getBoolean(KEY_PENDING, false)) {
                 scope.launch { syncToFirestore(FirestoreSourceStore.deviceKey(appContext)) }
@@ -92,8 +104,8 @@ object InstallSourceManager {
 
         scope.launch {
             val config = loadConfig()
-            if (!config.isEnabled) {
-                AttributionLog.d("⛔ Detection off (isEnabled=false). Regular, nothing saved")
+            if (config.isShowRegularToAll) {
+                applyRegularToAll()
                 return@launch
             }
             AttributionLog.d("🚀 Install source check started")
@@ -131,6 +143,32 @@ object InstallSourceManager {
             }
         } else {
             AttributionLog.d("🔥 [Firestore] ⏭️ Off in Remote Config")
+        }
+
+        // SIM card (release builds only, as in the reference; null = the check failed, the other checks decide)
+        if (config.isSimCheckAllow && !BuildConfig.DEBUG) {
+            val sim = DeviceChecks.hasSimCard(appContext)
+            AttributionLog.d("📶 [SIM] hasSimCard=$sim")
+            if (sim == false) {
+                decide(REGULAR, "src_no_sim", "no_sim")
+                return
+            }
+            if (sim == null) logEvent("src_sim_check_failed")
+        } else {
+            AttributionLog.d("📶 [SIM] ⏭️ ${if (config.isSimCheckAllow) "Debug build" else "Off in Remote Config"}")
+        }
+
+        // Blocked country
+        if (config.blockedCountries.isNotEmpty()) {
+            val country = DeviceChecks.countryCode(appContext)
+            AttributionLog.d("🌍 [Country] $country, blocked=${config.blockedCountries}")
+            if (country != null && country in config.blockedCountries) {
+                decide(REGULAR, "src_blocked_country_$country", "blocked_country:$country")
+                return
+            }
+            if (country == null) logEvent("src_country_check_failed")
+        } else {
+            AttributionLog.d("🌍 [Country] ⏭️ No blocked countries")
         }
 
         // Read once; used by all three detectors
@@ -184,7 +222,7 @@ object InstallSourceManager {
             .apply()
         _source.value = source
         setUserProperty(source)
-        FirebaseAnalytics.getInstance(appContext).logEvent(event, Bundle().apply { putString("matched_by", matchedBy) })
+        logEvent(event, Bundle().apply { putString("matched_by", matchedBy) })
         onSourceDecided(source, fromPrefs = false)
         syncToFirestore(deviceKey)
     }
@@ -197,6 +235,18 @@ object InstallSourceManager {
         FirestoreSourceStore.write(deviceKey, source!!) { ok ->
             if (ok) prefs.edit().putBoolean(KEY_PENDING, false).apply()
         }
+    }
+
+    /**
+     * Emergency switch (reference app's isShowRegularToAll): everyone is regular, no checks run and
+     * nothing new is saved. A source saved earlier is kept and applies again once the switch is off.
+     */
+    private fun applyRegularToAll() {
+        regularToAll = true
+        AttributionLog.d("🟦 isShowRegularToAll on. Regular user, source checks skipped")
+        setUserProperty(REGULAR)
+        logEvent("src_regular_to_all")
+        onSourceDecided(REGULAR, fromPrefs = _source.value != null)
     }
 
     /**
@@ -240,9 +290,18 @@ object InstallSourceManager {
                 null -> "⏱️ Remote Config fetch timed out; cached/default values used"
             }
         )
-        val raw = remoteConfig.getString(AttributionConfig.REMOTE_CONFIG_KEY)
+        val raw = cachedConfigJson()
         AttributionLog.d("⚙️ ${AttributionConfig.REMOTE_CONFIG_KEY} = ${raw.ifBlank { "(empty, defaults)" }}")
         return AttributionConfig.fromJson(raw)
+    }
+
+    /** The currently activated value; "" before any fetch has ever been activated. */
+    private fun cachedConfigJson(): String =
+        FirebaseRemoteConfig.getInstance().getString(AttributionConfig.REMOTE_CONFIG_KEY)
+
+    private fun logEvent(event: String, params: Bundle? = null) {
+        AttributionLog.d("📊 Event: $event ${params ?: ""}")
+        FirebaseAnalytics.getInstance(appContext).logEvent(event, params)
     }
 
     private fun setUserProperty(source: String) =

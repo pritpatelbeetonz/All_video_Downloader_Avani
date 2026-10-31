@@ -8,9 +8,11 @@ import org.json.JSONObject
  * (one JSON value). Every key is optional: anything missing, or the whole value being empty or
  * invalid, falls back to the defaults below, so detection works before the key is ever created.
  *
- * Example value:
+ * Current value (Google only; Facebook and Unity stay off by default):
  * {
- *   "isEnabled": true,
+ *   "isShowRegularToAll": false,
+ *   "isSimCheckAllow": false,
+ *   "blockedCountriesForFacebookContent": [],
  *   "isCheckGoogleSource": true,
  *   "isCheckGoogleUtmList": true,
  *   "googleAdUTMSourceCheckStringList": [],
@@ -18,20 +20,31 @@ import org.json.JSONObject
  *     { "gclid": "*" },
  *     { "utm_source": ["google"], "utm_medium": ["cpc", "ppc", "paid"] }
  *   ],
- *   "isCheckFacebookSource": true,
- *   "fbUtm": ["apps.facebook.com"],
- *   "fbUtmsForDeferrerLink": ["facebook", "fbclid"],
- *   "isCheckUnitySource": true,
- *   "unityUtm": ["unity"],
  *   "isFirestoreEnabled": true,
  *   "firestoreReadTimeoutInSeconds": 5,
  *   "referrerCheckTimeoutInSeconds": 30,
  *   "playReferrerTimeoutInSeconds": 10
  * }
+ *
+ * To turn Facebook / Unity on later, add:
+ *   "isCheckFacebookSource": true, "fbUtm": [...], "fbUtmsForDeferrerLink": ["facebook", "fbclid"],
+ *   "isCheckUnitySource": true, "unityUtm": ["unity"]
  */
 internal data class AttributionConfig(
-    /** Off: no detection runs and every user stays "regular". */
-    val isEnabled: Boolean = true,
+    /**
+     * Emergency switch, as in the reference app: on = every user is "regular" and no checks run.
+     * Default ON (detection off) until Remote Config sets it to false.
+     */
+    val isShowRegularToAll: Boolean = true,
+
+    // ---- Device checks (DeviceChecks), before every source check, as in the reference ----
+    /** On: a phone without a SIM card is regular (release builds only). Default off. */
+    val isSimCheckAllow: Boolean = false,
+    /**
+     * Upper-case country codes whose users are regular, whatever the referrer says (the name is the
+     * reference app's; it applies to every source). ["NP","PK"] and ["NP,PK"] are read alike. Default none.
+     */
+    val blockedCountries: List<String> = emptyList(),
 
     // ---- Google (GoogleSourceDetector) ----
     val isCheckGoogleSource: Boolean = true,
@@ -41,8 +54,8 @@ internal data class AttributionConfig(
     /** Stage 2: Google when any rule matches (see GoogleSourceDetector.matchesRule). */
     val googleReferrerRules: List<JSONObject> = defaultGoogleRules(),
 
-    // ---- Facebook (FacebookSourceDetector) ----
-    val isCheckFacebookSource: Boolean = true,
+    // ---- Facebook (FacebookSourceDetector) ---- off until Remote Config turns it on
+    val isCheckFacebookSource: Boolean = false,
     /** Facebook when the Play referrer contains any of these. */
     val fbUtm: List<String> = emptyList(),
     /** Facebook when the Facebook deferred deep link contains any of these. */
@@ -52,8 +65,8 @@ internal data class AttributionConfig(
     val fbAwaitSecondsBetweenTries: Int = 2,
     val fbDeferredLinkTimeoutSec: Int = 5,
 
-    // ---- Unity (UnitySourceDetector) ----
-    val isCheckUnitySource: Boolean = true,
+    // ---- Unity (UnitySourceDetector) ---- off until Remote Config turns it on
+    val isCheckUnitySource: Boolean = false,
     val unityUtm: List<String> = listOf("unity"),
 
     // ---- Firestore (FirestoreSourceStore) ----
@@ -78,7 +91,13 @@ internal data class AttributionConfig(
                 return d
             }
             return AttributionConfig(
-                isEnabled = json.optBoolean("isEnabled", d.isEnabled),
+                isShowRegularToAll = json.optBoolean("isShowRegularToAll", d.isShowRegularToAll),
+                isSimCheckAllow = json.optBoolean("isSimCheckAllow", d.isSimCheckAllow),
+                blockedCountries = json.stringList("blockedCountriesForFacebookContent")
+                    ?.flatMap { it.split(",") }
+                    ?.map { it.trim().uppercase() }
+                    ?.filter { it.isNotEmpty() }
+                    ?: d.blockedCountries,
                 isCheckGoogleSource = json.optBoolean("isCheckGoogleSource", d.isCheckGoogleSource),
                 isCheckGoogleUtmList = json.optBoolean("isCheckGoogleUtmList", d.isCheckGoogleUtmList),
                 googleMarkers = json.stringList("googleAdUTMSourceCheckStringList") ?: d.googleMarkers,

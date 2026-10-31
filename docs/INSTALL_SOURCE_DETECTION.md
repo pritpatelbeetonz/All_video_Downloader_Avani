@@ -30,13 +30,15 @@ App start (MessagesApplication.onCreate)
  └─ InstallSourceManager.init()            background, never blocks startup
      ├─ source saved before?  → reuse it, done                       💾
      ├─ wait ≤5 s for Remote Config, read install_attribution_config ☁️ ⚙️
-     ├─ isEnabled = false?    → regular, nothing saved               ⛔
+     ├─ isShowRegularToAll = true? → regular, nothing saved (src_regular_to_all) 🟦
      ├─ installed before this version? → regular (src_existing_user) 👴
      ├─ Firestore has this phone? → earlier ad source (src_<s>_from_firestore) 🔥
+     ├─ isSimCheckAllow + no SIM (release only) → regular (src_no_sim) 📶
+     ├─ country in blockedCountriesForFacebookContent → regular (src_blocked_country_XX) 🌍
      ├─ read Play referrer (≤10 s)                                   📥
      ├─ Google check   → google   (src_from_google)                  🔵
-     ├─ Facebook check → facebook (src_from_facebook)                🟣
-     ├─ Unity check    → unity    (src_from_unity)                   🟢
+     ├─ Facebook check → facebook (src_from_facebook)   OFF by default 🟣
+     ├─ Unity check    → unity    (src_from_unity)      OFF by default 🟢
      └─ nothing / timeout (30 s) → regular (src_organic)             ⚪
          ↓
      saved in prefs "install_source" · GA4 user property install_source
@@ -79,9 +81,21 @@ Turn it off without an update: `"isFirestoreEnabled": false` in `install_attribu
 
 New key **`install_attribution_config`** (JSON). Every field is optional; empty key = defaults.
 
+**`isShowRegularToAll` defaults to `true` (detection OFF), as in the reference app.** Set it to
+`false` in Remote Config to turn detection on. Switching it back to `true` makes everyone regular
+again on the next launch (saved sources are kept and come back when it is turned off).
+
+### Current value — Google only
+
+Facebook and Unity checks are **off by default** (`isCheckFacebookSource` / `isCheckUnitySource`
+default `false`), so their keys are left out:
+
 ```json
 {
-  "isEnabled": true,
+  "isShowRegularToAll": false,
+
+  "isSimCheckAllow": false,
+  "blockedCountriesForFacebookContent": [],
 
   "isCheckGoogleSource": true,
   "isCheckGoogleUtmList": true,
@@ -91,6 +105,36 @@ New key **`install_attribution_config`** (JSON). Every field is optional; empty 
     { "utm_source": ["google"], "utm_medium": ["cpc", "ppc", "paid"] }
   ],
 
+  "isFirestoreEnabled": true,
+  "firestoreReadTimeoutInSeconds": 5,
+
+  "referrerCheckTimeoutInSeconds": 30,
+  "playReferrerTimeoutInSeconds": 10
+}
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `isShowRegularToAll` | `true` | On = everyone regular, no checks. Set `false` to detect |
+| `isSimCheckAllow` | `false` | On = no SIM card → regular (release builds only) |
+| `blockedCountriesForFacebookContent` | `[]` | Users in these countries → regular. **Applies to every source, Google too**, despite the name. `["IN","US"]` or `["IN,US"]` |
+| `isCheckGoogleSource` | `true` | Run the Google check |
+| `isCheckGoogleUtmList` | `true` | Use `googleAdUTMSourceCheckStringList` |
+| `googleAdUTMSourceCheckStringList` | `[]` | Google if the raw referrer contains any of these |
+| `googleReferrerRules` | gclid / google+cpc | Google if any rule matches |
+| `isFirestoreEnabled` | `true` | Reinstall memory |
+| `firestoreReadTimeoutInSeconds` | `5` | |
+| `referrerCheckTimeoutInSeconds` | `30` | Whole check; then regular |
+| `playReferrerTimeoutInSeconds` | `10` | |
+
+Note: SIM and country are checked **before** Google (reference order), so a real Google-ad user
+in a blocked country or without a SIM is saved as regular.
+
+### Later — turning Facebook / Unity on
+
+Add to the same JSON:
+
+```json
   "isCheckFacebookSource": true,
   "fbUtm": ["apps.facebook.com"],
   "fbUtmsForDeferrerLink": ["facebook", "fbclid"],
@@ -99,14 +143,7 @@ New key **`install_attribution_config`** (JSON). Every field is optional; empty 
   "fbDeferredLinkTimeoutInSeconds": 5,
 
   "isCheckUnitySource": true,
-  "unityUtm": ["unity"],
-
-  "isFirestoreEnabled": true,
-  "firestoreReadTimeoutInSeconds": 5,
-
-  "referrerCheckTimeoutInSeconds": 30,
-  "playReferrerTimeoutInSeconds": 10
-}
+  "unityUtm": ["unity"]
 ```
 
 Rule syntax (`googleReferrerRules`): every key in a rule must match. `"*"` = present and not empty,
@@ -169,8 +206,8 @@ decided from Firestore (`🔥 [Firestore] Found src=google`).
 
 ## Not ported from the reference (on purpose)
 
-- No-SIM, blocked-country and `isDifferentContentAllow` checks: in the reference they exist to
-  hide a feature from review traffic (Play cloaking risk).
+- `isDifferentContentAllow`. (SIM and blocked-country checks are ported, off by default. Use the
+  result for analytics / ad settings only — never to hide features from some users: Play cloaking risk.)
 - The `install_referrer_logs` debug collection.
 - `server_config.json` download: settings come straight from one Remote Config key.
 
