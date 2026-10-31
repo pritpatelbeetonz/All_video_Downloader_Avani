@@ -182,6 +182,8 @@ dependencies {
     // checks, Facebook deferred deep links (AppLinkData) for the Facebook check.
     implementation("com.android.installreferrer:installreferrer:2.2")
     implementation("com.facebook.android:facebook-applinks:17.0.2")
+    // Reinstalls keep their ad source: install_referrers/<device key> (version from the Firebase BOM).
+    implementation("com.google.firebase:firebase-firestore")
 
 
     implementation("androidx.navigation:navigation-fragment-ktx:2.8.5")

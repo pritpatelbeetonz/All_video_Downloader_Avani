@@ -13,12 +13,14 @@ Ported from the reference project (`VideoDownloader(snehil_launcher_for_Utm_flow
 | `GoogleSourceDetector.kt` | Google Ads: `gclid` / utm rules on the Play referrer |
 | `FacebookSourceDetector.kt` | Meta: Facebook deferred deep link, then FB marker in the Play referrer |
 | `UnitySourceDetector.kt` | Unity Ads: `unity` marker in the Play referrer |
+| `FirestoreSourceStore.kt` | Reinstalls: reads / writes `install_referrers/<sha256(ANDROID_ID)>` so an ad source survives uninstall |
 | `PlayReferrer.kt` | Reads the Play Install Referrer once (shared by all three) and splits it into parameters |
 | `AttributionConfig.kt` | Settings from Remote Config key `install_attribution_config` (defaults built in) |
 | `AttributionLog.kt` | Log tag `InstallSource` (debug builds only) |
 
 Other changes:
-- `app/build.gradle.kts`: `com.android.installreferrer:installreferrer:2.2`, `com.facebook.android:facebook-applinks:17.0.2`
+- `app/build.gradle.kts`: `com.android.installreferrer:installreferrer:2.2`, `com.facebook.android:facebook-applinks:17.0.2`,
+  `com.google.firebase:firebase-firestore` (BOM version)
 - `MessagesApplication.onCreate()`: `InstallSourceManager.init(this)`
 
 ## Flow
@@ -30,6 +32,7 @@ App start (MessagesApplication.onCreate)
      ├─ wait ≤5 s for Remote Config, read install_attribution_config ☁️ ⚙️
      ├─ isEnabled = false?    → regular, nothing saved               ⛔
      ├─ installed before this version? → regular (src_existing_user) 👴
+     ├─ Firestore has this phone? → earlier ad source (src_<s>_from_firestore) 🔥
      ├─ read Play referrer (≤10 s)                                   📥
      ├─ Google check   → google   (src_from_google)                  🔵
      ├─ Facebook check → facebook (src_from_facebook)                🟣
@@ -38,7 +41,39 @@ App start (MessagesApplication.onCreate)
          ↓
      saved in prefs "install_source" · GA4 user property install_source
      · event src_* with matched_by · onSourceDecided() (TODO)        🎯
+     · ad sources written to Firestore (retried next launch if it fails) 🔥
 ```
+
+## Where the result is saved
+
+| Where | What | Survives uninstall |
+|---|---|---|
+| SharedPreferences `install_source.xml` | `source`, `matched_by`, `eligible`, `pending_sync` | No |
+| Firestore `install_referrers/<sha256(ANDROID_ID)>` | `{ src, t, id }`, ad sources only | Yes |
+| Firebase Analytics | user property `install_source`, event `src_*` | (reports only) |
+
+## Firestore setup (Firebase console, project `pritpatelall`)
+
+1. Build → Firestore Database → Create database (production mode).
+2. Rules — allow reading one document and writing only a valid ad source; no listing or deleting:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /install_referrers/{id} {
+         allow get: if true;
+         allow create, update: if request.resource.data.keys().hasOnly(['src', 't', 'id'])
+                               && request.resource.data.src in ['google', 'facebook', 'unity']
+                               && request.resource.data.id == id;
+         allow list, delete: if false;
+       }
+     }
+   }
+   ```
+3. Data Safety form: the app now stores a hashed device identifier (ANDROID_ID SHA-256) with the
+   install source → declare "Device or other IDs", purpose Analytics, not shared.
+
+Turn it off without an update: `"isFirestoreEnabled": false` in `install_attribution_config`.
 
 ## Remote Config
 
@@ -65,6 +100,9 @@ New key **`install_attribution_config`** (JSON). Every field is optional; empty 
 
   "isCheckUnitySource": true,
   "unityUtm": ["unity"],
+
+  "isFirestoreEnabled": true,
+  "firestoreReadTimeoutInSeconds": 5,
 
   "referrerCheckTimeoutInSeconds": 30,
   "playReferrerTimeoutInSeconds": 10
@@ -125,12 +163,15 @@ The referrer only exists for real Play installs (debug APKs from Android Studio 
    (Release builds don't log; use a debuggable build on the internal track, or check the
    `src_*` events in Firebase DebugView.)
 
-To re-test on the same phone: clear app data (the saved source lives in prefs `install_source`).
+To re-test on the same phone: clear app data (the saved source lives in prefs `install_source`)
+**and** delete the phone's document in Firestore `install_referrers` — otherwise the reinstall is
+decided from Firestore (`🔥 [Firestore] Found src=google`).
 
 ## Not ported from the reference (on purpose)
 
-- No-SIM, blocked-country and `isDifferentContentAllow` checks, and the Firestore device lookup:
-  in the reference they exist to hide a feature from review traffic (Play cloaking risk).
+- No-SIM, blocked-country and `isDifferentContentAllow` checks: in the reference they exist to
+  hide a feature from review traffic (Play cloaking risk).
+- The `install_referrer_logs` debug collection.
 - `server_config.json` download: settings come straight from one Remote Config key.
 
 ## Next

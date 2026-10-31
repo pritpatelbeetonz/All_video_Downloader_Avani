@@ -23,6 +23,8 @@ import org.json.JSONObject
  *   "fbUtmsForDeferrerLink": ["facebook", "fbclid"],
  *   "isCheckUnitySource": true,
  *   "unityUtm": ["unity"],
+ *   "isFirestoreEnabled": true,
+ *   "firestoreReadTimeoutInSeconds": 5,
  *   "referrerCheckTimeoutInSeconds": 30,
  *   "playReferrerTimeoutInSeconds": 10
  * }
@@ -53,6 +55,11 @@ internal data class AttributionConfig(
     // ---- Unity (UnitySourceDetector) ----
     val isCheckUnitySource: Boolean = true,
     val unityUtm: List<String> = listOf("unity"),
+
+    // ---- Firestore (FirestoreSourceStore) ----
+    /** Reinstalls keep their earlier ad source via Firestore install_referrers/<device key>. */
+    val isFirestoreEnabled: Boolean = true,
+    val firestoreReadTimeoutSec: Int = 5,
 
     // ---- Timeouts ----
     /** Whole detection; past this the user is saved as organic. */
@@ -87,6 +94,8 @@ internal data class AttributionConfig(
                 fbDeferredLinkTimeoutSec = json.optInt("fbDeferredLinkTimeoutInSeconds", d.fbDeferredLinkTimeoutSec),
                 isCheckUnitySource = json.optBoolean("isCheckUnitySource", d.isCheckUnitySource),
                 unityUtm = json.stringList("unityUtm") ?: d.unityUtm,
+                isFirestoreEnabled = json.optBoolean("isFirestoreEnabled", d.isFirestoreEnabled),
+                firestoreReadTimeoutSec = json.optInt("firestoreReadTimeoutInSeconds", d.firestoreReadTimeoutSec),
                 referrerCheckTimeoutSec = json.optInt("referrerCheckTimeoutInSeconds", d.referrerCheckTimeoutSec),
                 playReferrerTimeoutSec = json.optInt("playReferrerTimeoutInSeconds", d.playReferrerTimeoutSec),
             )

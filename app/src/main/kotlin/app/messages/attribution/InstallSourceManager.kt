@@ -24,13 +24,16 @@ import kotlin.coroutines.resume
  *   0. isEnabled off in Remote Config         -> regular, nothing saved (checked again next launch)
  *   1. Source already saved                   -> reused, no checks
  *   2. Installed before this detection existed -> regular (src_existing_user)
- *   3. Google   (GoogleSourceDetector)        -> google   (src_from_google)
- *   4. Facebook (FacebookSourceDetector)      -> facebook (src_from_facebook)
- *   5. Unity    (UnitySourceDetector)         -> unity    (src_from_unity)
- *   6. Nothing matched, or the check timed out -> regular (src_organic)
+ *   3. Firestore has this phone (reinstall)   -> its earlier ad source (src_<source>_from_firestore)
+ *   4. Google   (GoogleSourceDetector)        -> google   (src_from_google)
+ *   5. Facebook (FacebookSourceDetector)      -> facebook (src_from_facebook)
+ *   6. Unity    (UnitySourceDetector)         -> unity    (src_from_unity)
+ *   7. Nothing matched, or the check timed out -> regular (src_organic)
  *
  * The decision is saved in prefs, set as the GA4 user property "install_source" and logged once
- * as a src_* event. What the app does for each source is not decided yet: see [onSourceDecided].
+ * as a src_* event. Ad sources are also written to Firestore (FirestoreSourceStore) so a reinstall
+ * keeps them; a failed write is retried on later launches.
+ * What the app does for each source is not decided yet: see [onSourceDecided].
  *
  * Logcat filter: tag:InstallSource
  */
@@ -47,6 +50,8 @@ object InstallSourceManager {
     private const val KEY_MATCHED_BY = "matched_by"
     /** Set on the first launch with this detection: false for users who installed an older version. */
     private const val KEY_ELIGIBLE = "eligible"
+    /** An ad source not yet written to Firestore. */
+    private const val KEY_PENDING = "pending_sync"
 
     private const val REMOTE_CONFIG_WAIT_MS = 5000L
 
@@ -78,6 +83,10 @@ object InstallSourceManager {
             _source.value = saved
             setUserProperty(saved)
             onSourceDecided(saved, fromPrefs = true)
+            // An ad source whose Firestore write failed earlier is written now
+            if (prefs.getBoolean(KEY_PENDING, false)) {
+                scope.launch { syncToFirestore(FirestoreSourceStore.deviceKey(appContext)) }
+            }
             return
         }
 
@@ -103,6 +112,27 @@ object InstallSourceManager {
             return
         }
 
+        // Reinstall: this phone was already decided as an ad install
+        var deviceKey: String? = null
+        if (config.isFirestoreEnabled) {
+            deviceKey = FirestoreSourceStore.deviceKey(appContext)
+            if (deviceKey == null) {
+                AttributionLog.w("🔥 [Firestore] ⏭️ No device key; lookup skipped")
+            } else {
+                try {
+                    val src = FirestoreSourceStore.read(deviceKey, config.firestoreReadTimeoutSec)
+                    if (src in AD_SOURCES) {
+                        decide(src!!, "src_${src}_from_firestore", "firestore")
+                        return
+                    }
+                } catch (e: Exception) {
+                    AttributionLog.w("🔥 [Firestore] ⚠️ Lookup failed; carrying on with the checks", e)
+                }
+            }
+        } else {
+            AttributionLog.d("🔥 [Firestore] ⏭️ Off in Remote Config")
+        }
+
         // Read once; used by all three detectors
         val referrer = if (config.isCheckGoogleSource || config.isCheckFacebookSource || config.isCheckUnitySource) {
             PlayReferrer.read(appContext, config.playReferrerTimeoutSec)
@@ -112,7 +142,7 @@ object InstallSourceManager {
 
         if (config.isCheckGoogleSource) {
             GoogleSourceDetector.detect(referrer, config)?.let {
-                decide(GOOGLE, "src_from_google", it)
+                decide(GOOGLE, "src_from_google", it, deviceKey)
                 return
             }
         } else {
@@ -121,7 +151,7 @@ object InstallSourceManager {
 
         if (config.isCheckFacebookSource) {
             FacebookSourceDetector.detect(appContext, referrer, config)?.let {
-                decide(FACEBOOK, "src_from_facebook", it)
+                decide(FACEBOOK, "src_from_facebook", it, deviceKey)
                 return
             }
         } else {
@@ -130,7 +160,7 @@ object InstallSourceManager {
 
         if (config.isCheckUnitySource) {
             UnitySourceDetector.detect(referrer, config)?.let {
-                decide(UNITY, "src_from_unity", "marker:$it")
+                decide(UNITY, "src_from_unity", "marker:$it", deviceKey)
                 return
             }
         } else {
@@ -140,15 +170,33 @@ object InstallSourceManager {
         decide(REGULAR, "src_organic", if (referrer.isOk) "no_match" else "referrer_${referrer.status.name.lowercase()}")
     }
 
-    /** Saves the source (once), sets the GA4 user property and logs its event. */
-    private fun decide(source: String, event: String, matchedBy: String) {
+    /**
+     * Saves the source (once), sets the GA4 user property and logs its event. An ad source with a
+     * [deviceKey] is written to Firestore (one found in Firestore passes none: it's already there).
+     */
+    private fun decide(source: String, event: String, matchedBy: String, deviceKey: String? = null) {
         if (_source.value != null) return
         AttributionLog.d("🎯 DECIDED: $source ($event, matched_by=$matchedBy)")
-        prefs.edit().putString(KEY_SOURCE, source).putString(KEY_MATCHED_BY, matchedBy).apply()
+        prefs.edit()
+            .putString(KEY_SOURCE, source)
+            .putString(KEY_MATCHED_BY, matchedBy)
+            .putBoolean(KEY_PENDING, source in AD_SOURCES && deviceKey != null)
+            .apply()
         _source.value = source
         setUserProperty(source)
         FirebaseAnalytics.getInstance(appContext).logEvent(event, Bundle().apply { putString("matched_by", matchedBy) })
         onSourceDecided(source, fromPrefs = false)
+        syncToFirestore(deviceKey)
+    }
+
+    // Writes a pending ad source; the flag is cleared only once the server has it
+    private fun syncToFirestore(deviceKey: String?) {
+        if (deviceKey == null || !prefs.getBoolean(KEY_PENDING, false)) return
+        val source = prefs.getString(KEY_SOURCE, null)
+        if (source !in AD_SOURCES) return
+        FirestoreSourceStore.write(deviceKey, source!!) { ok ->
+            if (ok) prefs.edit().putBoolean(KEY_PENDING, false).apply()
+        }
     }
 
     /**
