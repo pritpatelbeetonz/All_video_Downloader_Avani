@@ -178,6 +178,11 @@ dependencies {
     implementation(libs.meta.adapter)
     implementation(libs.facebook.audience.network)
 
+    // Install source detection (attribution/): Play Install Referrer for the Google / Unity
+    // checks, Facebook deferred deep links (AppLinkData) for the Facebook check.
+    implementation("com.android.installreferrer:installreferrer:2.2")
+    implementation("com.facebook.android:facebook-applinks:17.0.2")
+
 
     implementation("androidx.navigation:navigation-fragment-ktx:2.8.5")
     implementation("androidx.navigation:navigation-ui-ktx:2.8.5")

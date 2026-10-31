@@ -73,6 +73,8 @@ class MessagesApplication : Controller(), ImageLoaderFactory {
         NotificationChannels.ensure(this)
         observeThemeMode()
         initFlutterEngine()
+        // Background, once per install: where the user came from (google / facebook / unity / regular).
+        app.messages.attribution.InstallSourceManager.init(this)
     }
 
     private fun initFlutterEngine() {
