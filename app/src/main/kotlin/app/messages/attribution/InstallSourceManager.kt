@@ -6,6 +6,7 @@ import android.os.Bundle
 import app.messages.BuildConfig
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,13 +14,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.coroutines.resume
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Decides once per install where the user came from: google / facebook / unity / regular.
- * Runs in the background from MessagesApplication.onCreate and never blocks startup.
+ *
+ * [init] (MessagesApplication.onCreate) only loads a source saved on an earlier launch. The check
+ * itself is started by SplashActivity through [checkFromSplash], once the splash's own Remote
+ * Config fetch has finished, so it uses those freshly fetched values; the splash waits for the
+ * result (capped) to pick the onboarding flow.
  *
  * Order (first match wins):
  *   0. isShowRegularToAll on in Remote Config -> regular, nothing saved (src_regular_to_all, every launch)
@@ -56,12 +61,13 @@ object InstallSourceManager {
     /** An ad source not yet written to Firestore. */
     private const val KEY_PENDING = "pending_sync"
 
-    private const val REMOTE_CONFIG_WAIT_MS = 5000L
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var appContext: Context
     private lateinit var prefs: SharedPreferences
     private var started = false
+    private val checkStarted = AtomicBoolean(false)
+    /** Completed when this launch knows its source: saved earlier, just decided, or isShowRegularToAll. */
+    private val decided = CompletableDeferred<Unit>()
 
     private val _source = MutableStateFlow<String?>(null)
     /** The saved source, or null until the first-launch check has finished. Ignores isShowRegularToAll. */
@@ -99,15 +105,39 @@ object InstallSourceManager {
             if (prefs.getBoolean(KEY_PENDING, false)) {
                 scope.launch { syncToFirestore(FirestoreSourceStore.deviceKey(appContext)) }
             }
+            decided.complete(Unit)
             return
         }
+        AttributionLog.d("⏳ No saved source. The splash runs the check once Remote Config is fetched")
+    }
 
+    /**
+     * Called by SplashActivity once its Remote Config fetch has finished (or given up), so the
+     * check uses those values. [onDone] runs on the main thread with [currentSource] as soon as the
+     * source is known, or after [maxWaitMs] ("regular" then; the check keeps going in the
+     * background and saves its result for later launches).
+     */
+    fun checkFromSplash(maxWaitMs: Long, onDone: (String) -> Unit) {
+        if (!decided.isCompleted && checkStarted.compareAndSet(false, true)) startCheck()
         scope.launch {
-            val config = loadConfig()
-            if (config.isShowRegularToAll) {
-                applyRegularToAll()
-                return@launch
+            val inTime = withTimeoutOrNull(maxWaitMs) { decided.await() } != null
+            if (!inTime) AttributionLog.w("⏱️ Not decided within ${maxWaitMs}ms. Splash continues as ${currentSource()}")
+            withContext(Dispatchers.Main) {
+                AttributionLog.d("🚦 Splash continues with source=${currentSource()}")
+                onDone(currentSource())
             }
+        }
+    }
+
+    private fun startCheck() {
+        val raw = cachedConfigJson()
+        AttributionLog.d("⚙️ ${AttributionConfig.REMOTE_CONFIG_KEY} = ${raw.ifBlank { "(empty, defaults)" }}")
+        val config = AttributionConfig.fromJson(raw)
+        if (config.isShowRegularToAll) {
+            applyRegularToAll()
+            return
+        }
+        scope.launch {
             AttributionLog.d("🚀 Install source check started")
             val finished = withTimeoutOrNull(config.referrerCheckTimeoutSec * 1000L) { runChecks(config) }
             if (finished == null) {
@@ -224,6 +254,7 @@ object InstallSourceManager {
         setUserProperty(source)
         logEvent(event, Bundle().apply { putString("matched_by", matchedBy) })
         onSourceDecided(source, fromPrefs = false)
+        decided.complete(Unit)
         syncToFirestore(deviceKey)
     }
 
@@ -247,6 +278,7 @@ object InstallSourceManager {
         setUserProperty(REGULAR)
         logEvent("src_regular_to_all")
         onSourceDecided(REGULAR, fromPrefs = _source.value != null)
+        decided.complete(Unit)
     }
 
     /**
@@ -273,26 +305,6 @@ object InstallSourceManager {
         }
         AttributionLog.d(if (eligible) "🆕 Fresh install: eligible for detection" else "👴 Updated from an older version: not eligible")
         prefs.edit().putBoolean(KEY_ELIGIBLE, eligible).apply()
-    }
-
-    // Waits up to 5 s for a fetch so the first launch doesn't decide on an empty config
-    private suspend fun loadConfig(): AttributionConfig {
-        val remoteConfig = FirebaseRemoteConfig.getInstance()
-        val fetched = withTimeoutOrNull(REMOTE_CONFIG_WAIT_MS) {
-            suspendCancellableCoroutine<Boolean> { cont ->
-                remoteConfig.fetchAndActivate().addOnCompleteListener { if (cont.isActive) cont.resume(it.isSuccessful) }
-            }
-        }
-        AttributionLog.d(
-            when (fetched) {
-                true -> "☁️ Remote Config fetched"
-                false -> "⚠️ Remote Config fetch failed; cached/default values used"
-                null -> "⏱️ Remote Config fetch timed out; cached/default values used"
-            }
-        )
-        val raw = cachedConfigJson()
-        AttributionLog.d("⚙️ ${AttributionConfig.REMOTE_CONFIG_KEY} = ${raw.ifBlank { "(empty, defaults)" }}")
-        return AttributionConfig.fromJson(raw)
     }
 
     /** The currently activated value; "" before any fetch has ever been activated. */

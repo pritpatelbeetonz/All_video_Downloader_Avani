@@ -21,15 +21,20 @@ Ported from the reference project (`VideoDownloader(snehil_launcher_for_Utm_flow
 Other changes:
 - `app/build.gradle.kts`: `com.android.installreferrer:installreferrer:2.2`, `com.facebook.android:facebook-applinks:17.0.2`,
   `com.google.firebase:firebase-firestore` (BOM version)
-- `MessagesApplication.onCreate()`: `InstallSourceManager.init(this)`
+- `MessagesApplication.onCreate()`: `InstallSourceManager.init(this)` — loads a saved source only
+- `SplashActivity`: runs the check after its Remote Config fetch, waits ≤ 6 s, routes by source
 
 ## Flow
 
 ```
 App start (MessagesApplication.onCreate)
- └─ InstallSourceManager.init()            background, never blocks startup
-     ├─ source saved before?  → reuse it, done                       💾
-     ├─ wait ≤5 s for Remote Config, read install_attribution_config ☁️ ⚙️
+ └─ InstallSourceManager.init()  → source saved before? → reuse it (later launches: instant) 💾
+
+SplashActivity (first launch)
+ ├─ no internet → regular flow right away (nothing saved, retried next launch)
+ ├─ Remote Config fetch (existing splash code, ≤ 30 s)
+ └─ InstallSourceManager.checkFromSplash(6 s), using the values just fetched
+     ├─ ⚙️ read install_attribution_config
      ├─ isShowRegularToAll = true? → regular, nothing saved (src_regular_to_all) 🟦
      ├─ installed before this version? → regular (src_existing_user) 👴
      ├─ Firestore has this phone? → earlier ad source (src_<s>_from_firestore) 🔥
@@ -44,7 +49,16 @@ App start (MessagesApplication.onCreate)
      saved in prefs "install_source" · GA4 user property install_source
      · event src_* with matched_by · onSourceDecided() (TODO)        🎯
      · ad sources written to Firestore (retried next launch if it fails) 🔥
+         ↓
+ 🚦 splash continues (decided, or 6 s passed → regular; the check still finishes and saves)
+     ├─ (TODO) splash interstitial: load / show depending on the source
+     └─ nextActivity()
+          paid (google / fb / unity) → Set as default → Language → (11 intro screens, TODO) → Launcher
+          regular                    → Onboarding → Set as default → Language → Launcher (unchanged)
 ```
+
+A Google user decided only after the 6 s cap gets the regular flow on that first launch; the
+saved `google` still counts for everything after.
 
 ## Where the result is saved
 

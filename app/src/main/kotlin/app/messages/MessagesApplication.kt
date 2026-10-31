@@ -73,7 +73,7 @@ class MessagesApplication : Controller(), ImageLoaderFactory {
         NotificationChannels.ensure(this)
         observeThemeMode()
         initFlutterEngine()
-        // Background, once per install: where the user came from (google / facebook / unity / regular).
+        // Loads the install source saved on an earlier launch; the first-launch check runs from SplashActivity.
         app.messages.attribution.InstallSourceManager.init(this)
     }
 

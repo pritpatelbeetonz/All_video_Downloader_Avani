@@ -33,6 +33,7 @@ import app.messages.analytics.AnalyticsHelper.logAds
 import app.messages.constant.Constants
 import app.messages.databinding.ActivitySplashBinding
 import app.messages.preferences.PreferenceHelper
+import app.messages.attribution.InstallSourceManager
 import app.messages.ui.base.BaseActivity
 import android.graphics.Color
 import android.view.WindowManager
@@ -49,6 +50,8 @@ class SplashActivity : BaseActivity() {
     lateinit var remoteConfig: FirebaseRemoteConfig
     private val atomicBoolean = AtomicBoolean(false)
     private val isNextActivityStarted = AtomicBoolean(false)
+    /** Longest the splash waits for the install source after Remote Config; past it the flow is regular. */
+    private val INSTALL_SOURCE_WAIT_MS = 6000L
     var appOpenCount = 0
 
     override fun shouldApplySystemBarInsets(): Boolean = false
@@ -139,14 +142,20 @@ class SplashActivity : BaseActivity() {
 
         fun proceedToAd() {
             if (isConfigDone.compareAndSet(false, true)) {
-                val elapsed = System.currentTimeMillis() - splashStartTime
-                val remainingDelay = (minSplashDurationMs - elapsed).coerceAtLeast(0L)
+                // Install source (google / regular ...) from the values just fetched: it picks the
+                // onboarding flow in nextActivity(). Saved on an earlier launch = answers at once.
+                InstallSourceManager.checkFromSplash(INSTALL_SOURCE_WAIT_MS) { source ->
+                    // TODO: whether to load / show the splash interstitial for this source (rule to come)
+                    Log.d("SplashAd", "Install source: $source")
+                    val elapsed = System.currentTimeMillis() - splashStartTime
+                    val remainingDelay = (minSplashDurationMs - elapsed).coerceAtLeast(0L)
 
-                Handler(Looper.getMainLooper()).postDelayed({
-                    if (!isFinishing && !isDestroyed && !isNextActivityStarted.get()) {
-                        showSplashAdAndNext()
-                    }
-                }, remainingDelay)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (!isFinishing && !isDestroyed && !isNextActivityStarted.get()) {
+                            showSplashAdAndNext()
+                        }
+                    }, remainingDelay)
+                }
             }
         }
 
@@ -226,7 +235,19 @@ class SplashActivity : BaseActivity() {
             prefs.setFirstAppLaunch(false)
         }
 
-        val intent = if (!prefs.isOnboardingDone()) {
+        val intent = if (!prefs.isOnboardingDone() && InstallSourceManager.isAdInstall()) {
+            // Paid install (google / facebook / unity): skips the regular onboarding.
+            // Set as default -> Language -> (11 intro screens, to be added) -> Launcher
+            Log.d("FLOW_CHECK", "Paid install (${InstallSourceManager.currentSource()}) -> paid onboarding flow")
+            prefs.setOnboardingDone(true)
+            when {
+                !isDefaultLauncherApp() -> Intent(this, SetDefaultLauncherActivity::class.java)
+                !prefs.isLanguageSelected() -> Intent(this, LanguageSelectionActivity::class.java)
+                else -> Intent(this, app.messages.ui.launcher.LauncherActivity::class.java).apply {
+                    putExtra("open_chats_first", true)
+                }
+            }
+        } else if (!prefs.isOnboardingDone()) {
             Intent(this, OnboardingActivity::class.java)
         } else {
             Intent(this, app.messages.ui.launcher.LauncherActivity::class.java)
