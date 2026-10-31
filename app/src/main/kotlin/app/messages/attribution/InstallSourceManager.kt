@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *   1. Source already saved                   -> reused, no checks
  *   2. Installed before this detection existed -> regular (src_existing_user)
  *   3. Firestore has this phone (reinstall)   -> its earlier ad source (src_<source>_from_firestore)
- *   4. isSimCheckAllow && no SIM card         -> regular  (src_no_sim; release builds only)
+ *   4. isSimCheckAllow && no SIM card         -> regular  (src_no_sim)
  *   5. Country in blockedCountriesForFacebookContent -> regular (src_blocked_country_<CC>)
  *   6. Google   (GoogleSourceDetector)        -> google   (src_from_google)
  *   7. Facebook (FacebookSourceDetector)      -> facebook (src_from_facebook; off by default)
@@ -178,17 +178,18 @@ object InstallSourceManager {
             AttributionLog.d("🔥 [Firestore] ⏭️ Off in Remote Config")
         }
 
-        // SIM card (release builds only, as in the reference; null = the check failed, the other checks decide)
-        if (config.isSimCheckAllow && !BuildConfig.DEBUG) {
+        // SIM card (all builds; null = the check failed, the other checks decide)
+        if (config.isSimCheckAllow) {
             val sim = DeviceChecks.hasSimCard(appContext)
             AttributionLog.d("📶 [SIM] hasSimCard=$sim")
             if (sim == false) {
+                AttributionLog.d("📶 [SIM] ❌ No SIM card -> regular, no further checks")
                 decide(REGULAR, "src_no_sim", "no_sim")
                 return
             }
             if (sim == null) logEvent("src_sim_check_failed")
         } else {
-            AttributionLog.d("📶 [SIM] ⏭️ ${if (config.isSimCheckAllow) "Debug build" else "Off in Remote Config"}")
+            AttributionLog.d("📶 [SIM] ⏭️ Off in Remote Config")
         }
 
         // Blocked country

@@ -7,6 +7,10 @@ import com.android.installreferrer.api.InstallReferrerStateListener
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import java.net.URLDecoder
+import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.coroutines.resume
 
 /**
@@ -47,14 +51,26 @@ internal data class PlayReferrer(
             val result = withTimeoutOrNull(timeoutSec * 1000L) { readNow(context) }
                 ?: PlayReferrer(Status.UNKNOWN).also { AttributionLog.w("⏱️ Play referrer timed out") }
             when (result.status) {
-                Status.OK -> AttributionLog.d(
-                    "✅ Play referrer: \"${result.raw}\" | click=${result.clickTs} install=${result.installTs} installer=${result.installer}"
-                )
+                Status.OK -> {
+                    AttributionLog.d("✅ Play referrer: \"${result.raw}\"")
+                    // The Play Store link this referrer came from (rebuilt: Play only hands over the referrer part)
+                    AttributionLog.d(
+                        "🔗 Install link: https://play.google.com/store/apps/details?id=${context.packageName}" +
+                            "&referrer=${URLEncoder.encode(result.raw.orEmpty(), "UTF-8")}"
+                    )
+                    AttributionLog.d(
+                        "🕒 click=${formatTs(result.clickTs)} install=${formatTs(result.installTs)} installer=${result.installer}"
+                    )
+                }
                 Status.NOT_SUPPORTED -> AttributionLog.d("🚫 Play referrer not supported (not a Play install). installer=${result.installer}")
                 Status.UNKNOWN -> AttributionLog.w("❓ Play referrer unavailable")
             }
             return result
         }
+
+        private fun formatTs(seconds: Long): String =
+            if (seconds <= 0) "0 (none)"
+            else SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(seconds * 1000))
 
         private suspend fun readNow(context: Context): PlayReferrer = suspendCancellableCoroutine { cont ->
             val client = InstallReferrerClient.newBuilder(context).build()

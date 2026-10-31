@@ -39,7 +39,7 @@ internal data class AttributionConfig(
     val isShowRegularToAll: Boolean = true,
 
     // ---- Device checks (DeviceChecks), before every source check, as in the reference ----
-    /** On: a phone without a SIM card is regular (release builds only). Default off. */
+    /** On: a phone without a SIM card is regular, in every build. Default off. */
     val isSimCheckAllow: Boolean = false,
     /**
      * Upper-case country codes whose users are regular, whatever the referrer says (the name is the
