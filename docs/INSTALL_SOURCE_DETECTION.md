@@ -15,7 +15,7 @@ Ported from the reference project (`VideoDownloader(snehil_launcher_for_Utm_flow
 | `UnitySourceDetector.kt` | Unity Ads: `unity` marker in the Play referrer |
 | `FirestoreSourceStore.kt` | Reinstalls: reads / writes `install_referrers/<sha256(ANDROID_ID)>` so an ad source survives uninstall |
 | `PlayReferrer.kt` | Reads the Play Install Referrer once (shared by all three) and splits it into parameters |
-| `AttributionConfig.kt` | Settings from Remote Config key `install_attribution_config` (defaults built in) |
+| `AttributionConfig.kt` | Settings read from the ads JSON `video_downlader_launcher_v2` (`KEY_ADS_CONFIG`; defaults built in) |
 | `AttributionLog.kt` | Log tag `InstallSource` (debug builds only) |
 
 Other changes:
@@ -34,7 +34,7 @@ SplashActivity (first launch)
  ├─ no internet → regular flow right away (nothing saved, retried next launch)
  ├─ Remote Config fetch (existing splash code, ≤ 30 s)
  └─ InstallSourceManager.checkFromSplash(6 s), using the values just fetched
-     ├─ ⚙️ read install_attribution_config
+     ├─ ⚙️ read the settings from the ads JSON (video_downlader_launcher_v2)
      ├─ isShowRegularToAll = true? → regular, nothing saved (src_regular_to_all) 🟦
      ├─ installed before this version? → regular (src_existing_user) 👴
      ├─ Firestore has this phone? → earlier ad source (src_<s>_from_firestore) 🔥
@@ -89,11 +89,13 @@ saved `google` still counts for everything after.
 3. Data Safety form: the app now stores a hashed device identifier (ANDROID_ID SHA-256) with the
    install source → declare "Device or other IDs", purpose Analytics, not shared.
 
-Turn it off without an update: `"isFirestoreEnabled": false` in `install_attribution_config`.
+Turn it off without an update: `"isFirestoreEnabled": false` in the ads JSON.
 
 ## Remote Config
 
-New key **`install_attribution_config`** (JSON). Every field is optional; empty key = defaults.
+The settings live **inside the ads JSON** (`KEY_ADS_CONFIG` = `video_downlader_launcher_v2`), the
+same value the splash fetches, next to the ad settings. There is no separate key. Every field is
+optional; missing = defaults.
 
 **`isShowRegularToAll` defaults to `true` (detection OFF), as in the reference app.** Set it to
 `false` in Remote Config to turn detection on. Switching it back to `true` makes everyone regular
@@ -185,7 +187,7 @@ Example (Google ad install):
 ```
 🆕 Fresh install: eligible for detection
 ☁️ Remote Config fetched
-⚙️ install_attribution_config = (empty, defaults)
+⚙️ Settings from "video_downlader_launcher_v2" = {...}
 🚀 Install source check started
 📥 Reading Play Install Referrer (timeout 10s)...
 ✅ Play referrer: "gclid=test123&utm_source=google&utm_medium=cpc" | click=... install=... installer=com.android.vending

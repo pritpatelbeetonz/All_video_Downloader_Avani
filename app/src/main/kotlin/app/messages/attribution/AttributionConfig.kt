@@ -4,7 +4,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Install-source settings, read from the Remote Config key [AttributionConfig.REMOTE_CONFIG_KEY]
+ * Install-source settings, read from the ads JSON in Remote Config (AdsConfigManager.KEY_ADS_CONFIG,
+ * the same value the splash fetches); these fields sit next to the ad settings.
  * (one JSON value). Every key is optional: anything missing, or the whole value being empty or
  * invalid, falls back to the defaults below, so detection works before the key is ever created.
  *
@@ -81,13 +82,11 @@ internal data class AttributionConfig(
 ) {
     companion object {
 
-        const val REMOTE_CONFIG_KEY = "install_attribution_config"
-
         fun fromJson(raw: String?): AttributionConfig {
             val d = AttributionConfig()
             if (raw.isNullOrBlank()) return d
             val json = runCatching { JSONObject(raw) }.getOrElse {
-                AttributionLog.w("⚠️ $REMOTE_CONFIG_KEY is not valid JSON; defaults used")
+                AttributionLog.w("⚠️ Ads config is not valid JSON; install source defaults used")
                 return d
             }
             return AttributionConfig(

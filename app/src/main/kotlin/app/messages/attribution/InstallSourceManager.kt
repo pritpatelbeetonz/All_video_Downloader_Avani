@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
 import app.messages.BuildConfig
+import app.messages.config.AdsConfigManager
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import kotlinx.coroutines.CompletableDeferred
@@ -130,9 +131,11 @@ object InstallSourceManager {
     }
 
     private fun startCheck() {
-        val raw = cachedConfigJson()
-        AttributionLog.d("⚙️ ${AttributionConfig.REMOTE_CONFIG_KEY} = ${raw.ifBlank { "(empty, defaults)" }}")
+        logRemoteConfigState()
+        val (key, raw) = configSource()
+        AttributionLog.d("⚙️ Settings from \"$key\" = ${raw.ifBlank { "(empty, defaults)" }}")
         val config = AttributionConfig.fromJson(raw)
+        AttributionLog.d("⚙️ Parsed: $config")
         if (config.isShowRegularToAll) {
             applyRegularToAll()
             return
@@ -307,9 +310,35 @@ object InstallSourceManager {
         prefs.edit().putBoolean(KEY_ELIGIBLE, eligible).apply()
     }
 
-    /** The currently activated value; "" before any fetch has ever been activated. */
-    private fun cachedConfigJson(): String =
-        FirebaseRemoteConfig.getInstance().getString(AttributionConfig.REMOTE_CONFIG_KEY)
+    // Why the key may be empty: fetch status, where the value came from, and whether the project has it at all
+    private fun logRemoteConfigState() {
+        if (!BuildConfig.DEBUG) return
+        val rc = FirebaseRemoteConfig.getInstance()
+        val status = when (rc.info.lastFetchStatus) {
+            FirebaseRemoteConfig.LAST_FETCH_STATUS_SUCCESS -> "SUCCESS"
+            FirebaseRemoteConfig.LAST_FETCH_STATUS_FAILURE -> "FAILURE"
+            FirebaseRemoteConfig.LAST_FETCH_STATUS_THROTTLED -> "THROTTLED"
+            else -> "NO_FETCH_YET"
+        }
+        fun source(key: String) = when (rc.getValue(key).source) {
+            FirebaseRemoteConfig.VALUE_SOURCE_REMOTE -> "REMOTE"
+            FirebaseRemoteConfig.VALUE_SOURCE_DEFAULT -> "IN-APP DEFAULT"
+            else -> "NOT FOUND"
+        }
+        val keys = rc.all.keys.sorted()
+        AttributionLog.d("☁️ Remote Config: lastFetch=$status, project=${com.google.firebase.FirebaseApp.getInstance().options.projectId}")
+        AttributionLog.d("☁️ ${AdsConfigManager.KEY_ADS_CONFIG}=${source(AdsConfigManager.KEY_ADS_CONFIG)}")
+        AttributionLog.d("☁️ Keys in Remote Config (${keys.size}): $keys")
+    }
+
+    /**
+     * The settings come only from the ads JSON ([AdsConfigManager.KEY_ADS_CONFIG]), the same value
+     * the splash fetches and AdsConfigManager uses. Values activated so far.
+     */
+    private fun configSource(): Pair<String, String> =
+        AdsConfigManager.KEY_ADS_CONFIG to FirebaseRemoteConfig.getInstance().getString(AdsConfigManager.KEY_ADS_CONFIG)
+
+    private fun cachedConfigJson(): String = configSource().second
 
     private fun logEvent(event: String, params: Bundle? = null) {
         AttributionLog.d("📊 Event: $event ${params ?: ""}")
