@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Flow A (paid onboarding) accent: buttons, selected ring, radio, chips -->
+    <color name="paidOnbAccent">#EE1D23</color>
+    <color name="paidOnbAvatarFemaleBg">#FCE4EC</color>
+    <color name="paidOnbAvatarMaleBg">#E3F0FC</color>
+    <color name="paidOnbSkin">#F2C79B</color>
+    <color name="paidOnbHair">#6B3E26</color>
+    <color name="paidOnbMaleShirt">#2F6FE4</color>
+</resources>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- hair -->
+    <path
+        android:fillColor="@color/paidOnbHair"
+        android:pathData="M50,18C38,18 32,26 32,36L32,42L68,42L68,36C68,26 62,18 50,18Z" />
+    <!-- face -->
+    <path
+        android:fillColor="@color/paidOnbSkin"
+        android:pathData="M50,26C41,26 35,33 35,42C35,51 41,58 50,58C59,58 65,51 65,42C65,33 59,26 50,26Z" />
+    <!-- neck -->
+    <path
+        android:fillColor="@color/paidOnbSkin"
+        android:pathData="M44,56L56,56L56,68L44,68Z" />
+    <!-- shirt -->
+    <path
+        android:fillColor="@color/paidOnbMaleShirt"
+        android:pathData="M20,92C20,76 33,66 50,66C67,66 80,76 80,92Z" />
+</vector>

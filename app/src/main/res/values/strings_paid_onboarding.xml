@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Flow A (paid onboarding). English only for now. -->
+    <string name="paid_onb_next">Next</string>
+    <string name="paid_onb_start_app">Start app</string>
+
+    <!-- 1. Gender -->
+    <string name="paid_onb_gender_title">Personalized information</string>
+    <string name="paid_onb_gender_subtitle">Help us personalize your video download experience with content suited for you</string>
+    <string name="paid_onb_gender_select">Select gender</string>
+    <string name="paid_onb_gender_female">Female</string>
+    <string name="paid_onb_gender_male">Male</string>
+
+    <!-- 2. Age -->
+    <string name="paid_onb_age_title">Select age range</string>
+    <string name="paid_onb_age_subtitle">Pick an age range to discover content that suits you best</string>
+    <string name="paid_onb_age_18_24">18 – 24</string>
+    <string name="paid_onb_age_25_31">25 – 31</string>
+    <string name="paid_onb_age_32_39">32 – 39</string>
+    <string name="paid_onb_age_40_plus">40 +</string>
+    <string name="paid_onb_age_under_18">Under 18</string>
+
+    <!-- 3. Category -->
+    <string name="paid_onb_category_title">Select category</string>
+    <string name="paid_onb_category_subtitle">Select a source to discover people or content that suits you best</string>
+    <string name="paid_onb_category_facebook">FB Download</string>
+    <string name="paid_onb_category_twitter">Twitter Download</string>
+    <string name="paid_onb_category_instagram">Insta Download</string>
+    <string name="paid_onb_category_sharechat">ShareChat Download</string>
+    <string name="paid_onb_category_moj">Moj Download</string>
+
+    <!-- 4. Watch category -->
+    <string name="paid_onb_watch_title">Select watch category</string>
+    <string name="paid_onb_watch_subtitle">Select a watch category to discover people or content that suits you best</string>
+    <string name="paid_onb_watch_hotstar">Disney+ Hotstar</string>
+    <string name="paid_onb_watch_prime">Amazon Prime</string>
+    <string name="paid_onb_watch_sonyliv">Sony Liv</string>
+    <string name="paid_onb_watch_jiocinema">JioCinema</string>
+
+    <!-- 5. Interests -->
+    <string name="paid_onb_interests_title">What is your interest?</string>
+    <string name="paid_onb_interests_subtitle">Share your hobbies and interests to discover relevant content for you</string>
+    <string name="paid_onb_interest_action_movies">Action Movies</string>
+    <string name="paid_onb_interest_comedy_movies">Comedy Movies</string>
+    <string name="paid_onb_interest_romance">Romance</string>
+    <string name="paid_onb_interest_romantic_songs">Romantic Songs</string>
+    <string name="paid_onb_interest_football">Football</string>
+    <string name="paid_onb_interest_basketball">Basketball</string>
+    <string name="paid_onb_interest_cricket">Cricket</string>
+    <string name="paid_onb_interest_travel">Travel</string>
+    <string name="paid_onb_interest_food">Food</string>
+
+    <!-- 6-11. Features -->
+    <string name="paid_onb_feature_formats_title">Multiple format support</string>
+    <string name="paid_onb_feature_formats_desc">Save public videos, photos and audio in the format you need, right inside this app.</string>
+    <string name="paid_onb_feature_formats_caption">Save your favorite content</string>
+
+    <string name="paid_onb_feature_copy_title">Easy copy &amp; paste</string>
+    <string name="paid_onb_feature_copy_desc">Copy a video link from any app and paste it here to start the download.</string>
+    <string name="paid_onb_feature_copy_caption">Simply copy the video link and paste it to download</string>
+
+    <string name="paid_onb_feature_player_title">Built-in video player</string>
+    <string name="paid_onb_feature_player_desc">Play your downloads inside the app, no other player needed.</string>
+    <string name="paid_onb_feature_player_caption">Watch your videos offline, anytime</string>
+
+    <string name="paid_onb_feature_watermark_title">No watermark</string>
+    <string name="paid_onb_feature_watermark_desc">Your downloads are saved clean, without an added watermark.</string>
+    <string name="paid_onb_feature_watermark_caption">Watch native-quality videos, no watermarks</string>
+
+    <string name="paid_onb_feature_hd_title">HD video</string>
+    <string name="paid_onb_feature_hd_desc">Save videos in the best quality available, up to Full HD.</string>
+    <string name="paid_onb_feature_hd_caption">Crystal-clear playback</string>
+
+    <string name="paid_onb_feature_speed_title">Fast download speed</string>
+    <string name="paid_onb_feature_speed_desc">Downloads keep running in the background at full speed.</string>
+    <string name="paid_onb_feature_speed_caption">Experience lightning-fast video downloads</string>
+</resources>

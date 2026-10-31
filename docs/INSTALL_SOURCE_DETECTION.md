@@ -38,7 +38,7 @@ SplashActivity (first launch)
      ├─ isShowRegularToAll = true? → regular, nothing saved (src_regular_to_all) 🟦
      ├─ installed before this version? → regular (src_existing_user) 👴
      ├─ Firestore has this phone? → earlier ad source (src_<s>_from_firestore) 🔥
-     ├─ isSimCheckAllow + no SIM (release only) → regular (src_no_sim) 📶
+     ├─ isSimCheckAllow + no SIM → regular (src_no_sim) 📶
      ├─ country in blockedCountriesForFacebookContent → regular (src_blocked_country_XX) 🌍
      ├─ read Play referrer (≤10 s)                                   📥
      ├─ Google check   → google   (src_from_google)                  🔵
@@ -53,7 +53,7 @@ SplashActivity (first launch)
  🚦 splash continues (decided, or 6 s passed → regular; the check still finishes and saves)
      ├─ (TODO) splash interstitial: load / show depending on the source
      └─ nextActivity()
-          paid (google / fb / unity) → Set as default → Language → (11 intro screens, TODO) → Launcher
+          paid (google / fb / unity) → Set as default → Language → Flow A (ui/paidonboarding, 11 pages) → Launcher
           regular                    → Onboarding → Set as default → Language → Launcher (unchanged)
 ```
 
@@ -132,7 +132,7 @@ default `false`), so their keys are left out:
 | Key | Default | Meaning |
 |---|---|---|
 | `isShowRegularToAll` | `true` | On = everyone regular, no checks. Set `false` to detect |
-| `isSimCheckAllow` | `false` | On = no SIM card → regular (release builds only) |
+| `isSimCheckAllow` | `false` | On = no SIM card → regular (debug and release) |
 | `blockedCountriesForFacebookContent` | `[]` | Users in these countries → regular. **Applies to every source, Google too**, despite the name. `["IN","US"]` or `["IN,US"]` |
 | `isCheckGoogleSource` | `true` | Run the Google check |
 | `isCheckGoogleUtmList` | `true` | Use `googleAdUTMSourceCheckStringList` |

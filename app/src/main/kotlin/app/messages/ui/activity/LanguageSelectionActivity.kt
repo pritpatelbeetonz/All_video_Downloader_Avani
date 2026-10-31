@@ -187,6 +187,13 @@ class LanguageSelectionActivity : BaseActivity() {
                 // If user opened from Settings, just return back
                 finish()
             } else {
+                if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
+                    // Paid install: Flow A (11 pages) before the Launcher
+                    android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] Paid install -> PaidOnboardingActivity (Flow A)")
+                    startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
+                    finish()
+                    return@showLanguageInterstitial
+                }
                 try {
                     android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] User finished Language Selection -> Launching LauncherActivity with open_chats_first=true (Targeting Video Downloader)")
                     startActivity(

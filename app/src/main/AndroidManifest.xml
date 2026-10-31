@@ -152,6 +152,12 @@
             android:name=".ui.activity.LanguageSelectionActivity"
             android:exported="false" />
 
+        <!-- Flow A: onboarding for paid installs (google / facebook / unity), after Language -->
+        <activity
+            android:name=".ui.paidonboarding.PaidOnboardingActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <activity
             android:name=".ui.activity.SettingsActivity"
             android:exported="false"

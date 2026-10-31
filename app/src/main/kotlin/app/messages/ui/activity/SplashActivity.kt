@@ -34,6 +34,8 @@ import app.messages.constant.Constants
 import app.messages.databinding.ActivitySplashBinding
 import app.messages.preferences.PreferenceHelper
 import app.messages.attribution.InstallSourceManager
+import app.messages.ui.paidonboarding.PaidOnboardingActivity
+import app.messages.ui.paidonboarding.PaidOnboardingPrefs
 import app.messages.ui.base.BaseActivity
 import android.graphics.Color
 import android.view.WindowManager
@@ -237,18 +239,20 @@ class SplashActivity : BaseActivity() {
 
         val intent = if (!prefs.isOnboardingDone() && InstallSourceManager.isAdInstall()) {
             // Paid install (google / facebook / unity): skips the regular onboarding.
-            // Set as default -> Language -> (11 intro screens, to be added) -> Launcher
+            // Set as default -> Language -> Flow A (11 pages, PaidOnboardingActivity) -> Launcher
             Log.d("FLOW_CHECK", "Paid install (${InstallSourceManager.currentSource()}) -> paid onboarding flow")
             prefs.setOnboardingDone(true)
             when {
                 !isDefaultLauncherApp() -> Intent(this, SetDefaultLauncherActivity::class.java)
                 !prefs.isLanguageSelected() -> Intent(this, LanguageSelectionActivity::class.java)
-                else -> Intent(this, app.messages.ui.launcher.LauncherActivity::class.java).apply {
-                    putExtra("open_chats_first", true)
-                }
+                else -> PaidOnboardingActivity.intent(this)
             }
         } else if (!prefs.isOnboardingDone()) {
             Intent(this, OnboardingActivity::class.java)
+        } else if (prefs.isLanguageSelected() && PaidOnboardingPrefs.shouldShow(this)) {
+            // Paid install that closed the app during Flow A: resume at the saved page
+            Log.d("FLOW_CHECK", "Paid install, Flow A not finished -> PaidOnboardingActivity")
+            PaidOnboardingActivity.intent(this)
         } else {
             Intent(this, app.messages.ui.launcher.LauncherActivity::class.java)
         }

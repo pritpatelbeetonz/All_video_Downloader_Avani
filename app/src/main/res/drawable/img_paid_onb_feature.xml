@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder illustration for the feature pages (6-11); replace with real artwork per page -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    <path
+        android:fillColor="#FDE7E8"
+        android:pathData="M40,20L200,20A20,20 0,0 1,220 40L220,200A20,20 0,0 1,200 220L40,220A20,20 0,0 1,20 200L20,40A20,20 0,0 1,40 20Z" />
+    <path
+        android:fillColor="@color/paidOnbAccent"
+        android:pathData="M120,70A50,50 0,1 1,119.9 70Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M108,98L142,120L108,142Z" />
+</vector>

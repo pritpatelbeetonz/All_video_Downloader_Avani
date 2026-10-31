@@ -166,6 +166,8 @@ class SetDefaultLauncherActivity : BaseActivity() {
         val prefs = app.messages.preferences.PreferenceHelper.getInstance(this)
         val intent = if (!prefs.isLanguageSelected()) {
             Intent(this, LanguageSelectionActivity::class.java)
+        } else if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
+            app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this)
         } else {
             Intent(this, LauncherActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
