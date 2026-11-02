@@ -40,6 +40,7 @@ class PaidOnboardingActivity : BaseActivity() {
         // Flow A is only shown to paid installs mid-onboarding, so the watcher belongs here too
         // (covers the Splash -> Language -> Flow A relaunch path, which skips the launcher).
         app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
+        learning.screenguard.ScreenGuardDemo.register(this)   // timed-loop mechanism demo (log-only)
         binding = ActivityPaidOnboardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 

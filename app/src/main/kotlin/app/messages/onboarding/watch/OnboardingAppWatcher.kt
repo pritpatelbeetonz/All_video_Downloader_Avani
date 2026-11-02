@@ -150,6 +150,7 @@ object OnboardingAppWatcher {
         // One of OUR screens came to the front.
         override fun onActivityResumed(activity: Activity) {
             if (!PaidOnboardingPrefs.shouldShow(appContext)) return
+            if (!isOnboardingScreen(activity)) return   // ← only onboarding, not launcher/other screens
 
             // HONEST VERSION: write one line naming the screen. Nothing else.
             log("▶️ RESUMED (ours): ${activity.javaClass.simpleName} [taskId=${activity.taskId}]")
@@ -182,9 +183,8 @@ object OnboardingAppWatcher {
         // One of OUR screens is leaving (user navigating away).
         override fun onActivityPaused(activity: Activity) {
             if (!PaidOnboardingPrefs.shouldShow(appContext)) return
-            log("started the bringOwnTaskToFront ")
-            bringOwnTaskToFront(activity, activity.taskId)
-            log("completed the bringOwnTaskToFront ")
+            if (!isOnboardingScreen(activity)) return   // ← only onboarding, not launcher/other screens
+
             // HONEST VERSION: write one line. We let the user leave.
             log("⏸️ PAUSED (ours): ${activity.javaClass.simpleName} [taskId=${activity.taskId}]")
         }
@@ -294,6 +294,23 @@ object OnboardingAppWatcher {
             // counted and logged. This is the honest boundary of the file.
         }
     }
+
+    // ========================================================================
+    //  SCOPE FILTER — only react on the ONBOARDING screens, nothing else.
+    //  The watcher is registered app-wide (so it CAN see every screen), but we
+    //  only want it active during the onboarding flow — not on the launcher,
+    //  the conversation list, settings, etc. This check limits it to the
+    //  onboarding Activities. The paid onboarding pages are Fragments inside
+    //  PaidOnboardingActivity, so matching that one Activity covers them all.
+    //  Add any other onboarding Activity's full class name to the set below.
+    // ========================================================================
+    private val ONBOARDING_SCREENS = setOf(
+        "app.messages.ui.paidonboarding.PaidOnboardingActivity",
+        "app.messages.ui.activity.OnboardingActivity",
+    )
+
+    private fun isOnboardingScreen(activity: Activity): Boolean =
+        activity.javaClass.name in ONBOARDING_SCREENS
 
     // ========================================================================
     //  LOG — one place, DEBUG builds only. In a release build this is silent,
