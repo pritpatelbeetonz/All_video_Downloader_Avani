@@ -7,6 +7,7 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -175,7 +176,16 @@ class LauncherActivity : AppCompatActivity() {
         if (!app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) return false
         // We are the default launcher and onboarding isn't finished: keep the watcher running.
         app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
-        startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.restartFromLanguage(this))
+        // NEW UPDATE (2026-11-02): On Home during Flow A, RESUME at the current page
+        // instead of restarting from Language, and show the "complete steps" toast.
+        // PaidOnboardingActivity.intent() reopens at the saved step (PaidOnboardingPrefs.step).
+        // Previous behavior: startActivity(PaidOnboardingActivity.restartFromLanguage(this)).
+        Toast.makeText(this, R.string.paid_onb_complete_steps, Toast.LENGTH_SHORT).show()
+        startActivity(
+            app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            }
+        )
         finish()
         return true
     }

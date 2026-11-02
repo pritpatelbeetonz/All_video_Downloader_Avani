@@ -138,6 +138,9 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
                 return
             }
 
+
+
+
             // ---- THE CRITICAL SPOT ----
             // The user is currently AWAY from our screen.
             // >>> An ABUSIVE app would call moveTaskToFront(taskId) HERE to drag
