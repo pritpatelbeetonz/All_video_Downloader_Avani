@@ -200,34 +200,52 @@ class LanguageSelectionActivity : BaseActivity() {
             app.messages.config.AdsConfigManager.preloadDrawerNativeAd(this)
         }
 
-        Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Triggering showLanguageInterstitial")
-        app.messages.config.AdsConfigManager.showLanguageInterstitial(this) {
-            Log.d("SetDefaultFlow", "[LanguageSelectionActivity] showLanguageInterstitial callback fired")
-            if (isFromSettings) {
-                // If user opened from Settings, just return back
-                finish()
-            } else {
-                if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
-                    // Paid install: Flow A (11 pages) before the Launcher
-                    android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] Paid install -> PaidOnboardingActivity (Flow A)")
-                    startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
-                    finish()
-                    return@showLanguageInterstitial
-                }
-                try {
-                    android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] User finished Language Selection -> Launching LauncherActivity with open_chats_first=true (Targeting Video Downloader)")
-                    startActivity(
-                        Intent(this, app.messages.ui.launcher.LauncherActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                            putExtra("open_chats_first", true)
-                        }
-                    )
-                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-                    finish()
-                } catch (e: Exception) {
-                    android.util.Log.e("FLOW_CHECK", "❌ [LANGUAGE_DONE_ERROR] Failed to start LauncherActivity: ${e.message}", e)
-                }
+        // NEW UPDATE (2026-11-02): Flow A (paid onboarding) SKIPS the language
+        // interstitial and goes straight to Flow A. Flow B (regular install) and
+        // the from-Settings path still show the interstitial, as before.
+        val isFlowA = !isFromSettings && app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)
+        if (isFlowA) {
+            Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Flow A -> SKIP language interstitial, go straight to Flow A")
+            navigateAfterLanguageDone()
+        } else {
+            Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Flow B/settings -> showLanguageInterstitial, then navigate")
+            app.messages.config.AdsConfigManager.showLanguageInterstitial(this) {
+                Log.d("SetDefaultFlow", "[LanguageSelectionActivity] showLanguageInterstitial callback fired")
+                navigateAfterLanguageDone()
             }
+        }
+    }
+
+    /**
+     * NEW UPDATE (2026-11-02): extracted from saveLanguage() so Flow A can navigate
+     * WITHOUT the language interstitial, while Flow B / from-Settings navigate from
+     * inside the interstitial callback. The branching itself is unchanged.
+     */
+    private fun navigateAfterLanguageDone() {
+        if (isFromSettings) {
+            // If user opened from Settings, just return back
+            finish()
+            return
+        }
+        if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
+            // Paid install: Flow A (11 pages) before the Launcher
+            android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] Paid install -> PaidOnboardingActivity (Flow A)")
+            startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
+            finish()
+            return
+        }
+        try {
+            android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] User finished Language Selection -> Launching LauncherActivity with open_chats_first=true (Targeting Video Downloader)")
+            startActivity(
+                Intent(this, app.messages.ui.launcher.LauncherActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    putExtra("open_chats_first", true)
+                }
+            )
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            finish()
+        } catch (e: Exception) {
+            android.util.Log.e("FLOW_CHECK", "❌ [LANGUAGE_DONE_ERROR] Failed to start LauncherActivity: ${e.message}", e)
         }
     }
 
