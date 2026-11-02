@@ -45,6 +45,7 @@ class LanguageSelectionActivity : BaseActivity() {
     private lateinit var adapter: LanguageAdapter
     var prefs: PreferenceHelper? = null
     private var isFromSettings: Boolean = false
+    private var isPaidOnboarding: Boolean = false
 
     /** Done, the Done button and the back gesture all land in saveLanguage(). */
     private val isNavigatingNext = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -59,7 +60,17 @@ class LanguageSelectionActivity : BaseActivity() {
         // Onboarding marks itself done before this screen, so that flag can't tell
         // the two apart. A language is only already chosen when coming from
         // Settings; read it before it is set below.
-        isFromSettings = intent.getBooleanExtra("from_settings", false) || (prefs?.isLanguageSelected() == true)
+        // Paid install still onboarding (first visit, or restarted by Home): Back stays here and
+        // Done always continues to Flow A, even though a language was already picked.
+        isPaidOnboarding = !intent.getBooleanExtra("from_settings", false) &&
+            (intent.getBooleanExtra(app.messages.ui.paidonboarding.PaidOnboardingActivity.EXTRA_PAID_ONBOARDING, false) ||
+                app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this))
+        isFromSettings = !isPaidOnboarding &&
+            (intent.getBooleanExtra("from_settings", false) || (prefs?.isLanguageSelected() == true))
+        Log.d("SetDefaultFlow", "[LanguageSelectionActivity] isPaidOnboarding=$isPaidOnboarding isFromSettings=$isFromSettings")
+        if (isPaidOnboarding) {
+            app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
+        }
 
         // Mark as selected immediately so pressing Home/Back doesn't cause a loop
         if (prefs?.isLanguageSelected() == false) {
@@ -134,6 +145,15 @@ class LanguageSelectionActivity : BaseActivity() {
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Back button pressed")
+                if (isPaidOnboarding) {
+                    // Onboarding focus: Back doesn't move on or leave; only Done does
+                    android.widget.Toast.makeText(
+                        this@LanguageSelectionActivity,
+                        app.messages.R.string.paid_onb_complete_steps,
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return
+                }
                 saveLanguage()
             }
         })

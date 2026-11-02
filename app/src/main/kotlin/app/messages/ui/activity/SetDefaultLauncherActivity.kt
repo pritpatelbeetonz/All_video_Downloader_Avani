@@ -163,11 +163,16 @@ class SetDefaultLauncherActivity : BaseActivity() {
         android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] goToNext() -> Preloading language native ad and transitioning to LauncherActivity")
         app.messages.config.AdsConfigManager.preloadLanguageNativeAd(this)
 
+        // Default launcher granted: start the onboarding watcher for paid installs still in Flow A.
+        if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
+            app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
+        }
+
         val prefs = app.messages.preferences.PreferenceHelper.getInstance(this)
         val intent = if (!prefs.isLanguageSelected()) {
             Intent(this, LanguageSelectionActivity::class.java)
         } else if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
-            app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this)
+            app.messages.ui.paidonboarding.PaidOnboardingActivity.restartFromLanguage(this)
         } else {
             Intent(this, LauncherActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

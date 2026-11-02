@@ -245,14 +245,15 @@ class SplashActivity : BaseActivity() {
             when {
                 !isDefaultLauncherApp() -> Intent(this, SetDefaultLauncherActivity::class.java)
                 !prefs.isLanguageSelected() -> Intent(this, LanguageSelectionActivity::class.java)
-                else -> PaidOnboardingActivity.intent(this)
+                else -> PaidOnboardingActivity.restartFromLanguage(this)
             }
         } else if (!prefs.isOnboardingDone()) {
             Intent(this, OnboardingActivity::class.java)
         } else if (prefs.isLanguageSelected() && PaidOnboardingPrefs.shouldShow(this)) {
-            // Paid install that closed the app during Flow A: resume at the saved page
-            Log.d("FLOW_CHECK", "Paid install, Flow A not finished -> PaidOnboardingActivity")
-            PaidOnboardingActivity.intent(this)
+            // Paid install that left during onboarding: restart from Language, Flow A from page 1
+            // (same as pressing Home mid-onboarding, see LauncherActivity)
+            Log.d("FLOW_CHECK", "Paid install, Flow A not finished -> restart from Language")
+            PaidOnboardingActivity.restartFromLanguage(this)
         } else {
             Intent(this, app.messages.ui.launcher.LauncherActivity::class.java)
         }

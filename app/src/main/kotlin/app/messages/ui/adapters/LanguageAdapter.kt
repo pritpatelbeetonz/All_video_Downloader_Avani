@@ -49,7 +49,12 @@ class LanguageAdapter : RecyclerView.Adapter<LanguageAdapter.ViewHolder>() {
             } else {
                 binding.rootLanguageItem.setBackgroundResource(app.messages.R.drawable.bg_language_item_default)
             }
+            binding.ivSelected.visibility = if (item.isSelected) android.view.View.VISIBLE else android.view.View.GONE
             binding.tvCountry.setTextColor(androidx.core.content.ContextCompat.getColor(binding.root.context, app.messages.R.color.text_primary))
+            binding.tvCountry.typeface = androidx.core.content.res.ResourcesCompat.getFont(
+                binding.root.context,
+                if (item.isSelected) app.messages.R.font.geist_semibold else app.messages.R.font.geist_medium
+            )
 
             binding.rootLanguageItem.setOnClickListener {
                 for (index in items.indices) {

@@ -23,6 +23,9 @@
         android:maxSdkVersion="32" />
 
 
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
+
+
     <queries>
         <!--
             The app drawer, home grid and dock are built from every app that has a

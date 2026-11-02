@@ -27,6 +27,11 @@ object PaidOnboardingPrefs {
         prefs(context).edit().putBoolean(KEY_DONE, true).remove(KEY_STEP).apply()
     }
 
+    /** Back to page 1 (Home pressed mid-onboarding restarts from Language). Answers are kept. */
+    fun restart(context: Context) {
+        prefs(context).edit().putInt(KEY_STEP, 0).apply()
+    }
+
     fun step(context: Context): Int = prefs(context).getInt(KEY_STEP, 0)
 
     fun setStep(context: Context, step: Int) {

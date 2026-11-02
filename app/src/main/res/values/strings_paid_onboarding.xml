@@ -3,6 +3,7 @@
     <!-- Flow A (paid onboarding). English only for now. -->
     <string name="paid_onb_next">Next</string>
     <string name="paid_onb_start_app">Start app</string>
+    <string name="paid_onb_complete_steps">Please complete the steps first</string>
 
     <!-- 1. Gender -->
     <string name="paid_onb_gender_title">Personalized information</string>

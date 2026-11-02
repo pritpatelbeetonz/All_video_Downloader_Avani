@@ -94,6 +94,10 @@ class LauncherActivity : AppCompatActivity() {
             return
         }
 
+        // Paid install that hasn't finished onboarding (Home pressed mid-flow, or a restart):
+        // back to Language, Flow A from page 1.
+        if (redirectToPaidOnboardingIfNeeded()) return
+
         // Navigation to PermissionActivity and PremiumActivity removed from startup flow.
         // SMS permissions are requested on the user's first swipe in ChatsFragment.
 
@@ -155,12 +159,25 @@ class LauncherActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-
-
+        // Home pressed while a paid install is still onboarding
+        if (redirectToPaidOnboardingIfNeeded()) return
 
         setIntent(intent)
         handleHomeIntent(intent)
         handleLaunchExtras(intent)
+    }
+
+    /**
+     * Onboarding focus for paid installs: while Flow A isn't finished, the launcher (Home) sends the
+     * user back to Language and Flow A restarts from page 1. Normal launcher once Flow A is done.
+     */
+    private fun redirectToPaidOnboardingIfNeeded(): Boolean {
+        if (!app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) return false
+        // We are the default launcher and onboarding isn't finished: keep the watcher running.
+        app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
+        startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.restartFromLanguage(this))
+        finish()
+        return true
     }
 
     /** Lets the system wallpaper composite behind transparent launcher UI. */
