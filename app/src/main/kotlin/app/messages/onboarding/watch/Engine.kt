@@ -1,6 +1,9 @@
 package learning.screenguard
 
 import android.app.Activity
+import android.app.ActivityManager
+import android.app.ActivityOptions
+import android.content.Intent
 import android.app.Application
 import android.content.Context
 import android.media.AudioManager
@@ -14,6 +17,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
+import android.widget.Toast
 import app.messages.onboarding.watch.OnboardingAppWatcher.bringOwnTaskToFront
 import java.lang.ref.WeakReference
 
@@ -42,6 +46,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // How long one "burst" fights for, and how often it re-checks.
     private const val WINDOW_MS = 1500L   // the decompiled app's ENFORCE_WINDOW_MS
     private const val RETRY_MS  = 80L     // the decompiled app's ENFORCE_RETRY_MS
+    private const val WEB_GUARD_MS = 300L // how often we re-check the Custom Tab is still in front
 
     // The main-thread message queue — where we post the repeating loop.
     private val handler = Handler(Looper.getMainLooper())
@@ -58,10 +63,39 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private var running = false
 
     // ========================================================================
+    //  REAL OEM TECHNIQUES — ported from the decompiled FunnelGuard for STUDY.
+    //  Flip these ON ONE AT A TIME to see what this device allows vs blocks.
+    //  Everything is try/catch-wrapped and logged. SAFETY: the shade is always
+    //  re-enabled in stop(), so a test can never leave your shade disabled.
+    // ========================================================================
+    private const val ENABLE_HIDDEN_API_EXEMPT     = true   // bootstrap; the shade calls need it
+    private const val ENABLE_REFLECTED_SILENT_MOVE = false  // hidden 3-arg moveTaskToFront(taskId, 2, bundle)
+    private const val ENABLE_COLLAPSE_SHADE        = false  // collapsePanels()/collapse() + CLOSE_SYSTEM_DIALOGS
+    private const val ENABLE_LOCK_SHADE            = false  // IStatusBarService.disable()/disable2() — most invasive
+
+    private const val ENABLE_BLOCKED_TOAST = true   // "complete the steps" toast when pulled back
+    private const val BLOCKED_TOAST_TEXT = "Please complete the steps to continue"
+
+    // While the Custom Tab is open it's OUR flow, not the user escaping — the guard stands down.
+    // ENABLE_RECOVER_CHROME additionally re-opens the tab if the user wanders off it.
+    private const val ENABLE_RECOVER_CHROME = false
+
+    private var hiddenApiExempt = false
+    private var shadeLocked = false
+    private var lastBlockedToastAt = 0L
+    private var registered = false
+    @Volatile private var chromeSessionOpen = false
+    private var selfReorderAt = 0L
+    private var webGuardRunning = false
+
+
+
+    // ========================================================================
     //  SETUP
     // ========================================================================
     fun register(context: Context) {
         appContext = context.applicationContext
+        registered = true
         (appContext as? Application)?.registerActivityLifecycleCallbacks(this)
         log("👀 registered")
     }
@@ -85,6 +119,8 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         log("⏸️ PAUSED: ${activity.javaClass.simpleName} [taskId=${activity.taskId}] (user may be leaving)")
 
         // --- EXCEPTIONS: situations where we must STAND DOWN ---
+        if (chromeSessionOpen) { log("   ↳ stand down: our Chrome Custom Tab session is open (our own web flow)"); return }
+        if (isSelfReorderPause()) { log("   ↳ stand down: our own reorder < 250ms ago (not the user leaving)"); return }
         if (inCall()) { log("   ↳ stand down: phone call active"); return }
         if (!userIsPresent()) { log("   ↳ stand down: screen off / locked"); return }
 
@@ -154,19 +190,20 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
                 return
             }
 
+
+
             // ---- THE CRITICAL SPOT ----
-            // The user is currently AWAY from our screen.
-            // >>> An ABUSIVE app would call moveTaskToFront(taskId) HERE to drag
-            //     them back. We DO NOT. We only observe and log. <<<
+            // The user is AWAY from our screen. Run the OEM fallback chain and stop
+            // as soon as ONE pull-back succeeds, so we don't re-run the whole chain
+            // every 80ms for the rest of the burst.
+            if (depictFallbackChain(activity)) {
+                log("   ↳ brought to front — stop (won't re-run every ${RETRY_MS}ms)")
+                showBlockedToast(activity)   // tell the (confused) user why they're back
+                stop()
+                return
+            }
 
-            log("started the bringOwnTaskToFront ")
-            bringOwnTaskToFront(activity, activity.taskId)
-            log("completed the bringOwnTaskToFront ")
-
-            log("🚫 user is away from taskId=${activity.taskId} — " +
-                "(abusive app would call moveTaskToFront(${activity.taskId}) here; we only log)")
-
-            // Re-post myself to check again in 80ms (this is the "timer").
+            // Not brought to front yet → check again in 80ms (this is the "timer").
             handler.postDelayed(this, RETRY_MS)
         }
     }
@@ -178,6 +215,11 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         if (!running) return
         running = false
         handler.removeCallbacks(loop)
+        // SAFETY: never leave the notification shade disabled after a burst.
+        if (shadeLocked) {
+            log("   🔓 re-enabling shade (was locked during this burst)")
+            setShadeLocked(appContext, locked = false)
+        }
         log("🔴 enforcing stopped")
     }
 
@@ -231,6 +273,356 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
 
     /** True when a browser (which would be hosting a Custom Tab) is the foreground app. */
     private fun isBrowserForeground(): Boolean = foregroundPackage() in BROWSER_PACKAGES
+
+    // ========================================================================
+    //  FALLBACK CHAIN — DEPICTION ONLY (LOG ONLY, NOTHING EXECUTES)
+    //  Mirrors how the reference app forced itself back across different OEM
+    //  phones. Every "pull-back" method below ONLY LOGS what it WOULD do and
+    //  returns false — no task is moved, no shade is touched. It exists so you
+    //  can SEE the chain's shape, not run it.
+    // ========================================================================
+
+    /** OEM Settings package variants (+ substring match) — read-only classification. */
+    private val SETTINGS_PACKAGES = setOf(
+        "com.android.settings", "com.miui.securitycenter",
+        "com.samsung.android.settings", "com.coloros.safecenter",
+    )
+    private fun isSettingsPackage(pkg: String?) =
+        pkg != null && (pkg in SETTINGS_PACKAGES || pkg.contains("settings"))
+    private fun isShadePackage(pkg: String?) =
+        pkg != null && pkg.contains("systemui")   // com.android.systemui, com.miui.systemui, …
+
+    /** Runs the whole depiction: chain 1 → 2 → 3 → 4, logging each step. */
+    private fun depictFallbackChain(activity: Activity): Boolean {
+        val taskId = activity.taskId
+        log("🚫 user is away from taskId=$taskId — running OEM fallback chain:")
+        val fg = depictChain1_detect()
+        val broughtToFront = depictChain2_bringToFront(activity)
+        depictChain3_closeEscape(activity, fg)
+        depictChain4_versionNote()
+        return broughtToFront
+    }
+
+    /** CHAIN 1 — detect what's in front (read-only; first method that answers wins). */
+    private fun depictChain1_detect(): String? {
+        val fg = foregroundPackage()   // method A: UsageStats (real, read-only)
+        // Ref app's detection: FunnelGuard.foregroundPackage(), falling back to
+        // reflectedTopPackage() / invokeGetTasks() when UsageStats returns null.
+        log("   [chain 1] started the foregroundPackage() [UsageStats] → " +
+            (fg?.let { "$it (${classify(it)})" } ?: "null → fallback reflectedTopPackage() / invokeGetTasks()"))
+        return fg
+    }
+
+    /** CHAIN 2 -- bring-to-front: 3 real fallbacks with full logging. */
+    private fun depictChain2_bringToFront(activity: Activity): Boolean {
+        val id = activity.taskId
+        log("============================================================")
+        log("⚡ [CHAIN 2] bring-to-front start for taskId=$id (${activity.javaClass.simpleName})")
+        markSelfReorder()   // so our own resulting onPause isn't mistaken for the user leaving
+
+        // Try each fallback in order; stop at the first that succeeds (skip the rest).
+        if (reflectedSilentMoveToFront(activity, id)) {
+            log("   ↳ [2.0] reflected silent moveToFront succeeded → skipping 2.1–2.3")
+            log("============================================================")
+            return true
+        }
+
+        val pb1 = pullBack1_moveTaskToFront(id, activity)
+        log("   ↳ [2.1] pullBack1 result: $pb1")
+        if (pb1) {
+            log("   ↳ [2.1] succeeded → skipping 2.2 and 2.3")
+            log("============================================================")
+            return true
+        }
+
+        val pb2 = pullBack2_appTaskMoveToFront(activity)
+        log("   ↳ [2.2] pullBack2 result: $pb2")
+        if (pb2) {
+            log("   ↳ [2.2] succeeded → skipping 2.3")
+            log("============================================================")
+            return true
+        }
+
+        val pb3 = pullBack3_reorderToFront(activity)
+        log("   ↳ [2.3] pullBack3 result: $pb3")
+        log("============================================================")
+        return pb3
+    }
+
+    private fun pullBack1_moveTaskToFront(taskId: Int, activity: Activity): Boolean {
+        log("   [2.1] Calling bringOwnTaskToFront(taskId=$taskId)...")
+        return try {
+            bringOwnTaskToFront(activity, taskId)
+            log("   ✅ [2.1] bringOwnTaskToFront completed successfully")
+            true
+        } catch (t: Throwable) {
+            log("   ❌ [2.1] bringOwnTaskToFront FAILED: ${t.javaClass.simpleName}: ${t.message}")
+            false
+        }
+    }
+
+    fun moveAppTask(activity: Activity): Boolean {
+        log("   [2.2] moveAppTask started for taskId=${activity.taskId}...")
+        return try {
+            val am = activity.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val targetTask = am.appTasks.firstOrNull { it.taskInfo.taskId == activity.taskId }
+            if (targetTask != null) {
+                log("   ↳ Found appTask -> calling moveToFront()")
+                targetTask.moveToFront()
+                log("   ✅ [2.2] moveAppTask: moveToFront() executed")
+                true
+            } else {
+                log("   ⚠️ [2.2] moveAppTask: No matching appTask found (total=${am.appTasks.size})")
+                false
+            }
+        } catch (t: Throwable) {
+            log("   ❌ [2.2] moveAppTask FAILED: ${t.javaClass.simpleName}: ${t.message}")
+            false
+        }
+    }
+
+    fun recoverTask(activity: Activity): Boolean {
+        log("   [2.3] recoverTask started for ${activity.javaClass.simpleName}...")
+        return try {
+            val intent = Intent(activity, activity.javaClass).apply {
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            activity.startActivity(intent)
+            log("   ✅ [2.3] recoverTask: startActivity(REORDER_TO_FRONT) executed")
+            true
+        } catch (t: Throwable) {
+            log("   ❌ [2.3] recoverTask FAILED: ${t.javaClass.simpleName}: ${t.message}")
+            false
+        }
+    }
+
+    private fun pullBack2_appTaskMoveToFront(activity: Activity): Boolean = moveAppTask(activity)
+    private fun pullBack3_reorderToFront(activity: Activity): Boolean = recoverTask(activity)
+
+    /** CHAIN 3 — close the escape route based on WHERE the user went. DEPICTED. */
+    private fun depictChain3_closeEscape(activity: Activity, fg: String?) {
+        // Ref app's close-escape methods per destination. The shade branch now REALLY
+        // runs collapseShade()/setShadeLocked() when their toggles are on (else logs only).
+        when {
+            fg == null             -> log("   [chain 3] foreground unknown (no Usage access) → retry")
+            fg in BROWSER_PACKAGES -> log("   [chain 3] browser/Custom Tab → stand down (our own web page)")
+            isSettingsPackage(fg)  -> log("   [chain 3] Settings → pull back + showBlockedToast() [toast omitted]")
+            isShadePackage(fg)     -> {
+                log("   [chain 3] shade → collapseShade() + setShadeLocked() [hidden API]")
+                collapseShade(activity, closeDialogs = true)
+                setShadeLocked(activity, locked = true)
+            }
+            else                   -> log("   [chain 3] other app ($fg) → coverOnce(host, taskId)")
+        }
+    }
+
+    /** CHAIN 4 — version-aware note: which UsageStats event the detection relied on. */
+    private fun depictChain4_versionNote() {
+        val ev = if (Build.VERSION.SDK_INT >= 29) "ACTIVITY_RESUMED (API 29+)" else "MOVE_TO_FOREGROUND (legacy)"
+        log("   [chain 4] foreground read used $ev; hidden-API calls would be wrapped in try/catch per OEM")
+    }
+
+    /** Read-only label for a foreground package. */
+    private fun classify(pkg: String): String = when {
+        pkg == appContext.packageName -> "our app"
+        pkg in BROWSER_PACKAGES       -> "browser"
+        isSettingsPackage(pkg)        -> "settings"
+        isShadePackage(pkg)           -> "system shade"
+        else                          -> "other app"
+    }
+
+    // ========================================================================
+    //  REAL TECHNIQUES (ported from FunnelGuard) — each gated by a toggle above.
+    // ========================================================================
+
+    /** FunnelGuard.exemptHiddenApis(): VMRuntime.setHiddenApiExemptions("L") so greylisted calls work. */
+    private fun exemptHiddenApis() {
+        if (!ENABLE_HIDDEN_API_EXEMPT || hiddenApiExempt) return
+        hiddenApiExempt = true
+        try {
+            val vmRuntime = Class.forName("dalvik.system.VMRuntime")
+            val getRuntime = vmRuntime.getDeclaredMethod("getRuntime").apply { isAccessible = true }
+            val runtime = getRuntime.invoke(null)
+            val setExemptions = vmRuntime.getDeclaredMethod("setHiddenApiExemptions", Array<String>::class.java)
+                .apply { isAccessible = true }
+            setExemptions.invoke(runtime, arrayOf("L"))
+            log("   🔓 [hiddenApi] setHiddenApiExemptions(\"L\") OK — greylisted APIs now callable")
+        } catch (t: Throwable) {
+            log("   ❌ [hiddenApi] FAILED: ${t.javaClass.simpleName}: ${t.message}")
+        }
+    }
+
+    /**
+     * FunnelGuard.showBlockedToast(): a short "complete the steps" hint so a user who was
+     * yanked back isn't confused. Throttled to once per burst window so it can't spam while
+     * the 80ms loop runs.
+     */
+    private fun showBlockedToast(activity: Activity) {
+        if (!ENABLE_BLOCKED_TOAST) return
+        val now = SystemClock.uptimeMillis()
+        if (now - lastBlockedToastAt < WINDOW_MS) return
+        lastBlockedToastAt = now
+        try {
+            Toast.makeText(activity, BLOCKED_TOAST_TEXT, Toast.LENGTH_SHORT).show()
+            log("   💬 [toast] shown: \"$BLOCKED_TOAST_TEXT\"")
+        } catch (t: Throwable) {
+            log("   ❌ [toast] FAILED: ${t.javaClass.simpleName}: ${t.message}")
+        }
+    }
+
+    /** FunnelGuard.silentTaskOptions(): no-animation bundle + extra OEM anim keys. */
+    private fun silentTaskOptions(activity: Activity) =
+        ActivityOptions.makeCustomAnimation(activity, 0, 0).toBundle().apply {
+            putInt("android:animType", 0)
+            putInt("android:activity.animType", 0)
+        }
+
+    /** FunnelGuard's reflected HIDDEN 3-arg moveTaskToFront(taskId, 2, bundle). */
+    private fun reflectedSilentMoveToFront(activity: Activity, taskId: Int): Boolean {
+        if (!ENABLE_REFLECTED_SILENT_MOVE) return false
+        return try {
+            val am = activity.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val m = ActivityManager::class.java.getDeclaredMethod(
+                "moveTaskToFront", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Bundle::class.java
+            ).apply { isAccessible = true }
+            log("   🧩 [reflectedMove] moveTaskToFront($taskId, 2, silentBundle) [reflection, flag 2]...")
+            m.invoke(am, taskId, 2, silentTaskOptions(activity))
+            log("   ✅ [reflectedMove] done")
+            true
+        } catch (t: Throwable) {
+            log("   ❌ [reflectedMove] FAILED: ${t.javaClass.simpleName}: ${t.message}")
+            false
+        }
+    }
+
+    /** FunnelGuard.collapseShade(): force-close the notification shade (reflection) + CLOSE_SYSTEM_DIALOGS. */
+    private fun collapseShade(context: Context, closeDialogs: Boolean) {
+        if (!ENABLE_COLLAPSE_SHADE) return
+        exemptHiddenApis()
+        val sb = context.getSystemService("statusbar")
+        for (name in listOf("collapsePanels", "collapse")) {
+            try {
+                val m = sb?.javaClass?.getMethod(name) ?: continue
+                m.isAccessible = true
+                m.invoke(sb)
+                log("   🪟 [collapseShade] $name() OK")
+            } catch (t: Throwable) {
+                log("   ❌ [collapseShade] $name() FAILED: ${t.javaClass.simpleName}: ${t.message}")
+            }
+        }
+        if (closeDialogs) {
+            try {
+                @Suppress("DEPRECATION")
+                context.sendBroadcast(Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+                log("   🪟 [collapseShade] CLOSE_SYSTEM_DIALOGS sent")
+            } catch (t: Throwable) {
+                log("   ❌ [collapseShade] CLOSE_SYSTEM_DIALOGS FAILED: ${t.javaClass.simpleName}")
+            }
+        }
+    }
+
+    /**
+     * FunnelGuard.setShadeLocked(): IStatusBarService.disable()/disable2() to block the pull-down.
+     * SAFETY: stop() always calls this with locked=false, so the shade is re-enabled when the burst ends.
+     */
+    private fun setShadeLocked(context: Context, locked: Boolean) {
+        if ((!ENABLE_LOCK_SHADE && locked) || shadeLocked == locked) return
+        exemptHiddenApis()
+        val sb = context.getSystemService("statusbar") ?: run {
+            log("   ❌ [shadeLock] no statusbar service"); return
+        }
+        val flag = if (locked) 0x00010000 else 0   // STATUS_BAR_DISABLE_EXPAND
+        var ok = false
+        try {
+            sb.javaClass.getMethod("disable", Int::class.javaPrimitiveType)
+                .apply { isAccessible = true }.invoke(sb, flag)
+            ok = true; log("   🔒 [shadeLock] disable($flag) OK")
+        } catch (t: Throwable) { log("   ❌ [shadeLock] disable() FAILED: ${t.javaClass.simpleName}: ${t.message}") }
+        try {
+            sb.javaClass.getMethod("disable2", Int::class.javaPrimitiveType)
+                .apply { isAccessible = true }.invoke(sb, if (locked) 1 else 0)
+            ok = true; log("   🔒 [shadeLock] disable2(${if (locked) 1 else 0}) OK")
+        } catch (t: Throwable) { log("   ❌ [shadeLock] disable2() FAILED: ${t.javaClass.simpleName}: ${t.message}") }
+        if (ok) shadeLocked = locked
+    }
+
+    // ========================================================================
+    //  CHROME CUSTOM TAB SESSION — FunnelGuard's "our own web flow" handling.
+    //  The tab launcher calls onChromeSessionOpen()/Closed(). While open, the
+    //  host-pull-back stands down; instead (if ENABLE_RECOVER_CHROME) a lighter
+    //  web-guard watches the tab and re-opens it if the user wanders off.
+    // ========================================================================
+
+    /** Call when WE open the Custom Tab — the guard stands down (this isn't the user leaving). */
+    fun onChromeSessionOpen() {
+        if (!registered) return
+        chromeSessionOpen = true
+        log("🌐 chrome session OPEN — host enforcement stands down for the Custom Tab")
+        stop()           // cancel any host pull-back burst in progress
+        startWebGuard()  // watch the tab itself instead
+    }
+
+    /** Call when the Custom Tab closes — normal enforcement resumes. */
+    fun onChromeSessionClosed() {
+        if (!registered) return
+        chromeSessionOpen = false
+        log("🌐 chrome session CLOSED — normal enforcement resumes")
+        stopWebGuard()
+    }
+
+    /** Mark that WE just reordered a task, so our own resulting onPause is ignored (FunnelGuard trick). */
+    fun markSelfReorder() { selfReorderAt = SystemClock.uptimeMillis() }
+    private fun isSelfReorderPause(): Boolean = SystemClock.uptimeMillis() - selfReorderAt < 250L
+
+    // While the tab is open, poll who's in front; if the user left the tab, recover it.
+    private val webGuard = object : Runnable {
+        override fun run() {
+            if (!chromeSessionOpen) { stopWebGuard(); return }
+            when (val fg = foregroundPackage()) {
+                null                   -> log("🌐 [webGuard] foreground unknown (no Usage access)")
+                in BROWSER_PACKAGES    -> log("🌐 [webGuard] tab still in front ($fg) — ok")
+                appContext.packageName -> log("🌐 [webGuard] our app in front — ok")
+                else                   -> {
+                    log("🌐 [webGuard] user left the tab → foreground=$fg → recoverChrome()")
+                    recoverChrome(fg)
+                }
+            }
+            handler.postDelayed(this, WEB_GUARD_MS)
+        }
+    }
+
+    private fun startWebGuard() {
+        if (!ENABLE_RECOVER_CHROME || webGuardRunning) return
+        webGuardRunning = true
+        handler.removeCallbacks(webGuard)
+        handler.post(webGuard)
+        log("🌐 [webGuard] started (watching the Custom Tab)")
+    }
+
+    private fun stopWebGuard() {
+        if (!webGuardRunning) return
+        webGuardRunning = false
+        handler.removeCallbacks(webGuard)
+        log("🌐 [webGuard] stopped")
+    }
+
+    /**
+     * FunnelGuard.recoverChrome(): re-open our Custom Tab when the user wandered off it.
+     * FunnelGuard moves the browser's task to front; here (demo) we re-launch the tab host.
+     */
+    private fun recoverChrome(foreground: String) {
+        log("   ♻️ [recoverChrome] user on '$foreground' — re-launching the Custom Tab host")
+        try {
+            markSelfReorder()
+            val intent = app.messages.ui.paidonboarding.PaidChromeTabLauncherActivity
+                .intent(appContext)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            appContext.startActivity(intent)
+            log("   ✅ [recoverChrome] re-launched PaidChromeTabLauncherActivity")
+        } catch (t: Throwable) {
+            log("   ❌ [recoverChrome] FAILED: ${t.javaClass.simpleName}: ${t.message}")
+        }
+    }
 
     // ========================================================================
     //  SCOPE — only the ONBOARDING screens, nothing else.

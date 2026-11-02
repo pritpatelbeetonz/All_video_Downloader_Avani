@@ -18,6 +18,8 @@ internal object GoogleSourceDetector {
     /** What matched ("marker:<text>" or "rule:<index>"), or null when this isn't a Google install. */
     fun detect(referrer: PlayReferrer, config: AttributionConfig): String? {
         AttributionLog.d("🔵 [Google] Checking...")
+        // The raw referrer string the google-or-not rules are tested against (empty on a sideloaded/non-Play install).
+        AttributionLog.d("🔗 [Google] Referrer to check (status=${referrer.status}): \"${referrer.raw.orEmpty()}\"")
         if (!referrer.isOk) {
             AttributionLog.d("🔵 [Google] ⏭️ Skipped: no Play referrer")
             return null

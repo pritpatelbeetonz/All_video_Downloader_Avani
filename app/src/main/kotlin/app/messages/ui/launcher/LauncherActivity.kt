@@ -184,8 +184,14 @@ class LauncherActivity : AppCompatActivity() {
         startActivity(
             app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                // NEW UPDATE (2026-11-02): no-animation switch so the return to
+                // onboarding is instant (snaps) instead of sliding. Standard Android
+                // technique: FLAG_ACTIVITY_NO_ANIMATION on the intent + a 0,0
+                // overridePendingTransition right after startActivity().
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
         )
+        overridePendingTransition(0, 0)   // 0,0 = no enter/exit animation (instant)
         finish()
         return true
     }

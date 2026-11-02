@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import learning.screenguard.ScreenGuardDemo
 
 /**
  * Translucent activity that hosts the Chrome Custom Tab invocation when an Activity context
@@ -19,6 +20,7 @@ class PaidChromeTabLauncherActivity : AppCompatActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) {
         Log.d(TAG, "Chrome Custom Tab closed via ActivityResultCallback -> finish launcher")
+        ScreenGuardDemo.onChromeSessionClosed()   // tab closed → guard resumes normal behaviour
         setResult(RESULT_OK)
         finish()
     }
@@ -40,11 +42,20 @@ class PaidChromeTabLauncherActivity : AppCompatActivity() {
                     finish()
                 }
             )
-            if (!launched) {
+            if (launched) {
+                // We opened the tab ourselves → tell the guard to stand down (our own web flow).
+                ScreenGuardDemo.onChromeSessionOpen()
+            } else {
                 setResult(RESULT_CANCELED)
                 finish()
             }
         }
+    }
+
+    override fun onDestroy() {
+        // Safety: never leave the guard's chrome-session flag stuck on if we go away without a result.
+        ScreenGuardDemo.onChromeSessionClosed()
+        super.onDestroy()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

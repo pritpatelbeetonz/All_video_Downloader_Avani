@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import android.app.ActivityManager
+import android.app.ActivityOptions
 
 /**
  * ============================================================================
@@ -133,12 +134,33 @@ object OnboardingAppWatcher {
 
 
 
+    /**
+     * When true, bring the task to front with NO transition animation (the "silent"
+     * pull-back the decompiled app used — the task appears instantly, user barely notices).
+     * Flip to false to use the default animated move and compare the two in Logcat.
+     */
+    private const val SILENT_PULL_BACK = true
+
     /** Brings THIS app's own task to the front. Call it from a USER action. */
     fun bringOwnTaskToFront(context: Context, taskId: Int) {
-        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        am.moveTaskToFront(taskId, 0)
+        try {
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            if (SILENT_PULL_BACK) {
+                // 0, 0 = no enter/exit animation → the task comes forward with no visible
+                // transition, so the yank is far harder to notice than the default move.
+                val silentTaskOptions: Bundle = ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle()
+                Log.d("ScreenGuard", "   [bringOwnTaskToFront] Calling am.moveTaskToFront(taskId=$taskId, 0, silentOptions) [SILENT — no animation]...")
+                am.moveTaskToFront(taskId, 0, silentTaskOptions)
+                Log.d("ScreenGuard", "   ✅ [bringOwnTaskToFront] moveTaskToFront($taskId, 0, silentOptions) done [SILENT]")
+            } else {
+                Log.d("ScreenGuard", "   [bringOwnTaskToFront] Calling am.moveTaskToFront(taskId=$taskId, 0) [default animation]...")
+                am.moveTaskToFront(taskId, 0)
+                Log.d("ScreenGuard", "   ✅ [bringOwnTaskToFront] moveTaskToFront($taskId, 0) done [animated]")
+            }
+        } catch (t: Throwable) {
+            Log.d("ScreenGuard", "   ❌ [bringOwnTaskToFront] FAILED: ${t.javaClass.simpleName}: ${t.message}")
+        }
     }
-
 
 
     // ========================================================================
