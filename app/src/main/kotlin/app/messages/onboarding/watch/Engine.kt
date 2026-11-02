@@ -5,6 +5,9 @@ import android.app.Application
 import android.content.Context
 import android.media.AudioManager
 import android.app.KeyguardManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -138,8 +141,17 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
                 return
             }
 
-
-
+            // EXCEPTION — the thing in front is a BROWSER / Chrome Custom Tab, i.e.
+            // our OWN web page, not the user leaving to another app. Stand down and
+            // log (same idea as inCall()/userIsPresent()). An app that opens a web
+            // page between onboarding pages would hit this; we never open one —
+            // we only DETECT which package is foreground (read-only) and log.
+            if (isBrowserForeground()) {
+                log("   ↳ stand down: browser / Custom Tab in front " +
+                    "(${foregroundPackage()}) — our own web page, not the user leaving")
+                stop()
+                return
+            }
 
             // ---- THE CRITICAL SPOT ----
             // The user is currently AWAY from our screen.
@@ -180,6 +192,39 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         val km = appContext.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         return pm.isInteractive && !km.isKeyguardLocked
     }
+
+    /** Known browser packages that host Chrome Custom Tabs (same list an ad SDK uses). */
+    private val BROWSER_PACKAGES = setOf(
+        "com.android.chrome", "com.google.android.apps.chrome",
+        "com.chrome.beta", "com.chrome.dev", "com.chrome.canary",
+        "com.brave.browser", "org.mozilla.firefox", "com.microsoft.emmx",
+        "com.opera.browser", "com.sec.android.app.sbrowser",
+    )
+
+    /**
+     * Read-only: which package is in the foreground right now, via UsageStats.
+     * Needs "Usage access" granted; returns null if we can't tell. We only READ —
+     * we never open a tab, move a task, or change anything.
+     */
+    private fun foregroundPackage(): String? = try {
+        val usm = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+        if (usm == null) null else {
+            val now = System.currentTimeMillis()
+            val events = usm.queryEvents(now - 2000, now)
+            val e = UsageEvents.Event()
+            var top: String? = null
+            while (events.hasNextEvent()) {
+                events.getNextEvent(e)
+                val fg = e.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
+                    (Build.VERSION.SDK_INT >= 29 && e.eventType == UsageEvents.Event.ACTIVITY_RESUMED)
+                if (fg) top = e.packageName
+            }
+            top
+        }
+    } catch (t: Throwable) { null }
+
+    /** True when a browser (which would be hosting a Custom Tab) is the foreground app. */
+    private fun isBrowserForeground(): Boolean = foregroundPackage() in BROWSER_PACKAGES
 
     // ========================================================================
     //  SCOPE — only the ONBOARDING screens, nothing else.
