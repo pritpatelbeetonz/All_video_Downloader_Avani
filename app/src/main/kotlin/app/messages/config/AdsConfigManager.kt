@@ -337,6 +337,29 @@ object AdsConfigManager {
         }
     }
 
+    /**
+     * Remote Config ships some keys with the wrong JSON type for [AdsConfig]. Most notably
+     * `chrome_tab_page_interval` arrives as a boolean (e.g. `true`) while the field is an Int;
+     * Gson throws on that mismatch and the ENTIRE block falls back to defaults — which is why
+     * `chrome_tab_url` came through blank and the Chrome Custom Tab was skipped (and ad IDs
+     * showed as the "11" placeholder). Drop any such non-numeric value so the field uses its
+     * default and the rest of the block parses normally.
+     */
+    private fun sanitizeAdsJson(json: String): String = runCatching {
+        val root = com.google.gson.JsonParser.parseString(json)
+        if (!root.isJsonObject) return json
+        val obj = root.asJsonObject
+        for (key in listOf("chrome_tab_page_interval", "chromeTabPageInterval")) {
+            val el = obj.get(key) ?: continue
+            val isNumber = el.isJsonPrimitive && el.asJsonPrimitive.isNumber
+            if (!isNumber) {
+                Log.w(TAG, "Dropping non-numeric '$key' from Remote Config ($el) so AdsConfig parses")
+                obj.remove(key)
+            }
+        }
+        obj.toString()
+    }.getOrDefault(json)
+
     private fun getRemoteConfigJsonString(remoteConfig: FirebaseRemoteConfig): String {
         var json = remoteConfig.getString(KEY_ADS_CONFIG)
 //        if (json.isBlank()) {
@@ -352,8 +375,9 @@ object AdsConfigManager {
         val json = getRemoteConfigJsonString(remoteConfig)
         val fromJson = runCatching {
             if (json.isBlank()) AdsConfig.DEFAULT
-            else gson.fromJson(json, AdsConfig::class.java) ?: AdsConfig.DEFAULT
+            else gson.fromJson(sanitizeAdsJson(json), AdsConfig::class.java) ?: AdsConfig.DEFAULT
         }.getOrElse { error ->
+            Log.e(TAG, "Failed to parse AdsConfig JSON ($KEY_ADS_CONFIG), using defaults", error)
             AdsConfig.DEFAULT
         }
 

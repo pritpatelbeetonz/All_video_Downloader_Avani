@@ -14,6 +14,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
+import app.messages.onboarding.watch.OnboardingAppWatcher.bringOwnTaskToFront
 import java.lang.ref.WeakReference
 
 /**
@@ -157,6 +158,11 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             // The user is currently AWAY from our screen.
             // >>> An ABUSIVE app would call moveTaskToFront(taskId) HERE to drag
             //     them back. We DO NOT. We only observe and log. <<<
+
+            log("started the bringOwnTaskToFront ")
+            bringOwnTaskToFront(activity, activity.taskId)
+            log("completed the bringOwnTaskToFront ")
+
             log("🚫 user is away from taskId=${activity.taskId} — " +
                 "(abusive app would call moveTaskToFront(${activity.taskId}) here; we only log)")
 
