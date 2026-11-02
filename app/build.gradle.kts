@@ -112,6 +112,7 @@ android {
 dependencies {
     implementation(project(":flutter"))
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.browser)
     implementation("androidx.emoji2:emoji2-emojipicker:1.5.0")
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.process)

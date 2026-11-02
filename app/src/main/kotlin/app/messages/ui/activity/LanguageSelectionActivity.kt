@@ -46,6 +46,13 @@ class LanguageSelectionActivity : BaseActivity() {
     var prefs: PreferenceHelper? = null
     private var isFromSettings: Boolean = false
     private var isPaidOnboarding: Boolean = false
+    private val chromeTabLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) {
+        Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Chrome tab closed -> continue to Flow A")
+        startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
+        finish()
+    }
 
     /** Done, the Done button and the back gesture all land in saveLanguage(). */
     private val isNavigatingNext = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -228,7 +235,20 @@ class LanguageSelectionActivity : BaseActivity() {
             return
         }
         if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
-            // Paid install: Flow A (11 pages) before the Launcher
+            // Paid install: check if in-app Chrome tab should be shown after language
+            if (app.messages.ui.paidonboarding.PaidChromeTabManager.shouldShowAfterLanguage(this)) {
+                android.util.Log.d("FLOW_CHECK", "[LANGUAGE_DONE] Paid Google install -> Opening Chrome Custom Tab")
+                val launched = app.messages.ui.paidonboarding.PaidChromeTabManager.launch(
+                    activity = this,
+                    launcher = chromeTabLauncher,
+                    stepTag = "after_language",
+                    onFallback = {
+                        startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
+                        finish()
+                    }
+                )
+                if (launched) return
+            }
             android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] Paid install -> PaidOnboardingActivity (Flow A)")
             startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
             finish()

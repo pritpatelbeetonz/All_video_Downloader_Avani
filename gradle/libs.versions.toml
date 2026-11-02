@@ -32,10 +32,12 @@ playServicesAds = "24.3.0"
 billing = "9.1.0"
 onesignal = "5.1.28"
 gson = "2.11.0"
+browser = "1.8.0"
 
 [libraries]
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-browser = { module = "androidx.browser:browser", version.ref = "browser" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }

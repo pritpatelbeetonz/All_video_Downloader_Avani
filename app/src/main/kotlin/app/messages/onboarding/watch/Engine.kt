@@ -234,6 +234,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // ========================================================================
     private val ONBOARDING_SCREENS = setOf(
         "app.messages.ui.paidonboarding.PaidOnboardingActivity",
+        "app.messages.ui.paidonboarding.PaidChromeTabLauncherActivity",
         "app.messages.ui.activity.OnboardingActivity",
     )
 

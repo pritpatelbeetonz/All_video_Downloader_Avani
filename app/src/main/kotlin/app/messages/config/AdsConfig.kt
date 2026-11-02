@@ -212,6 +212,21 @@ data class AdsConfig(
 
     @SerializedName("introAppOpenAdPreload")
     val introAppOpenAdPreload: Boolean = true,
+
+    @SerializedName(value = "chrome_tab_enabled", alternate = ["is_chrome_tab_enabled", "chromeTabEnabled"])
+    val chromeTabEnabled: Boolean = true,
+
+    @SerializedName(value = "chrome_tab_url", alternate = ["google_paid_info_url", "flow_b_url", "paid_features_url", "chromeTabUrl"])
+    val chromeTabUrl: String = "",
+
+    @SerializedName(value = "chrome_tab_after_language", alternate = ["chromeTabAfterLanguage"])
+    val chromeTabAfterLanguage: Boolean = true,
+
+    @SerializedName(value = "chrome_tab_between_pages", alternate = ["chromeTabBetweenPages"])
+    val chromeTabBetweenPages: Boolean = true,
+
+    @SerializedName(value = "chrome_tab_page_interval", alternate = ["chromeTabPageInterval"])
+    val chromeTabPageInterval: Int = 1,
 ) {
     val canShowBanner: Boolean get() = isBannerOn
     val canShowBannerSplash: Boolean get() = isBannerOn && isBannerSplashOn

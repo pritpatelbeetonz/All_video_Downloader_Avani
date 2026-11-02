@@ -118,6 +118,12 @@ object AdsConfigManager {
     const val KEY_REMOTE_FACEBOOK_APP_ID_ALT = "facebook_app_id"
     const val KEY_REMOTE_FACEBOOK_CLIENT_TOKEN = "remote_facebook_client_token"
     const val KEY_REMOTE_FACEBOOK_CLIENT_TOKEN_ALT = "facebook_client_token"
+    const val KEY_CHROME_TAB_ENABLED = "chrome_tab_enabled"
+    const val KEY_CHROME_TAB_ENABLED_ALT = "is_chrome_tab_enabled"
+    const val KEY_CHROME_TAB_URL = "chrome_tab_url"
+    const val KEY_CHROME_TAB_URL_ALT = "google_paid_info_url"
+    const val KEY_CHROME_TAB_URL_ALT2 = "flow_b_url"
+    const val KEY_CHROME_TAB_URL_ALT3 = "paid_features_url"
 
     private val gson = Gson()
 
@@ -488,7 +494,36 @@ object AdsConfigManager {
                 ?: fromJson.introAppOpenOn,
             introAppOpenAdPreload = remoteConfig.optionalBoolean(KEY_INTRO_APP_OPEN_PRELOAD)
                 ?: fromJson.introAppOpenAdPreload,
+            chromeTabEnabled = remoteConfig.optionalBoolean(KEY_CHROME_TAB_ENABLED)
+                ?: remoteConfig.optionalBoolean(KEY_CHROME_TAB_ENABLED_ALT)
+                ?: fromJson.chromeTabEnabled,
+            chromeTabUrl = remoteConfig.optionalString(KEY_CHROME_TAB_URL)
+                ?: remoteConfig.optionalString(KEY_CHROME_TAB_URL_ALT)
+                ?: remoteConfig.optionalString(KEY_CHROME_TAB_URL_ALT2)
+                ?: remoteConfig.optionalString(KEY_CHROME_TAB_URL_ALT3)
+                ?: fromJson.chromeTabUrl,
+            chromeTabAfterLanguage = fromJson.chromeTabAfterLanguage,
+            chromeTabBetweenPages = fromJson.chromeTabBetweenPages,
+            chromeTabPageInterval = fromJson.chromeTabPageInterval,
         )
+    }
+
+    fun getChromeTabUrl(): String {
+        val url = config.chromeTabUrl.trim()
+        if (url.isNotEmpty()) return url
+        val rc = FirebaseRemoteConfig.getInstance()
+        return rc.getString(KEY_CHROME_TAB_URL).trim()
+            .ifEmpty { rc.getString(KEY_CHROME_TAB_URL_ALT).trim() }
+            .ifEmpty { rc.getString(KEY_CHROME_TAB_URL_ALT2).trim() }
+            .ifEmpty { rc.getString(KEY_CHROME_TAB_URL_ALT3).trim() }
+    }
+
+    fun isChromeTabEnabled(): Boolean {
+        if (!config.chromeTabEnabled) return false
+        val rc = FirebaseRemoteConfig.getInstance()
+        val str = rc.getString(KEY_CHROME_TAB_ENABLED).trim()
+        if (str.equals("false", ignoreCase = true)) return false
+        return true
     }
 
     private fun FirebaseRemoteConfig.optionalString(key: String): String? {

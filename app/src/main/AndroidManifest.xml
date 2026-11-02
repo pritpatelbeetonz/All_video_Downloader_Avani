@@ -162,6 +162,11 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name=".ui.paidonboarding.PaidChromeTabLauncherActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <activity
             android:name=".ui.activity.SettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.MessageApp"

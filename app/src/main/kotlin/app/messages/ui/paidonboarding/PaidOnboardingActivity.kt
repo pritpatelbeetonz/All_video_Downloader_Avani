@@ -34,6 +34,18 @@ class PaidOnboardingActivity : BaseActivity() {
     private val pages = PaidOnboardingPages.ALL
     private val isLeaving = AtomicBoolean(false)
     private var lastLoggedView = -1
+    private var pendingNextPosition = -1
+
+    private val chromeTabLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) {
+        val nextPos = pendingNextPosition
+        pendingNextPosition = -1
+        Log.d(TAG, "Chrome Custom Tab closed -> advance to page ${nextPos + 1}")
+        if (nextPos in 0 until pages.size) {
+            binding.pager.currentItem = nextPos
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,8 +72,10 @@ class PaidOnboardingActivity : BaseActivity() {
 
         if (savedInstanceState == null) {
             val start = PaidOnboardingPrefs.step(this).coerceIn(0, pages.lastIndex)
-            Log.d(TAG, "▶️ Flow A starts at page ${start + 1}/${pages.size} (${pages[start].key})")
+            Log.d(TAG, "Flow A starts at page ${start + 1}/${pages.size} (${pages[start].key})")
             binding.pager.setCurrentItem(start, false)
+        } else {
+            pendingNextPosition = savedInstanceState.getInt("pending_next_position", -1)
         }
         onPageShown(binding.pager.currentItem)
 
@@ -100,10 +114,29 @@ class PaidOnboardingActivity : BaseActivity() {
         val position = binding.pager.currentItem
         log("paid_onb_${pages[position].key}_next")
         if (position < pages.lastIndex) {
-            binding.pager.currentItem = position + 1
+            val nextPos = position + 1
+            if (PaidChromeTabManager.shouldShowBetweenPages(this, position)) {
+                pendingNextPosition = nextPos
+                val launched = PaidChromeTabManager.launch(
+                    activity = this,
+                    launcher = chromeTabLauncher,
+                    stepTag = "page_$position",
+                    onFallback = {
+                        binding.pager.currentItem = nextPos
+                        pendingNextPosition = -1
+                    }
+                )
+                if (launched) return
+            }
+            binding.pager.currentItem = nextPos
         } else {
             finishFlow()
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt("pending_next_position", pendingNextPosition)
     }
 
     private fun finishFlow() {
