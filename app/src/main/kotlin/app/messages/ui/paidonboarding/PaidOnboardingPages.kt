@@ -112,7 +112,7 @@ object PaidOnboardingPages {
             titleRes = R.string.paid_onb_feature_formats_title,
             descriptionRes = R.string.paid_onb_feature_formats_desc,
             captionRes = R.string.paid_onb_feature_formats_caption,
-            imageRes = R.drawable.img_paid_onb_feature,
+            imageRes = R.drawable.ic_paid_onb_formats,
         ),
         // 7
         PaidPage.Feature(
@@ -120,7 +120,7 @@ object PaidOnboardingPages {
             titleRes = R.string.paid_onb_feature_copy_title,
             descriptionRes = R.string.paid_onb_feature_copy_desc,
             captionRes = R.string.paid_onb_feature_copy_caption,
-            imageRes = R.drawable.img_paid_onb_feature,
+            imageRes = R.drawable.ic_paid_onb_paste,
         ),
         // 8
         PaidPage.Feature(
@@ -128,7 +128,7 @@ object PaidOnboardingPages {
             titleRes = R.string.paid_onb_feature_player_title,
             descriptionRes = R.string.paid_onb_feature_player_desc,
             captionRes = R.string.paid_onb_feature_player_caption,
-            imageRes = R.drawable.img_paid_onb_feature,
+            imageRes = R.drawable.ic_paid_onb_player,
         ),
         // 9
         PaidPage.Feature(
@@ -136,7 +136,7 @@ object PaidOnboardingPages {
             titleRes = R.string.paid_onb_feature_watermark_title,
             descriptionRes = R.string.paid_onb_feature_watermark_desc,
             captionRes = R.string.paid_onb_feature_watermark_caption,
-            imageRes = R.drawable.img_paid_onb_feature,
+            imageRes = R.drawable.ic_paid_onb_watermark,
         ),
         // 10
         PaidPage.Feature(
@@ -144,7 +144,7 @@ object PaidOnboardingPages {
             titleRes = R.string.paid_onb_feature_hd_title,
             descriptionRes = R.string.paid_onb_feature_hd_desc,
             captionRes = R.string.paid_onb_feature_hd_caption,
-            imageRes = R.drawable.img_paid_onb_feature,
+            imageRes = R.drawable.ic_paid_onb_hd,
         ),
         // 11
         PaidPage.Feature(
@@ -152,7 +152,7 @@ object PaidOnboardingPages {
             titleRes = R.string.paid_onb_feature_speed_title,
             descriptionRes = R.string.paid_onb_feature_speed_desc,
             captionRes = R.string.paid_onb_feature_speed_caption,
-            imageRes = R.drawable.img_paid_onb_feature,
+            imageRes = R.drawable.ic_paid_onb_speed,
             buttonRes = R.string.paid_onb_start_app,
         ),
     )

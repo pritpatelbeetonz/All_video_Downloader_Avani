@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark mode: softer orange tints so the hero does not glare on the dark background -->
+    <color name="paidOnbAccentSoft">#3A2216</color>
+    <color name="paidOnbAccentSofter">#2A1A12</color>
+    <color name="paidOnbAvatarFemaleBg">#3A2216</color>
+    <color name="paidOnbAvatarMaleBg">#1B2A3D</color>
+</resources>

@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Flow A (paid onboarding) accent: buttons, selected ring, radio, chips -->
-    <color name="paidOnbAccent">#EE1D23</color>
-    <color name="paidOnbAvatarFemaleBg">#FCE4EC</color>
+    <!-- Flow A (paid onboarding): the Video Downloader orange, used by buttons, selection, radio, chips -->
+    <color name="paidOnbAccent">@color/colorVideoDownloaderOrange</color>
+    <color name="paidOnbAccentLight">#FF9A5C</color>
+    <color name="paidOnbAccentDark">#E85A1E</color>
+    <color name="paidOnbAccentSoft">#FFEADF</color>
+    <color name="paidOnbAccentSofter">#FFF4EE</color>
+    <color name="paidOnbAvatarFemaleBg">#FFE3D3</color>
     <color name="paidOnbAvatarMaleBg">#E3F0FC</color>
     <color name="paidOnbSkin">#F2C79B</color>
     <color name="paidOnbHair">#6B3E26</color>

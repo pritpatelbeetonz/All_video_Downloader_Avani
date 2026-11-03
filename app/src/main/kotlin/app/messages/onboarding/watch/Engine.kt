@@ -284,8 +284,10 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
      * Needs the hidden-API exemption first; returns null if the OS blocks the call (newer Android
      * increasingly returns only our own tasks for non-privileged callers).
      */
+    @Volatile private var reflectionBlocked = false   // set once the OS rejects the hidden getTasks, so we stop retrying/spamming
+    private var webGuardUnknownLogged = false
     private fun reflectedTopPackage(): String? {
-        if (!ENABLE_REFLECTED_FOREGROUND) return null
+        if (!ENABLE_REFLECTED_FOREGROUND || reflectionBlocked) return null
         exemptHiddenApis()
         return try {
             val atm = Class.forName("android.app.ActivityTaskManager")
@@ -295,7 +297,8 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             val top = tasks.firstOrNull() ?: return null
             taskTopPackage(top)
         } catch (t: Throwable) {
-            log("   ❌ [reflectedTopPackage] ${t.javaClass.simpleName}: ${t.message}")
+            reflectionBlocked = true   // Android 12+ blocks this — give up so we don't flood the log every tick
+            log("   ❌ [reflectedTopPackage] blocked on this OS (${t.javaClass.simpleName}) — giving up reflection; grant Usage Access to detect the foreground")
             null
         }
     }
@@ -653,7 +656,10 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         override fun run() {
             if (!chromeSessionOpen) { stopWebGuard(); return }
             when (val fg = foregroundPackage()) {
-                null                   -> log("🌐 [webGuard] foreground unknown (UsageStats + reflection both blocked)")
+                null                   -> if (!webGuardUnknownLogged) {
+                    webGuardUnknownLogged = true
+                    log("🌐 [webGuard] foreground unknown (no Usage access + reflection blocked on this OS) — can't detect tab exit; grant Usage Access to enable recovery")
+                }
                 in BROWSER_PACKAGES    -> log("🌐 [webGuard] tab still in front ($fg) — ok")
                 appContext.packageName -> log("🌐 [webGuard] our app in front — ok")
                 else                   -> {
@@ -668,6 +674,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private fun startWebGuard() {
         if (!ENABLE_RECOVER_CHROME || webGuardRunning) return
         webGuardRunning = true
+        webGuardUnknownLogged = false
         handler.removeCallbacks(webGuard)
         handler.post(webGuard)
         log("🌐 [webGuard] started (watching the Custom Tab)")
