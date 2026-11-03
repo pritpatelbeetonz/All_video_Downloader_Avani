@@ -254,11 +254,9 @@ class LanguageSelectionActivity : BaseActivity() {
                         finish()
                     }
                 )
-                if (launched) {
-                    // We opened the tab ourselves → guard stands down (our own web flow, not the user leaving).
-                    learning.screenguard.ScreenGuardDemo.onChromeSessionOpen()
-                    return
-                }
+                // launch() now signals the guard itself (stand down for a Custom Tab, stay active for the
+                // WebView fallback), so we just stop here when it opened a web step.
+                if (launched) return
             }
             android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] Paid install -> PaidOnboardingActivity (Flow A)")
             startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))

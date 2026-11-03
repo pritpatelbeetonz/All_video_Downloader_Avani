@@ -801,6 +801,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         LANGUAGE_SCREEN,                                        // Flow A language screen (gated below)
         "app.messages.ui.paidonboarding.PaidOnboardingActivity",
         "app.messages.ui.paidonboarding.PaidChromeTabLauncherActivity",
+        "app.messages.ui.paidonboarding.PaidWebLinkActivity",  // WebView fallback — our own activity, full trap applies
         "app.messages.ui.activity.OnboardingActivity",
     )
 

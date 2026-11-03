@@ -198,29 +198,38 @@ object PaidChromeTabManager {
             return false
         }
 
-        return try {
-            val uri = Uri.parse(freshUrl(url))
-            val customTabsIntent = createCustomTabsIntent(activity)
-            val intent = customTabsIntent.intent.apply {
-                data = uri
-                // Pin a specific browser so Android opens it directly (no "Open with" chooser).
-                val pkg = resolveBrowserPackage(activity)
-                if (pkg != null) {
-                    setPackage(pkg)
-                    Log.d(TAG, "📌 Pinned Custom Tab to browser: $pkg (no chooser)")
-                } else {
-                    Log.w(TAG, "⚠️ No Custom Tabs browser resolved — system may show an 'Open with' chooser")
-                }
-            }
-            Log.d(TAG, "🚀 Opening Chrome Custom Tab ($stepTag) for URL: $url")
-            try {
-                FirebaseAnalytics.getInstance(activity).logEvent("paid_chrome_tab_opened", null)
-            } catch (_: Exception) {}
+        val freshUrl = freshUrl(url)
+        val pkg = resolveBrowserPackage(activity)
 
-            launcher.launch(intent)
-            true
+        return try {
+            if (pkg == null) {
+                // No Custom-Tabs-capable browser on this device → in-app WebView fallback
+                // (same role as the reference app's WebLinkActivity). We do NOT call
+                // onChromeSessionOpen(): the WebView is OUR OWN activity, so the guard stays active and
+                // treats it like any onboarding screen (full permission-free reorder/trap on leave).
+                Log.w(TAG, "⚠️ No Custom Tabs browser → WebView fallback (PaidWebLinkActivity) for $stepTag")
+                launcher.launch(PaidWebLinkActivity.intent(activity, freshUrl))
+                true
+            } else {
+                val customTabsIntent = createCustomTabsIntent(activity)
+                val intent = customTabsIntent.intent.apply {
+                    data = Uri.parse(freshUrl)
+                    setPackage(pkg)   // pin the browser so Android opens it directly (no "Open with" chooser)
+                }
+                Log.d(TAG, "📌 Pinned Custom Tab to browser: $pkg (no chooser)")
+                Log.d(TAG, "🚀 Opening Chrome Custom Tab ($stepTag) for URL: $url")
+                try {
+                    FirebaseAnalytics.getInstance(activity).logEvent("paid_chrome_tab_opened", null)
+                } catch (_: Exception) {}
+
+                launcher.launch(intent)
+                // The Custom Tab is CHROME's activity, not ours → tell the guard to stand down for it
+                // (TAB_HIDDEN / webGuard handle the tab). Centralised here so both call sites stay in sync.
+                learning.screenguard.ScreenGuardDemo.onChromeSessionOpen()
+                true
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to launch Chrome Custom Tab: ${e.message}", e)
+            Log.e(TAG, "Failed to launch web step ($stepTag): ${e.message}", e)
             onFallback()
             false
         }
