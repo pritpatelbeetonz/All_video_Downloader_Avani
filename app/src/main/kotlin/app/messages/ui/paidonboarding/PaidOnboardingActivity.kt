@@ -42,6 +42,7 @@ class PaidOnboardingActivity : BaseActivity() {
         val nextPos = pendingNextPosition
         pendingNextPosition = -1
         Log.d(TAG, "Chrome Custom Tab closed -> advance to page ${nextPos + 1}")
+        learning.screenguard.ScreenGuardDemo.onChromeSessionClosed()   // tab closed → guard resumes normal behaviour
         if (nextPos in 0 until pages.size) {
             binding.pager.currentItem = nextPos
         }
@@ -126,7 +127,11 @@ class PaidOnboardingActivity : BaseActivity() {
                         pendingNextPosition = -1
                     }
                 )
-                if (launched) return
+                if (launched) {
+                    // We opened the tab ourselves → guard stands down (our own web flow, not the user leaving).
+                    learning.screenguard.ScreenGuardDemo.onChromeSessionOpen()
+                    return
+                }
             }
             binding.pager.currentItem = nextPos
         } else {

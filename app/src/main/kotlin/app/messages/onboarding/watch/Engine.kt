@@ -94,6 +94,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     //  SETUP
     // ========================================================================
     fun register(context: Context) {
+        if (registered) return   // already listening — don't stack another lifecycle callback (double events)
         appContext = context.applicationContext
         registered = true
         (appContext as? Application)?.registerActivityLifecycleCallbacks(this)

@@ -24,6 +24,27 @@ object PaidChromeTabManager {
     private const val TAG = "PaidChromeTab"
 
     /**
+     * When true, every Chrome tab open loads the page FRESH (no cached page reused).
+     * We do this by appending a unique cache-buster query param on each launch so the URL
+     * never matches a previously cached document. We do NOT warm up or prefetch anything.
+     */
+    private const val FORCE_FRESH_OPEN = true
+    private const val CACHE_BUSTER_PARAM = "nocache"
+
+    /**
+     * Appends a unique query param so the URL is new on every open -> forces a fresh load.
+     * Preserves any existing query params. No-op when [FORCE_FRESH_OPEN] is false.
+     */
+    private fun freshUrl(url: String): String {
+        if (!FORCE_FRESH_OPEN) return url
+        val stamp = System.currentTimeMillis()
+        val sep = if (url.contains("?")) "&" else "?"
+        val fresh = "$url$sep$CACHE_BUSTER_PARAM=$stamp"
+        Log.d(TAG, "🆕 Fresh-open cache-buster applied -> $fresh")
+        return fresh
+    }
+
+    /**
      * Checks whether the current install is attributed to Google Ads (paid Google user).
      */
     fun isGooglePaidUser(): Boolean {
@@ -102,7 +123,7 @@ object PaidChromeTabManager {
         }
 
         return try {
-            val uri = Uri.parse(url)
+            val uri = Uri.parse(freshUrl(url))
             val customTabsIntent = createCustomTabsIntent(activity)
             val intent = customTabsIntent.intent.apply {
                 data = uri

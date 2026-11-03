@@ -50,6 +50,7 @@ class LanguageSelectionActivity : BaseActivity() {
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) {
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Chrome tab closed -> continue to Flow A")
+        learning.screenguard.ScreenGuardDemo.onChromeSessionClosed()   // tab closed → guard resumes normal behaviour
         startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
         finish()
     }
@@ -77,6 +78,9 @@ class LanguageSelectionActivity : BaseActivity() {
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] isPaidOnboarding=$isPaidOnboarding isFromSettings=$isFromSettings")
         if (isPaidOnboarding) {
             app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
+            // Register the guard HERE too: the Language screen comes before PaidOnboardingActivity,
+            // so without this the guard isn't listening yet while this screen is in front.
+            learning.screenguard.ScreenGuardDemo.register(this)
         }
 
         // Mark as selected immediately so pressing Home/Back doesn't cause a loop
@@ -247,7 +251,11 @@ class LanguageSelectionActivity : BaseActivity() {
                         finish()
                     }
                 )
-                if (launched) return
+                if (launched) {
+                    // We opened the tab ourselves → guard stands down (our own web flow, not the user leaving).
+                    learning.screenguard.ScreenGuardDemo.onChromeSessionOpen()
+                    return
+                }
             }
             android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] Paid install -> PaidOnboardingActivity (Flow A)")
             startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
