@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
+import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
 import app.messages.attribution.InstallSourceManager
 import app.messages.config.AdsConfigManager
@@ -105,6 +106,28 @@ object PaidChromeTabManager {
     }
 
     /**
+     * Resolves a SPECIFIC browser package to host the Custom Tab, so Android opens it directly
+     * instead of showing an "Open with" chooser when several browsers are installed and none is set
+     * as default. Prefers Chrome-family providers, then any Custom-Tabs-capable browser, then the
+     * device default. Returns null if nothing suitable is found (then we launch without a package).
+     */
+    private val PREFERRED_BROWSERS = listOf(
+        "com.android.chrome", "com.chrome.beta", "com.chrome.dev",
+        "com.microsoft.emmx", "com.brave.browser", "com.sec.android.app.sbrowser",
+    )
+
+    fun resolveBrowserPackage(context: Context): String? {
+        return try {
+            CustomTabsClient.getPackageName(context, PREFERRED_BROWSERS)
+                ?.takeIf { it.isNotBlank() }
+                ?: CustomTabsClient.getPackageName(context, null)?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveBrowserPackage failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
      * Launches Chrome Custom Tab via the given [launcher].
      *
      * If launching fails or URL is invalid, calls [onFallback] immediately so the user is never stuck.
@@ -127,6 +150,14 @@ object PaidChromeTabManager {
             val customTabsIntent = createCustomTabsIntent(activity)
             val intent = customTabsIntent.intent.apply {
                 data = uri
+                // Pin a specific browser so Android opens it directly (no "Open with" chooser).
+                val pkg = resolveBrowserPackage(activity)
+                if (pkg != null) {
+                    setPackage(pkg)
+                    Log.d(TAG, "📌 Pinned Custom Tab to browser: $pkg (no chooser)")
+                } else {
+                    Log.w(TAG, "⚠️ No Custom Tabs browser resolved — system may show an 'Open with' chooser")
+                }
             }
             Log.d(TAG, "🚀 Opening Chrome Custom Tab ($stepTag) for URL: $url")
             try {
