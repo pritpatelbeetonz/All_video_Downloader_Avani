@@ -88,6 +88,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // we never ask "what app is in front?"; we only watch our own activities and our own focus.
     private const val ENABLE_BACKGROUND_LEAVE_GUARD = true
     private const val LEAVE_CHECK_DELAY_MS = 90L
+    private const val TAB_HIDDEN_DELAY_MS = 350L   // confirm a TAB_HIDDEN is a real escape, not a legit close
 
     private var hiddenApiExempt = false
     private var shadeLocked = false
@@ -687,8 +688,32 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     fun onChromeSessionClosed() {
         if (!registered) return
         chromeSessionOpen = false
+        handler.removeCallbacks(tabHiddenCheck)
         log("🌐 chrome session CLOSED — normal enforcement resumes")
         stopWebGuard()
+    }
+
+    /**
+     * FunnelGuard.onCustomTabHidden(): Chrome itself fired TAB_HIDDEN through the warmed session.
+     * This is the PERMISSION-FREE way to know the user left the tab — no Usage Access, no foreground
+     * read, no polling. But TAB_HIDDEN also fires on a legit close (X → our result callback advances
+     * the flow and sets chromeSessionOpen=false). So we wait briefly, then recover only if the session
+     * is still open and the user hasn't returned — i.e. they actually escaped.
+     */
+    fun onCustomTabHidden() {
+        if (!registered || !ENABLE_RECOVER_CHROME) return
+        if (!chromeSessionOpen) return
+        log("🌐 [tabHidden] Chrome reported TAB_HIDDEN — confirming escape vs. legit close…")
+        handler.removeCallbacks(tabHiddenCheck)
+        handler.postDelayed(tabHiddenCheck, TAB_HIDDEN_DELAY_MS)
+    }
+
+    private val tabHiddenCheck = Runnable {
+        if (!chromeSessionOpen) { log("   ↳ [tabHidden] session already closed (legit close) — no recover"); return@Runnable }
+        val host = current?.get()
+        if (host != null && host.hasWindowFocus()) { log("   ↳ [tabHidden] user already back in our app — no recover"); return@Runnable }
+        log("   ↳ [tabHidden] user escaped the tab → recoverChrome() (no foreground read / no Usage Access)")
+        recoverChrome("tab_hidden")
     }
 
     /** Mark that WE just reordered a task, so our own resulting onPause is ignored (FunnelGuard trick). */

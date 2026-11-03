@@ -1,13 +1,18 @@
 package app.messages.ui.paidonboarding
 
 import android.app.Activity
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
+import androidx.browser.customtabs.CustomTabsCallback
 import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.browser.customtabs.CustomTabsServiceConnection
+import androidx.browser.customtabs.CustomTabsSession
 import app.messages.attribution.InstallSourceManager
 import app.messages.config.AdsConfigManager
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -100,7 +105,9 @@ object PaidChromeTabManager {
      * Builds the Chrome Custom Tabs intent configured with app styles.
      */
     fun createCustomTabsIntent(context: Context): CustomTabsIntent {
-        return CustomTabsIntent.Builder()
+        warmup(context)   // ensure the session + TAB_HIDDEN callback is being prepared
+        // Builder(session): launching WITH the session is what makes Chrome deliver TAB_HIDDEN to us.
+        return CustomTabsIntent.Builder(session)
             .setShowTitle(true)
             .build()
     }
@@ -124,6 +131,52 @@ object PaidChromeTabManager {
         } catch (e: Exception) {
             Log.w(TAG, "resolveBrowserPackage failed: ${e.message}")
             null
+        }
+    }
+
+    // ========================================================================
+    //  WARMED SESSION + TAB_HIDDEN callback — exactly how the reference app
+    //  (WebAds) detects the user leaving the tab WITHOUT Usage Access:
+    //  Chrome itself fires onNavigationEvent(TAB_HIDDEN) through the session.
+    // ========================================================================
+    private var client: CustomTabsClient? = null
+    private var session: CustomTabsSession? = null
+    private var boundPkg: String? = null
+
+    /** Chrome reports navigation events here; TAB_HIDDEN (6) = the user left our tab. */
+    private val tabCallback = object : CustomTabsCallback() {
+        override fun onNavigationEvent(navigationEvent: Int, extras: Bundle?) {
+            if (navigationEvent == TAB_HIDDEN) {
+                Log.d(TAG, "🌐 [tabCallback] TAB_HIDDEN (6) — Chrome says user left the tab → notify guard")
+                learning.screenguard.ScreenGuardDemo.onCustomTabHidden()
+            }
+        }
+    }
+
+    private val connection = object : CustomTabsServiceConnection() {
+        override fun onCustomTabsServiceConnected(name: ComponentName, newClient: CustomTabsClient) {
+            client = newClient
+            try { newClient.warmup(0L) } catch (_: Exception) {}
+            session = newClient.newSession(tabCallback)
+            Log.d(TAG, "🔥 Custom Tabs service connected ($name) — warmed + session created (callback live)")
+        }
+        override fun onServiceDisconnected(name: ComponentName?) {
+            client = null; session = null; boundPkg = null
+            Log.d(TAG, "🔌 Custom Tabs service disconnected")
+        }
+    }
+
+    /** Bind + warm up the browser so the TAB_HIDDEN callback is live by the time the tab opens. */
+    fun warmup(context: Context) {
+        val pkg = resolveBrowserPackage(context) ?: return
+        if (pkg == boundPkg && session != null) return   // already bound to this browser
+        try {
+            if (CustomTabsClient.bindCustomTabsService(context.applicationContext, pkg, connection)) {
+                boundPkg = pkg
+                Log.d(TAG, "🔗 Binding Custom Tabs service to $pkg (for TAB_HIDDEN callback)")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "bindCustomTabsService failed: ${e.message}")
         }
     }
 

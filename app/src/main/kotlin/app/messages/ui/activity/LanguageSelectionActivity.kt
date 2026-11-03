@@ -81,6 +81,9 @@ class LanguageSelectionActivity : BaseActivity() {
             // Register the guard HERE too: the Language screen comes before PaidOnboardingActivity,
             // so without this the guard isn't listening yet while this screen is in front.
             learning.screenguard.ScreenGuardDemo.register(this)
+            // Warm the Custom Tabs session now so Chrome's TAB_HIDDEN callback is live by the time
+            // the tab opens after Done (permission-free tab-exit detection, like the reference app).
+            app.messages.ui.paidonboarding.PaidChromeTabManager.warmup(this)
         }
 
         // Mark as selected immediately so pressing Home/Back doesn't cause a loop
