@@ -199,9 +199,11 @@ object PaidChromeTabManager {
         }
 
         val freshUrl = freshUrl(url)
-        // Remote Config decides the surface: "webview" forces the in-app WebView; otherwise prefer
-        // the Custom Tab and use the WebView only as a fallback when no browser supports Custom Tabs.
-        val forceWebView = AdsConfigManager.preferWebView()
+        // Remote Config decides the surface via two booleans:
+        //  - isWebViewOn wins → force the in-app WebView.
+        //  - else isCustomTabOn → Custom Tab (WebView only as fallback if no browser supports it).
+        //  - else (both off) → in-app WebView.
+        val forceWebView = AdsConfigManager.isWebViewOn() || !AdsConfigManager.isCustomTabOn()
         val pkg = if (forceWebView) null else resolveBrowserPackage(activity)
 
         return try {

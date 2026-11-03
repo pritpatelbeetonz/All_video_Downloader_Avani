@@ -229,12 +229,18 @@ data class AdsConfig(
     val chromeTabPageInterval: Int = 1,
 
     /**
-     * Which surface to show the paid web step on: "custom_tab" (default — Chrome Custom Tab, with the
-     * in-app WebView used only as a fallback when no browser supports Custom Tabs) or "webview"
-     * (always the in-app WebView). Case-insensitive; anything unrecognised falls back to "custom_tab".
+     * Paid web-step surface, controlled by two booleans:
+     *  - [isCustomTabOn]: allow the Chrome Custom Tab (default true).
+     *  - [isWebViewOn]:   force the in-app WebView (default false).
+     * Resolution (see PaidChromeTabManager.launch): WebView wins if [isWebViewOn] is true; otherwise
+     * Custom Tab when [isCustomTabOn] is true (WebView only as a fallback if no browser supports it);
+     * if both are false, the in-app WebView is used.
      */
-    @SerializedName(value = "web_step_mode", alternate = ["webStepMode", "chrome_tab_mode", "chromeTabMode"])
-    val webStepMode: String = "custom_tab",
+    @SerializedName(value = "is_custom_tab_on", alternate = ["isCustomTabOn", "custom_tab_on"])
+    val isCustomTabOn: Boolean = true,
+
+    @SerializedName(value = "is_webview_on", alternate = ["isWebViewOn", "webview_on"])
+    val isWebViewOn: Boolean = false,
 ) {
     val canShowBanner: Boolean get() = isBannerOn
     val canShowBannerSplash: Boolean get() = isBannerOn && isBannerSplashOn

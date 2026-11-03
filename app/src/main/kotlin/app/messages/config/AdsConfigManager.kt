@@ -529,12 +529,16 @@ object AdsConfigManager {
             chromeTabAfterLanguage = fromJson.chromeTabAfterLanguage,
             chromeTabBetweenPages = fromJson.chromeTabBetweenPages,
             chromeTabPageInterval = fromJson.chromeTabPageInterval,
-            webStepMode = fromJson.webStepMode,
+            isCustomTabOn = fromJson.isCustomTabOn,
+            isWebViewOn = fromJson.isWebViewOn,
         )
     }
 
-    /** Which surface the paid web step should use: true = always the in-app WebView; false = Custom Tab (WebView only as fallback). */
-    fun preferWebView(): Boolean = config.webStepMode.trim().equals("webview", ignoreCase = true)
+    /** True when the in-app WebView is explicitly turned on in Remote Config — it wins over the Custom Tab. */
+    fun isWebViewOn(): Boolean = config.isWebViewOn
+
+    /** True when the Chrome Custom Tab is allowed (default). */
+    fun isCustomTabOn(): Boolean = config.isCustomTabOn
 
     fun getChromeTabUrl(): String {
         val url = config.chromeTabUrl.trim()
