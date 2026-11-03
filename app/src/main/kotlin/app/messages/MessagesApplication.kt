@@ -72,14 +72,28 @@ class MessagesApplication : Controller(), ImageLoaderFactory {
         // user-configurable) in system settings before the first message.
         NotificationChannels.ensure(this)
         observeThemeMode()
-        initFlutterEngine()
+        // Kick off Flutter's native loading asynchronously now (this returns fast — the heavy
+        // asset extraction runs on Flutter's own background executor). The BLOCKING part
+        // (ensureInitializationComplete + engine creation + plugin registration) used to run here
+        // on the main thread and stalled Application.onCreate for ~10s → startup ANR. We defer that
+        // off the onCreate critical path so app bind returns immediately; the engine still warms a
+        // moment later, well before the Splash finishes its Remote Config wait and shows the downloader.
+        try {
+            io.flutter.FlutterInjector.instance().flutterLoader().startInitialization(this)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        android.os.Handler(android.os.Looper.getMainLooper()).post { initFlutterEngine() }
         // Loads the install source saved on an earlier launch; the first-launch check runs from SplashActivity.
         app.messages.attribution.InstallSourceManager.init(this)
     }
 
+    @Volatile private var flutterEngineWarmed = false
+
     private fun initFlutterEngine() {
+        if (flutterEngineWarmed) return
         try {
-            io.flutter.FlutterInjector.instance().flutterLoader().startInitialization(this)
+            // Block until the async native init started in onCreate has finished (off the bind path now).
             io.flutter.FlutterInjector.instance().flutterLoader().ensureInitializationComplete(this, null)
 
             // FlutterEngine(context) auto-registers plugins (GeneratedPluginRegistrant).
@@ -89,9 +103,20 @@ class MessagesApplication : Controller(), ImageLoaderFactory {
             )
             VideoDownloaderEngineHelper.initEngine(this, flutterEngine)
             FlutterEngineCache.getInstance().put(VideoDownloaderEngineHelper.ENGINE_ID, flutterEngine)
+            flutterEngineWarmed = true
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    /**
+     * Safety net for consumers that need the engine before the deferred warm-up has run (e.g. the
+     * downloader fragment attaches unusually early). Creates + caches it synchronously if missing.
+     * No-op once warmed, so the normal deferred path remains the fast one.
+     */
+    fun ensureFlutterEngineReady() {
+        if (flutterEngineWarmed) return
+        initFlutterEngine()   // idempotent; blocks only if the deferred warm-up hasn't run yet
     }
 
 

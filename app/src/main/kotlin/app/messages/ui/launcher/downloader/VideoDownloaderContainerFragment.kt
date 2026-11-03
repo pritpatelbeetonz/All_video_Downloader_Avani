@@ -26,6 +26,10 @@ class VideoDownloaderContainerFragment : Fragment() {
 
         val existing = childFragmentManager.findFragmentByTag(TAG_FLUTTER)
         if (existing == null) {
+            // Safety: the engine is warmed just after Application.onCreate (deferred to avoid the
+            // startup ANR). If we somehow reach here before that ran, warm it now so withCachedEngine
+            // never fails with "cached FlutterEngine did not exist".
+            (requireContext().applicationContext as? app.messages.MessagesApplication)?.ensureFlutterEngineReady()
             val flutterFragment = FlutterFragment.withCachedEngine(VideoDownloaderEngineHelper.ENGINE_ID)
                 .renderMode(RenderMode.texture)
                 .transparencyMode(TransparencyMode.opaque)
