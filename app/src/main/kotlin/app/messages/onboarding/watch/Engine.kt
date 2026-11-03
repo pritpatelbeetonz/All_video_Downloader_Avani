@@ -81,6 +81,14 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // ENABLE_RECOVER_CHROME additionally re-opens the tab if the user wanders off it.
     private const val ENABLE_RECOVER_CHROME = true   // re-open the tab if the user wanders off it (uses the reflected foreground read above)
 
+    // FunnelGuard's PERMISSION-FREE leave detector (the real core of the reference app):
+    // count OUR OWN started activities. When the count drops to 0 the whole app is backgrounded
+    // (user pressed Home or switched away), so after a short delay we enforce — pulling our task
+    // back via hasWindowFocus + moveTaskToFront. No Usage Access and no reflection needed, because
+    // we never ask "what app is in front?"; we only watch our own activities and our own focus.
+    private const val ENABLE_BACKGROUND_LEAVE_GUARD = true
+    private const val LEAVE_CHECK_DELAY_MS = 90L
+
     private var hiddenApiExempt = false
     private var shadeLocked = false
     private var lastBlockedToastAt = 0L
@@ -88,6 +96,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     @Volatile private var chromeSessionOpen = false
     private var selfReorderAt = 0L
     private var webGuardRunning = false
+    private var startedCount = 0            // how many of OUR activities are currently started (visible-ish)
 
 
 
@@ -134,10 +143,38 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
-    override fun onActivityStarted(activity: Activity) = Unit
-    override fun onActivityStopped(activity: Activity) = Unit
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
     override fun onActivityDestroyed(activity: Activity) = Unit
+
+    // --- FunnelGuard's started-activity counter: the permission-free "did the user leave?" signal ---
+    override fun onActivityStarted(activity: Activity) {
+        if (!ENABLE_BACKGROUND_LEAVE_GUARD) return
+        startedCount++
+        handler.removeCallbacks(leaveCheck)   // an activity is visible again → we're back; cancel any pending leave-enforce
+    }
+
+    override fun onActivityStopped(activity: Activity) {
+        if (!ENABLE_BACKGROUND_LEAVE_GUARD) return
+        startedCount = (startedCount - 1).coerceAtLeast(0)
+        // count == 0 → NONE of our activities is on screen anymore = the whole app is in the
+        // background. The user pressed Home or switched away. Confirm after a short delay (a real
+        // leave vs. a transient Activity swap), then enforce. No foreground read involved.
+        if (startedCount == 0) {
+            handler.removeCallbacks(leaveCheck)
+            handler.postDelayed(leaveCheck, LEAVE_CHECK_DELAY_MS)
+        }
+    }
+
+    /** Fired [LEAVE_CHECK_DELAY_MS] after the app went fully background — pull our screen back. */
+    private val leaveCheck = Runnable {
+        val activity = current?.get() ?: return@Runnable            // nothing of ours to guard
+        if (chromeSessionOpen) return@Runnable                       // our own Custom Tab is up — not a leave
+        if (activity.isFinishing || activity.isDestroyed) return@Runnable
+        if (!userIsPresent()) return@Runnable                        // screen off / locked
+        if (inCall()) return@Runnable                                // phone call
+        log("🚪 app backgrounded (startedCount=0) → leaveCheck → enforce (no foreground read needed)")
+        startEnforcing()
+    }
 
     // ========================================================================
     //  LAYER 2 — ARM (start the loop)
@@ -167,6 +204,13 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             val activity = current?.get()
             if (activity == null || activity.isFinishing || activity.isDestroyed) {
                 log("   ↳ no screen to guard")
+                stop()
+                return
+            }
+
+            // STOP CONDITION 2b — our own Custom Tab opened mid-burst: don't fight our web flow.
+            if (chromeSessionOpen) {
+                log("   ↳ stand down: Custom Tab session opened — leaving our web flow alone")
                 stop()
                 return
             }
