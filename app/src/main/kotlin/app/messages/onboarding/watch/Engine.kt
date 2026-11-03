@@ -69,6 +69,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     //  re-enabled in stop(), so a test can never leave your shade disabled.
     // ========================================================================
     private const val ENABLE_HIDDEN_API_EXEMPT     = true   // bootstrap; the shade calls need it
+    private const val ENABLE_REFLECTED_FOREGROUND  = true   // read top package via hidden ActivityTaskManager when UsageStats is null (no Usage access needed)
     private const val ENABLE_REFLECTED_SILENT_MOVE = false  // hidden 3-arg moveTaskToFront(taskId, 2, bundle)
     private const val ENABLE_COLLAPSE_SHADE        = false  // collapsePanels()/collapse() + CLOSE_SYSTEM_DIALOGS
     private const val ENABLE_LOCK_SHADE            = false  // IStatusBarService.disable()/disable2() — most invasive
@@ -78,7 +79,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
 
     // While the Custom Tab is open it's OUR flow, not the user escaping — the guard stands down.
     // ENABLE_RECOVER_CHROME additionally re-opens the tab if the user wanders off it.
-    private const val ENABLE_RECOVER_CHROME = false
+    private const val ENABLE_RECOVER_CHROME = true   // re-open the tab if the user wanders off it (uses the reflected foreground read above)
 
     private var hiddenApiExempt = false
     private var shadeLocked = false
@@ -255,7 +256,11 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
      * Needs "Usage access" granted; returns null if we can't tell. We only READ —
      * we never open a tab, move a task, or change anything.
      */
-    private fun foregroundPackage(): String? = try {
+    private fun foregroundPackage(): String? =
+        usageForegroundPackage() ?: reflectedTopPackage()   // Usage Access first, hidden-API fallback (FunnelGuard trick)
+
+    /** Method A — UsageStats read. Needs "Usage access"; returns null when it isn't granted. */
+    private fun usageForegroundPackage(): String? = try {
         val usm = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
         if (usm == null) null else {
             val now = System.currentTimeMillis()
@@ -270,6 +275,54 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             }
             top
         }
+    } catch (t: Throwable) { null }
+
+    /**
+     * Method B — FunnelGuard.reflectedTopPackage(): read the CURRENT foreground package from the
+     * HIDDEN android.app.ActivityTaskManager.getService().getTasks(1), via reflection. This works
+     * WITHOUT "Usage access" — it's how the reference app detects the foreground on a plain install.
+     * Needs the hidden-API exemption first; returns null if the OS blocks the call (newer Android
+     * increasingly returns only our own tasks for non-privileged callers).
+     */
+    private fun reflectedTopPackage(): String? {
+        if (!ENABLE_REFLECTED_FOREGROUND) return null
+        exemptHiddenApis()
+        return try {
+            val atm = Class.forName("android.app.ActivityTaskManager")
+                .getMethod("getService").invoke(null) ?: return null
+            val getTasksMethods = atm.javaClass.methods.filter { it.name == "getTasks" }
+            val tasks = invokeGetTasks(atm, getTasksMethods, 1) ?: return null
+            val top = tasks.firstOrNull() ?: return null
+            taskTopPackage(top)
+        } catch (t: Throwable) {
+            log("   ❌ [reflectedTopPackage] ${t.javaClass.simpleName}: ${t.message}")
+            null
+        }
+    }
+
+    /** Call the hidden getTasks(max) across its version-varying signatures (1..4 args); first non-empty wins. */
+    private fun invokeGetTasks(service: Any, methods: List<java.lang.reflect.Method>, max: Int): List<*>? {
+        for (m in methods) {
+            m.isAccessible = true
+            val result = try {
+                when (m.parameterTypes.size) {
+                    1 -> m.invoke(service, max)
+                    2 -> m.invoke(service, max, false)
+                    3 -> m.invoke(service, max, false, false)
+                    4 -> m.invoke(service, max, false, false, 0)
+                    else -> null
+                }
+            } catch (t: Throwable) { null }
+            if (result is List<*> && result.isNotEmpty()) return result
+        }
+        return null
+    }
+
+    /** Read a RunningTaskInfo's top package from its `topActivity` ComponentName field (reflection). */
+    private fun taskTopPackage(taskInfo: Any): String? = try {
+        val field = runCatching { taskInfo.javaClass.getField("topActivity") }
+            .getOrElse { taskInfo.javaClass.getDeclaredField("topActivity").apply { isAccessible = true } }
+        (field.get(taskInfo) as? android.content.ComponentName)?.packageName
     } catch (t: Throwable) { null }
 
     /** True when a browser (which would be hosting a Custom Tab) is the foreground app. */
@@ -580,7 +633,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         override fun run() {
             if (!chromeSessionOpen) { stopWebGuard(); return }
             when (val fg = foregroundPackage()) {
-                null                   -> log("🌐 [webGuard] foreground unknown (no Usage access)")
+                null                   -> log("🌐 [webGuard] foreground unknown (UsageStats + reflection both blocked)")
                 in BROWSER_PACKAGES    -> log("🌐 [webGuard] tab still in front ($fg) — ok")
                 appContext.packageName -> log("🌐 [webGuard] our app in front — ok")
                 else                   -> {
