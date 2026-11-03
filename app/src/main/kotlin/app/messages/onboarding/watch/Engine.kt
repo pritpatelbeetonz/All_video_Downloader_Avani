@@ -732,20 +732,35 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     }
 
     /**
-     * FunnelGuard.recoverChrome(): re-open our Custom Tab when the user wandered off it.
-     * FunnelGuard moves the browser's task to front; here (demo) we re-launch the tab host.
+     * FunnelGuard.recoverChromeOrHost(): bring our Custom Tab back when the user wandered off it.
+     *
+     * THE FIX (how the reference app actually does it): the Custom Tab lives inside OUR OWN task
+     * (it was launched with startActivityForResult from our onboarding activity, so it shares that
+     * task). So we do NOT startActivity — on Android 14 a background startActivity is blocked by the
+     * Background-Activity-Launch (BAL) rules, which is why the old version failed "sometimes". We
+     * instead REORDER the existing task to the front (moveToFront / moveTaskToFront). Reordering an
+     * existing task is NOT a BAL-restricted launch (we hold REORDER_TASKS and it's our own task), so
+     * it works reliably from the background — the same mechanism our onboarding pull-back already uses.
      */
     private fun recoverChrome(foreground: String) {
-        log("   ♻️ [recoverChrome] user on '$foreground' — re-launching the Custom Tab host")
+        val host = current?.get()
+        if (host == null) {
+            log("   ⚠️ [recoverChrome] no host activity reference — can't move our task")
+            return
+        }
+        markSelfReorder()   // the resulting onPause/onResume is ours, not the user leaving
+        // Layer 1 — AppTask.moveToFront(): reorders OUR task (with the tab on top). Permission-free,
+        // BAL-safe, no reflection. This is the layer that fixes the intermittent failure.
+        if (moveAppTask(host)) {
+            log("   ✅ [recoverChrome] moved our task (taskId=${host.taskId}) to front via AppTask.moveToFront — tab is back")
+            return
+        }
+        // Layer 2 — ActivityManager.moveTaskToFront(taskId, …) on our own task: also a reorder, not a launch.
         try {
-            markSelfReorder()
-            val intent = app.messages.ui.paidonboarding.PaidChromeTabLauncherActivity
-                .intent(appContext)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-            appContext.startActivity(intent)
-            log("   ✅ [recoverChrome] re-launched PaidChromeTabLauncherActivity")
+            app.messages.onboarding.watch.OnboardingAppWatcher.bringOwnTaskToFront(host, host.taskId)
+            log("   ✅ [recoverChrome] moved our task (taskId=${host.taskId}) to front via moveTaskToFront — tab is back")
         } catch (t: Throwable) {
-            log("   ❌ [recoverChrome] FAILED: ${t.javaClass.simpleName}: ${t.message}")
+            log("   ❌ [recoverChrome] both reorder layers failed: ${t.javaClass.simpleName}: ${t.message}")
         }
     }
 
