@@ -320,7 +320,7 @@ object OnboardingAppWatcher {
     // ========================================================================
     //  SCOPE FILTER — only react on the ONBOARDING screens, nothing else.
     //  The watcher is registered app-wide (so it CAN see every screen), but we
-    //  only want it active during the onboarding flow — not on the launcher,
+    //  only want it active during the onboarding fldow — not on the launcher,
     //  the conversation list, settings, etc. This check limits it to the
     //  onboarding Activities. The paid onboarding pages are Fragments inside
     //  PaidOnboardingActivity, so matching that one Activity covers them all.

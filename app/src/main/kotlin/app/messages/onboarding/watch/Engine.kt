@@ -630,14 +630,27 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     //  onboarding pages are Fragments inside PaidOnboardingActivity, so matching
     //  that one Activity covers the whole flow.
     // ========================================================================
+    private const val LANGUAGE_SCREEN = "app.messages.ui.activity.LanguageSelectionActivity"
+
     private val ONBOARDING_SCREENS = setOf(
+        LANGUAGE_SCREEN,                                        // Flow A language screen (gated below)
         "app.messages.ui.paidonboarding.PaidOnboardingActivity",
         "app.messages.ui.paidonboarding.PaidChromeTabLauncherActivity",
         "app.messages.ui.activity.OnboardingActivity",
     )
 
-    private fun isOnboardingScreen(activity: Activity): Boolean =
-        activity.javaClass.name in ONBOARDING_SCREENS
+    private fun isOnboardingScreen(activity: Activity): Boolean {
+        val name = activity.javaClass.name
+        if (name !in ONBOARDING_SCREENS) return false
+        // The language screen is also reachable later (e.g. a language change from the app),
+        // so only guard it while Flow A is actually in progress — a paid install that hasn't
+        // finished onboarding. Other screens here are inherently Flow-A/onboarding only.
+        if (name == LANGUAGE_SCREEN &&
+            !app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(activity)) {
+            return false
+        }
+        return true
+    }
 
     // ========================================================================
     //  LOG
