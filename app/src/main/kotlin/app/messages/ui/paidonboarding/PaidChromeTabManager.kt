@@ -199,15 +199,18 @@ object PaidChromeTabManager {
         }
 
         val freshUrl = freshUrl(url)
-        val pkg = resolveBrowserPackage(activity)
+        // Remote Config decides the surface: "webview" forces the in-app WebView; otherwise prefer
+        // the Custom Tab and use the WebView only as a fallback when no browser supports Custom Tabs.
+        val forceWebView = AdsConfigManager.preferWebView()
+        val pkg = if (forceWebView) null else resolveBrowserPackage(activity)
 
         return try {
             if (pkg == null) {
-                // No Custom-Tabs-capable browser on this device → in-app WebView fallback
-                // (same role as the reference app's WebLinkActivity). We do NOT call
+                // WebView path — either forced by Remote Config, or no Custom-Tabs browser is installed
+                // (the fallback, same role as the reference app's WebLinkActivity). We do NOT call
                 // onChromeSessionOpen(): the WebView is OUR OWN activity, so the guard stays active and
                 // treats it like any onboarding screen (full permission-free reorder/trap on leave).
-                Log.w(TAG, "⚠️ No Custom Tabs browser → WebView fallback (PaidWebLinkActivity) for $stepTag")
+                Log.w(TAG, "🌐 WebView path (${if (forceWebView) "forced by Remote Config" else "no Custom Tabs browser"}) → PaidWebLinkActivity for $stepTag")
                 launcher.launch(PaidWebLinkActivity.intent(activity, freshUrl))
                 true
             } else {

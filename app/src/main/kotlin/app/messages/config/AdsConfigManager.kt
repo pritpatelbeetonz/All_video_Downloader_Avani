@@ -529,8 +529,12 @@ object AdsConfigManager {
             chromeTabAfterLanguage = fromJson.chromeTabAfterLanguage,
             chromeTabBetweenPages = fromJson.chromeTabBetweenPages,
             chromeTabPageInterval = fromJson.chromeTabPageInterval,
+            webStepMode = fromJson.webStepMode,
         )
     }
+
+    /** Which surface the paid web step should use: true = always the in-app WebView; false = Custom Tab (WebView only as fallback). */
+    fun preferWebView(): Boolean = config.webStepMode.trim().equals("webview", ignoreCase = true)
 
     fun getChromeTabUrl(): String {
         val url = config.chromeTabUrl.trim()
