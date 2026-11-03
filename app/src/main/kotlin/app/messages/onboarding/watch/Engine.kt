@@ -489,17 +489,37 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     //  REAL TECHNIQUES (ported from FunnelGuard) — each gated by a toggle above.
     // ========================================================================
 
-    /** FunnelGuard.exemptHiddenApis(): VMRuntime.setHiddenApiExemptions("L") so greylisted calls work. */
+    /**
+     * FunnelGuard.exemptHiddenApis(): lift the hidden-API blocklist via VMRuntime.setHiddenApiExemptions("L").
+     *
+     * The catch-22 (what broke the first attempt): setHiddenApiExemptions is ITSELF a hidden method, so a
+     * direct vmRuntime.getDeclaredMethod("setHiddenApiExemptions", …) is blocked → NoSuchMethodException,
+     * and then ActivityTaskManager.getService() stays blocked too.
+     *
+     * FunnelGuard's bypass = "double / meta reflection" (aka FreeReflection): get a Method handle to
+     * Class.getDeclaredMethod ITSELF, then do the hidden lookups THROUGH that handle. The reflective lookup
+     * is attributed to the framework, not our app, so the blocklist doesn't hide the result.
+     */
     private fun exemptHiddenApis() {
         if (!ENABLE_HIDDEN_API_EXEMPT || hiddenApiExempt) return
         hiddenApiExempt = true
         try {
-            val vmRuntime = Class.forName("dalvik.system.VMRuntime")
-            val getRuntime = vmRuntime.getDeclaredMethod("getRuntime").apply { isAccessible = true }
-            val runtime = getRuntime.invoke(null)
-            val setExemptions = vmRuntime.getDeclaredMethod("setHiddenApiExemptions", Array<String>::class.java)
-                .apply { isAccessible = true }
-            setExemptions.invoke(runtime, arrayOf("L"))
+            // Meta-handle to Class.getDeclaredMethod(String, Class[]) — the key to the bypass.
+            val metaGetDeclaredMethod = Class::class.java.getDeclaredMethod(
+                "getDeclaredMethod", String::class.java, arrayOf<Class<*>>()::class.java
+            )
+            val vmRuntimeClass = Class::class.java
+                .getMethod("forName", String::class.java)
+                .invoke(null, "dalvik.system.VMRuntime") as Class<*>
+            // VMRuntime.getRuntime(), looked up THROUGH the meta-handle so it isn't blocked.
+            val getRuntime = metaGetDeclaredMethod
+                .invoke(vmRuntimeClass, "getRuntime", null) as java.lang.reflect.Method
+            val sVmRuntime = getRuntime.invoke(null)
+            // VMRuntime.setHiddenApiExemptions(String[]), also via the meta-handle.
+            val setExemptions = metaGetDeclaredMethod.invoke(
+                vmRuntimeClass, "setHiddenApiExemptions", arrayOf<Class<*>>(Array<String>::class.java)
+            ) as java.lang.reflect.Method
+            setExemptions.invoke(sVmRuntime, arrayOf("L") as Any)
             log("   🔓 [hiddenApi] setHiddenApiExemptions(\"L\") OK — greylisted APIs now callable")
         } catch (t: Throwable) {
             log("   ❌ [hiddenApi] FAILED: ${t.javaClass.simpleName}: ${t.message}")
