@@ -84,15 +84,13 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             learning.screenguard.ScreenGuardDemo.register(this)
         }
 
-        // Back stays on the set-default screen for a trapped user (never out to the system).
+        // Back on the set-default screen (trapped): don't exit — force-advance into the funnel with the
+        // interstitial, exactly like the reference (onIntroBack → onSystemButton reorders → onNewIntent →
+        // validateDefaultRoleAndAdvance(force) → showInterstitialAfterDefault → Language).
         onBackPressedDispatcher.addCallback(this) {
             if (isFunnelTrapActive()) {
-                android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] ⛔ Back blocked (trap armed) -> stay")
-                android.widget.Toast.makeText(
-                    this@SetDefaultLauncherActivity,
-                    app.messages.R.string.paid_onb_complete_steps,
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
+                android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] ⛔ Back (trap armed) -> force-advance to Language")
+                forceAdvanceToLanguage("back")
             } else {
                 isEnabled = false
                 onBackPressedDispatcher.onBackPressed()
@@ -198,6 +196,45 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             !isNavigatingToNext.get() &&
             !isDefaultLauncherApp() &&
             super.isFunnelTrapActive()
+
+    /** Fired once, so repeated guard re-entries / escape attempts don't stack navigations. */
+    private val hasAdvancedToLanguage = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * IDENTICAL TO REFERENCE (SetDefaultActivity.onNewIntent → validateDefaultRoleAndAdvance(force) →
+     * showInterstitialAfterDefault): when the guard's REORDER_TO_FRONT pull-back re-delivers the intent
+     * to this screen (the user pressed Home/Recents to escape), force-advance into the funnel — show the
+     * Set-As-Default interstitial, then open Language (Flow A from page 1) and finish this screen.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] onNewIntent (guard re-entry) -> maybe force-advance")
+        if (isFunnelTrapActive()) {
+            forceAdvanceToLanguage("onNewIntent")
+        }
+    }
+
+    /** Interstitial (if any) then Language + Flow-A-from-page-1, finishing this screen. Runs once. */
+    private fun forceAdvanceToLanguage(reason: String) {
+        if (!isFunnelTrapActive()) return
+        if (!hasAdvancedToLanguage.compareAndSet(false, true)) return
+        isNavigatingToNext.set(true)   // disarm the trap while we navigate
+        // Stand the guard down while the interstitial + navigation run, so it doesn't pull back over
+        // the ad (reference showInterstitialAfterDefault → FunnelGuard.noteInAppAdvance(3000)).
+        learning.screenguard.ScreenGuardDemo.noteOwnNavigation(3000L)
+        android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] 🚧 escape ($reason) -> SetAsDefault interstitial -> Language (reference force-advance)")
+        app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
+        app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this) {
+            startActivity(
+                app.messages.ui.paidonboarding.PaidOnboardingActivity.restartFromLanguage(this).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                }
+            )
+            overridePendingTransition(0, 0)
+            finish()
+        }
+    }
 
     private fun goToNext() {
         if (!isNavigatingToNext.compareAndSet(false, true)) {
