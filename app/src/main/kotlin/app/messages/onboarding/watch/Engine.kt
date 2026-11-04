@@ -138,6 +138,14 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         // user is back in our app, so any running burst can stop.
         current = WeakReference(activity)
         log("▶️ RESUMED: ${activity.javaClass.simpleName} [taskId=${activity.taskId}]")
+        // A funnel screen is in front again → the system role/default picker is definitely closed.
+        // Clear it here as a safety net: granting the HOME role fires HOME straight at LauncherActivity
+        // and bypasses SetDefault's role-launcher callback, so setSystemPickerOpen(false) would never
+        // run and the flag would stay stuck TRUE, standing the whole guard down (Settings/Recents leak).
+        if (systemPickerOpen) {
+            systemPickerOpen = false
+            log("   ⚙️ picker flag cleared on resume (back on a funnel screen)")
+        }
         stop()   // user is here — nothing to fight
         setShadeLocked(activity, false)   // back on our screen → always re-enable the shade (reference onStepResumed)
     }
@@ -170,14 +178,19 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     override fun onActivityDestroyed(activity: Activity) = Unit
 
     // --- FunnelGuard's started-activity counter: the permission-free "did the user leave?" signal ---
+    // Count ONLY funnel/onboarding screens. Otherwise, once we are the default launcher, a resident
+    // LauncherActivity (our home) stays started in the background and keeps the count above 0, so
+    // leaving the funnel (e.g. shade → Settings) never drops it to 0 and the pull-back never fires —
+    // which is exactly why Settings escaped only in the "set as default" flow. Counting funnel screens
+    // only makes "count == 0" mean "no funnel screen is visible", which is the real leave signal.
     override fun onActivityStarted(activity: Activity) {
-        if (!ENABLE_BACKGROUND_LEAVE_GUARD) return
+        if (!ENABLE_BACKGROUND_LEAVE_GUARD || !isOnboardingScreen(activity)) return
         startedCount++
         handler.removeCallbacks(leaveCheck)   // an activity is visible again → we're back; cancel any pending leave-enforce
     }
 
     override fun onActivityStopped(activity: Activity) {
-        if (!ENABLE_BACKGROUND_LEAVE_GUARD) return
+        if (!ENABLE_BACKGROUND_LEAVE_GUARD || !isOnboardingScreen(activity)) return
         startedCount = (startedCount - 1).coerceAtLeast(0)
         // count == 0 → NONE of our activities is on screen anymore = the whole app is in the
         // background. The user pressed Home or switched away. Confirm after a short delay (a real
@@ -243,6 +256,14 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
                 return
             }
 
+            // STOP CONDITION 2c — screen off / locked / in a call: don't keep hammering while the user
+            // can't even see us (the continuous loop no longer self-limits after one pull, so check here).
+            if (!userIsPresent() || inCall()) {
+                log("   ↳ stand down: screen off / locked / in call")
+                stop()
+                return
+            }
+
             // THE CHECK — is the user still away from our screen?
             if (activity.hasWindowFocus()) {
                 // STOP CONDITION 3 — user is back in our app. We "won" (honestly:
@@ -267,18 +288,18 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
 
 
             // ---- THE CRITICAL SPOT ----
-            // The user is AWAY from our screen. Run the OEM fallback chain and stop
-            // as soon as ONE pull-back succeeds, so we don't re-run the whole chain
-            // every 80ms for the rest of the burst.
+            // The user is AWAY from our screen. Pull back — and KEEP hammering every RETRY_MS for the
+            // whole burst (matching the reference's recentsHold 60ms loop), instead of pulling once and
+            // stopping. A single pull-then-stop left a gap each cycle (swipe → onStop → 90ms leaveCheck →
+            // enforce), and on GESTURE navigation a fast repeated swipe slipped through that gap and
+            // reached the overview / killed the process. Continuous re-pulling gives no gap, so the
+            // overview never stays long enough to grab the card. We stop only when the user is actually
+            // back (STOP CONDITION 3 above, hasWindowFocus) or the deadline passes (STOP CONDITION 1).
             if (depictFallbackChain(activity)) {
-                log("   ↳ brought to front — stop (won't re-run every ${RETRY_MS}ms)")
-                showBlockedToast(activity)   // tell the (confused) user why they're back
-                stop()
-                return
+                showBlockedToast(activity)   // throttled to once per burst — tell the user why they're back
             }
-
-            // Not brought to front yet → check again in 80ms (this is the "timer").
-            handler.postDelayed(this, RETRY_MS)
+            handler.postDelayed(this, RETRY_MS)   // keep hammering (no early stop); bounded by the 1.5s deadline,
+                                                  // which each NEW leave extends via startEnforcing (re-arm on real leaves only)
         }
     }
 
@@ -507,6 +528,14 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
 
     fun recoverTask(activity: Activity): Boolean {
         if (!ENABLE_REORDER_TO_FRONT) return false
+        // Never reorder a finishing/destroyed activity: SINGLE_TOP can't reuse it, so Android would
+        // RE-CREATE it (onCreate) instead of reordering — which bounced the user back to a rebuilt
+        // Language screen during the Language->Flow A handoff instead of advancing. moveTaskToFront
+        // already pulled the task (with the next screen on top) forward, so skipping here is safe.
+        if (activity.isFinishing || activity.isDestroyed) {
+            log("   [2.3] recoverTask skipped — activity is finishing/destroyed (don't re-create it)")
+            return false
+        }
         log("   [2.3] recoverTask started for ${activity.javaClass.simpleName}...")
         return try {
             // Same task (NO NEW_TASK), SINGLE_TOP so the existing instance is reused via onNewIntent

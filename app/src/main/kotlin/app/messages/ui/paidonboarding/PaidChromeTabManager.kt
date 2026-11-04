@@ -264,6 +264,10 @@ object PaidChromeTabManager {
      */
     fun onWebStepClosed(activity: Activity, onContinue: () -> Unit) {
         learning.screenguard.ScreenGuardDemo.onChromeSessionClosed()   // tab closed → guard resumes normal behaviour
+        // The continue below navigates to the next funnel screen (e.g. Language → Flow A) and finishes
+        // this one. Mark it as our own navigation so a Home press / leave signal during that brief
+        // handoff doesn't make the guard yank the finishing screen back instead of advancing.
+        learning.screenguard.ScreenGuardDemo.noteOwnNavigation(900L)
 
         if (!AdsConfigManager.isPaidAppOpenOnCloseOn()) {
             onContinue(); return
