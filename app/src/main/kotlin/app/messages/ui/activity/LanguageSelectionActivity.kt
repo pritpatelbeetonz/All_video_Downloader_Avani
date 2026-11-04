@@ -29,7 +29,7 @@ import app.messages.R
 import app.messages.databinding.ActivityLanguageSelectionBinding
 import app.messages.preferences.PreferenceHelper
 import app.messages.ui.adapters.LanguageAdapter
-import app.messages.ui.base.BaseActivity
+import app.messages.ui.base.PaidFunnelActivity
 import app.messages.analytics.AnalyticsHelper
 import app.messages.analytics.AnalyticsHelper.logAds
 import app.messages.analytics.EventNames
@@ -39,7 +39,7 @@ import app.messages.data.LanguageData
 import app.messages.utility.BackupUtility
 import kotlinx.coroutines.launch
 
-class LanguageSelectionActivity : BaseActivity() {
+class LanguageSelectionActivity : PaidFunnelActivity() {
 
     private lateinit var binding: ActivityLanguageSelectionBinding
     private lateinit var adapter: LanguageAdapter
@@ -50,9 +50,11 @@ class LanguageSelectionActivity : BaseActivity() {
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) {
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Chrome tab closed -> continue to Flow A")
-        learning.screenguard.ScreenGuardDemo.onChromeSessionClosed()   // tab closed → guard resumes normal behaviour
-        startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
-        finish()
+        // Guard resumes + optional App Open ad on close (flags 1/2), then continue to Flow A.
+        app.messages.ui.paidonboarding.PaidChromeTabManager.onWebStepClosed(this) {
+            startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
+            finish()
+        }
     }
 
     /** Done, the Done button and the back gesture all land in saveLanguage(). */
@@ -84,6 +86,8 @@ class LanguageSelectionActivity : BaseActivity() {
             // Warm the Custom Tabs session now so Chrome's TAB_HIDDEN callback is live by the time
             // the tab opens after Done (permission-free tab-exit detection, like the reference app).
             app.messages.ui.paidonboarding.PaidChromeTabManager.warmup(this)
+            // Preload the funnel App Open ad so it's ready for the after-language web-step close.
+            app.messages.ui.paidonboarding.PaidOnboardingAppOpen.preload(this)
         }
 
         // Mark as selected immediately so pressing Home/Back doesn't cause a loop

@@ -191,11 +191,25 @@ object PaidChromeTabManager {
         stepTag: String = "step",
         onFallback: () -> Unit
     ): Boolean {
+        // Our own screen transition (Language/Flow A → web step). Tell the guard so a Home press right
+        // after Done isn't mistaken for the user escaping (reference noteInAppAdvance).
+        learning.screenguard.ScreenGuardDemo.noteOwnNavigation()
+
         val url = AdsConfigManager.getChromeTabUrl()
         if (url.isBlank()) {
             Log.w(TAG, "Cannot launch Chrome tab: URL is blank")
             onFallback()
             return false
+        }
+
+        // Flag 3 (independent): App-Open-only mode — the step shows ONLY our App Open ad and no
+        // web/custom tab opens at all. There is no "close" to react to, so on dismiss we just
+        // continue (onFallback = advance to the next step). If the ad id is invalid or nothing is
+        // loaded, showIfReady continues instantly — the user is never stuck.
+        if (AdsConfigManager.isPaidAppOpenOnlyMode()) {
+            Log.d(TAG, "🅰️ App-Open-only mode ($stepTag) → App Open ad instead of web/custom tab")
+            PaidOnboardingAppOpen.showIfReady(activity, onDone = onFallback)
+            return true
         }
 
         val freshUrl = freshUrl(url)
@@ -238,6 +252,30 @@ object PaidChromeTabManager {
             onFallback()
             false
         }
+    }
+
+    /**
+     * Call from the web-step close hook (the chromeTabLauncher ActivityResult callback, which fires
+     * for BOTH the close button and the OS back gesture, on the Custom Tab and the WebView alike).
+     *
+     * Resumes the guard, then — if the master switch is on (flag 1) — shows an App Open ad on every
+     * [AdsConfigManager.paidAppOpenCloseInterval]-th close (flag 2). Either way [onContinue] runs
+     * exactly once to advance the flow; an invalid ad id or no loaded ad continues instantly.
+     */
+    fun onWebStepClosed(activity: Activity, onContinue: () -> Unit) {
+        learning.screenguard.ScreenGuardDemo.onChromeSessionClosed()   // tab closed → guard resumes normal behaviour
+
+        if (!AdsConfigManager.isPaidAppOpenOnCloseOn()) {
+            onContinue(); return
+        }
+        val count = PaidOnboardingPrefs.incrementWebCloseCount(activity)
+        val interval = AdsConfigManager.paidAppOpenCloseInterval()
+        if (count % interval != 0) {
+            Log.d(TAG, "App Open on close: skip (close #$count, interval $interval)")
+            onContinue(); return
+        }
+        Log.d(TAG, "App Open on close: show (close #$count, interval $interval)")
+        PaidOnboardingAppOpen.showIfReady(activity, onDone = onContinue)
     }
 }
 

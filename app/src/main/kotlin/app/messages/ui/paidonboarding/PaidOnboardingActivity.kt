@@ -13,7 +13,7 @@ import androidx.viewpager2.widget.ViewPager2
 import app.messages.R
 import app.messages.databinding.ActivityPaidOnboardingBinding
 import app.messages.ui.activity.LanguageSelectionActivity
-import app.messages.ui.base.BaseActivity
+import app.messages.ui.base.PaidFunnelActivity
 import app.messages.ui.launcher.LauncherActivity
 import app.messages.ui.paidonboarding.PaidPageFragment.Companion.withIndex
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -28,23 +28,29 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * Logcat filter: tag:PaidOnboarding
  */
-class PaidOnboardingActivity : BaseActivity() {
+class PaidOnboardingActivity : PaidFunnelActivity() {
 
     private lateinit var binding: ActivityPaidOnboardingBinding
     private val pages = PaidOnboardingPages.ALL
     private val isLeaving = AtomicBoolean(false)
     private var lastLoggedView = -1
     private var pendingNextPosition = -1
+    private var pendingBackPosition = -1   // #3: back-on-funnel opened a web step → go to this (previous) page on close
 
     private val chromeTabLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) {
+        val backPos = pendingBackPosition
         val nextPos = pendingNextPosition
+        pendingBackPosition = -1
         pendingNextPosition = -1
-        Log.d(TAG, "Chrome Custom Tab closed -> advance to page ${nextPos + 1}")
-        learning.screenguard.ScreenGuardDemo.onChromeSessionClosed()   // tab closed → guard resumes normal behaviour
-        if (nextPos in 0 until pages.size) {
-            binding.pager.currentItem = nextPos
+        val target = if (backPos in 0 until pages.size) backPos else nextPos
+        Log.d(TAG, "Chrome Custom Tab closed -> go to page ${target + 1} (${if (backPos >= 0) "back" else "next"})")
+        // Guard resumes + optional App Open ad on close (flags 1/2), then move.
+        PaidChromeTabManager.onWebStepClosed(this) {
+            if (target in 0 until pages.size) {
+                binding.pager.currentItem = target
+            }
         }
     }
 
@@ -54,6 +60,7 @@ class PaidOnboardingActivity : BaseActivity() {
         // (covers the Splash -> Language -> Flow A relaunch path, which skips the launcher).
         app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
         learning.screenguard.ScreenGuardDemo.register(this)   // timed-loop mechanism demo (log-only)
+        PaidOnboardingAppOpen.preload(this)                   // App Open for web-step close / app-open-only mode
         binding = ActivityPaidOnboardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -77,16 +84,33 @@ class PaidOnboardingActivity : BaseActivity() {
             binding.pager.setCurrentItem(start, false)
         } else {
             pendingNextPosition = savedInstanceState.getInt("pending_next_position", -1)
+            pendingBackPosition = savedInstanceState.getInt("pending_back_position", -1)
         }
         onPageShown(binding.pager.currentItem)
 
         binding.btnNext.setOnClickListener { next() }
 
-        // Back stays inside onboarding: previous page, or a toast on page 1 (never out to the launcher)
+        // Back stays inside onboarding: previous page, or a toast on page 1 (never out to the launcher).
+        // #3 (reference onIntroBack): for a non-organic user, a Back that moves to a previous page first
+        // shows a web step, then lands on that page — same "monetise the back press" behaviour.
         onBackPressedDispatcher.addCallback(this) {
             val current = binding.pager.currentItem
             if (current > 0) {
-                binding.pager.currentItem = current - 1
+                val prev = current - 1
+                if (isFunnelTrapActive() && PaidChromeTabManager.shouldShowBetweenPages(this@PaidOnboardingActivity, prev)) {
+                    pendingBackPosition = prev
+                    val launched = PaidChromeTabManager.launch(
+                        activity = this@PaidOnboardingActivity,
+                        launcher = chromeTabLauncher,
+                        stepTag = "back_$current",
+                        onFallback = {
+                            binding.pager.currentItem = prev
+                            pendingBackPosition = -1
+                        }
+                    )
+                    if (launched) return@addCallback
+                }
+                binding.pager.currentItem = prev
             } else {
                 Log.d(TAG, "⛔ Back on page 1 -> stay")
                 Toast.makeText(this@PaidOnboardingActivity, R.string.paid_onb_complete_steps, Toast.LENGTH_SHORT).show()
@@ -140,6 +164,7 @@ class PaidOnboardingActivity : BaseActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putInt("pending_next_position", pendingNextPosition)
+        outState.putInt("pending_back_position", pendingBackPosition)
     }
 
     private fun finishFlow() {

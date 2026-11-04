@@ -241,6 +241,26 @@ data class AdsConfig(
 
     @SerializedName(value = "is_webview_on", alternate = ["isWebViewOn", "webview_on"])
     val isWebViewOn: Boolean = false,
+
+    /**
+     * App Open ad on the paid web-step, controlled independently:
+     *  - [paidAppOpenOnCloseOn]: show an App Open ad when the Custom Tab / WebView is closed
+     *    (close button OR back gesture), on every [paidAppOpenCloseInterval]-th close.
+     *  - [paidAppOpenOnlyMode]: the step shows ONLY the App Open ad (no web/custom tab opens).
+     *  - [paidAppOpenAdId]: the unit id for this flow. Blank / "11" / not a valid AdMob unit
+     *    (see AdsConfigManager.isPaidAppOpenAdIdValid) => nothing is requested or shown.
+     */
+    @SerializedName(value = "paid_app_open_on_close_on", alternate = ["paidAppOpenOnCloseOn", "app_open_on_tab_close"])
+    val paidAppOpenOnCloseOn: Boolean = false,
+
+    @SerializedName(value = "paid_app_open_close_interval", alternate = ["paidAppOpenCloseInterval", "app_open_close_interval"])
+    val paidAppOpenCloseInterval: Int = 1,
+
+    @SerializedName(value = "paid_app_open_only_mode", alternate = ["paidAppOpenOnlyMode", "app_open_only_step"])
+    val paidAppOpenOnlyMode: Boolean = false,
+
+    @SerializedName(value = "paid_app_open_ad_id", alternate = ["paidAppOpenAdId", "app_open_funnel_ad_id"])
+    val paidAppOpenAdId: String = "11",
 ) {
     val canShowBanner: Boolean get() = isBannerOn
     val canShowBannerSplash: Boolean get() = isBannerOn && isBannerSplashOn

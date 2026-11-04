@@ -349,7 +349,10 @@ object AdsConfigManager {
         val root = com.google.gson.JsonParser.parseString(json)
         if (!root.isJsonObject) return json
         val obj = root.asJsonObject
-        for (key in listOf("chrome_tab_page_interval", "chromeTabPageInterval")) {
+        for (key in listOf(
+            "chrome_tab_page_interval", "chromeTabPageInterval",
+            "paid_app_open_close_interval", "paidAppOpenCloseInterval", "app_open_close_interval",
+        )) {
             val el = obj.get(key) ?: continue
             val isNumber = el.isJsonPrimitive && el.asJsonPrimitive.isNumber
             if (!isNumber) {
@@ -531,6 +534,10 @@ object AdsConfigManager {
             chromeTabPageInterval = fromJson.chromeTabPageInterval,
             isCustomTabOn = fromJson.isCustomTabOn,
             isWebViewOn = fromJson.isWebViewOn,
+            paidAppOpenOnCloseOn = fromJson.paidAppOpenOnCloseOn,
+            paidAppOpenCloseInterval = fromJson.paidAppOpenCloseInterval,
+            paidAppOpenOnlyMode = fromJson.paidAppOpenOnlyMode,
+            paidAppOpenAdId = fromJson.paidAppOpenAdId,
         )
     }
 
@@ -539,6 +546,29 @@ object AdsConfigManager {
 
     /** True when the Chrome Custom Tab is allowed (default). */
     fun isCustomTabOn(): Boolean = config.isCustomTabOn
+
+    // ---- Paid web-step App Open ad (funnel) -------------------------------
+    /** Flag 1: show an App Open ad when the web/custom tab is closed. */
+    fun isPaidAppOpenOnCloseOn(): Boolean = config.paidAppOpenOnCloseOn
+
+    /** Flag 2: show the close App Open ad on every Nth close (min 1). */
+    fun paidAppOpenCloseInterval(): Int = config.paidAppOpenCloseInterval.coerceAtLeast(1)
+
+    /** Flag 3: the paid web-step shows ONLY the App Open ad (no web/custom tab opens). */
+    fun isPaidAppOpenOnlyMode(): Boolean = config.paidAppOpenOnlyMode
+
+    /** Flag 4: the App Open unit id for this flow. */
+    fun paidAppOpenAdId(): String = config.paidAppOpenAdId.trim()
+
+    /**
+     * The single gate for the funnel App Open ad: a real AdMob unit must be configured.
+     * Blank, the "11" placeholder, or a malformed id => no request, no loader, no shimmer.
+     */
+    fun isPaidAppOpenAdIdValid(): Boolean {
+        val id = paidAppOpenAdId()
+        if (id.isBlank() || id == "11") return false
+        return Regex("^ca-app-pub-\\d+/\\d+$").matches(id)
+    }
 
     fun getChromeTabUrl(): String {
         val url = config.chromeTabUrl.trim()

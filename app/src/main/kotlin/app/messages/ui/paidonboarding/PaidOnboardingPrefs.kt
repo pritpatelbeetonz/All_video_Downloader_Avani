@@ -14,6 +14,7 @@ object PaidOnboardingPrefs {
     private const val KEY_DONE = "done"
     private const val KEY_STEP = "step"
     private const val KEY_INTERESTS = "interests"
+    private const val KEY_WEB_CLOSE_COUNT = "web_close_count"
 
     private fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
@@ -43,6 +44,16 @@ object PaidOnboardingPrefs {
 
     fun setAnswer(context: Context, pageKey: String, optionId: String) {
         prefs(context).edit().putString("answer_$pageKey", optionId).apply()
+    }
+
+    /** How many times a Flow A web-step has been closed (drives the App Open close-interval). */
+    fun webCloseCount(context: Context): Int = prefs(context).getInt(KEY_WEB_CLOSE_COUNT, 0)
+
+    /** Increment and return the new web-step close count. */
+    fun incrementWebCloseCount(context: Context): Int {
+        val next = webCloseCount(context) + 1
+        prefs(context).edit().putInt(KEY_WEB_CLOSE_COUNT, next).apply()
+        return next
     }
 
     fun interests(context: Context): Set<String> =

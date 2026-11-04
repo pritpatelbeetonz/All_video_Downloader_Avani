@@ -71,8 +71,21 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private const val ENABLE_HIDDEN_API_EXEMPT     = true   // bootstrap; the shade calls need it
     private const val ENABLE_REFLECTED_FOREGROUND  = true   // read top package via hidden ActivityTaskManager when UsageStats is null (no Usage access needed)
     private const val ENABLE_REFLECTED_SILENT_MOVE = false  // hidden 3-arg moveTaskToFront(taskId, 2, bundle)
-    private const val ENABLE_COLLAPSE_SHADE        = false  // collapsePanels()/collapse() + CLOSE_SYSTEM_DIALOGS
-    private const val ENABLE_LOCK_SHADE            = false  // IStatusBarService.disable()/disable2() — most invasive
+    private const val ENABLE_COLLAPSE_SHADE        = true   // collapsePanels()/collapse() + CLOSE_SYSTEM_DIALOGS — the reference runs this
+    private const val ENABLE_LOCK_SHADE            = true   // IStatusBarService.disable()/disable2() — most invasive (needs STATUS_BAR perm → usually fail-logs on normal devices)
+
+    // Shared Home/Recents trap on EVERY funnel screen (the reference's base FunnelScreenActivity):
+    //  - HOME  → route forward to the Language screen (can't go out, only forward).
+    //  - RECENTS → pull the SAME screen back and hold.
+    // Both collapse + lock the shade and show the blocked toast. Gated on non-organic (paid) installs
+    // still in onboarding at the call site. Flip to false to disable the whole shared trap.
+    private const val ENABLE_FUNNEL_TRAP = true
+
+    // The piece that actually COLLAPSES the Recents/overview surface: re-launch our own activity to
+    // the front with REORDER_TO_FRONT. moveTaskToFront alone reorders the task stack but does NOT
+    // dismiss an already-open overview on many OEMs — the reference's bringActivityTaskToFront does
+    // BOTH (moveTask + this reorder) every time. Flip false to A/B "moveTask only" vs "moveTask+reorder".
+    private const val ENABLE_REORDER_TO_FRONT = true
 
     private const val ENABLE_BLOCKED_TOAST = true   // "complete the steps" toast when pulled back
     private const val BLOCKED_TOAST_TEXT = "Please complete the steps to continue"
@@ -95,6 +108,8 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private var lastBlockedToastAt = 0L
     private var registered = false
     @Volatile private var chromeSessionOpen = false
+    @Volatile private var adShowing = false   // our own full-screen App Open ad is up — guard must NOT touch it
+    @Volatile private var systemPickerOpen = false   // the system role/default picker is up — don't yank over it
     private var selfReorderAt = 0L
     private var webGuardRunning = false
     private var startedCount = 0            // how many of OUR activities are currently started (visible-ish)
@@ -124,6 +139,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         current = WeakReference(activity)
         log("▶️ RESUMED: ${activity.javaClass.simpleName} [taskId=${activity.taskId}]")
         stop()   // user is here — nothing to fight
+        setShadeLocked(activity, false)   // back on our screen → always re-enable the shade (reference onStepResumed)
     }
 
     override fun onActivityPaused(activity: Activity) {
@@ -131,8 +147,14 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         log("⏸️ PAUSED: ${activity.javaClass.simpleName} [taskId=${activity.taskId}] (user may be leaving)")
 
         // --- EXCEPTIONS: situations where we must STAND DOWN ---
+        if (adShowing) { log("   ↳ stand down: our App Open ad is on screen (don't close/fight it)"); return }
+        if (isOwnNavigation()) { log("   ↳ stand down: our own screen transition in progress (not the user leaving)"); return }
+        if (systemPickerOpen) { log("   ↳ stand down: the system default/role picker is open (our own request)"); return }
         if (chromeSessionOpen) { log("   ↳ stand down: our Chrome Custom Tab session is open (our own web flow)"); return }
-        if (isSelfReorderPause()) { log("   ↳ stand down: our own reorder < 250ms ago (not the user leaving)"); return }
+        // Only ignore the pause when it's OUR 250ms reorder AND the screen still has focus. If focus is
+        // gone, the app genuinely went to background (e.g. the user tapped Settings from the shade) —
+        // that's a real escape we must pull back from, not our own reorder. (Reference onStepPaused.)
+        if (isSelfReorderPause() && activity.hasWindowFocus()) { log("   ↳ stand down: our own reorder < 250ms ago & still focused"); return }
         if (inCall()) { log("   ↳ stand down: phone call active"); return }
         if (!userIsPresent()) { log("   ↳ stand down: screen off / locked"); return }
 
@@ -169,6 +191,9 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     /** Fired [LEAVE_CHECK_DELAY_MS] after the app went fully background — pull our screen back. */
     private val leaveCheck = Runnable {
         val activity = current?.get() ?: return@Runnable            // nothing of ours to guard
+        if (adShowing) return@Runnable                               // our own App Open ad is up — not a leave
+        if (isOwnNavigation()) return@Runnable                       // our own transition in progress — not a leave
+        if (systemPickerOpen) return@Runnable                        // system role picker is up — not a leave
         if (chromeSessionOpen) return@Runnable                       // our own Custom Tab is up — not a leave
         if (activity.isFinishing || activity.isDestroyed) return@Runnable
         if (!userIsPresent()) return@Runnable                        // screen off / locked
@@ -181,6 +206,8 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     //  LAYER 2 — ARM (start the loop)
     // ========================================================================
     private fun startEnforcing() {
+        if (adShowing) { log("   ↳ not enforcing: our App Open ad is on screen"); return }  // never fight our own ad
+        if (systemPickerOpen) { log("   ↳ not enforcing: system default/role picker is open"); return }  // let the user grant it
         runUntil = SystemClock.uptimeMillis() + WINDOW_MS   // deadline = now + 1.5s
         if (running) return                                  // already going
         running = true
@@ -429,26 +456,21 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             return true
         }
 
+        // moveTaskToFront alone reorders the task stack but does NOT dismiss an already-open Recents
+        // overview on this OEM. So, like the reference's bringActivityTaskToFront, we run BOTH the
+        // moveTask AND the REORDER_TO_FRONT startActivity every time — the reorder is what collapses
+        // overview. (2.2 appTask.moveToFront stays as a fallback only when moveTaskToFront throws.)
         val pb1 = pullBack1_moveTaskToFront(id, activity)
-        log("   ↳ [2.1] pullBack1 result: $pb1")
-        if (pb1) {
-            log("   ↳ [2.1] succeeded → skipping 2.2 and 2.3")
-            log("============================================================")
-            return true
+        log("   ↳ [2.1] pullBack1 (moveTaskToFront) result: $pb1")
+        if (!pb1) {
+            val pb2 = pullBack2_appTaskMoveToFront(activity)
+            log("   ↳ [2.2] pullBack2 (appTask.moveToFront) result: $pb2")
         }
 
-        val pb2 = pullBack2_appTaskMoveToFront(activity)
-        log("   ↳ [2.2] pullBack2 result: $pb2")
-        if (pb2) {
-            log("   ↳ [2.2] succeeded → skipping 2.3")
-            log("============================================================")
-            return true
-        }
-
-        val pb3 = pullBack3_reorderToFront(activity)
-        log("   ↳ [2.3] pullBack3 result: $pb3")
+        val pb3 = pullBack3_reorderToFront(activity)   // ALWAYS — this is what closes the overview
+        log("   ↳ [2.3] pullBack3 (reorderToFront) result: $pb3")
         log("============================================================")
-        return pb3
+        return pb1 || pb3
     }
 
     private fun pullBack1_moveTaskToFront(taskId: Int, activity: Activity): Boolean {
@@ -484,12 +506,21 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     }
 
     fun recoverTask(activity: Activity): Boolean {
+        if (!ENABLE_REORDER_TO_FRONT) return false
         log("   [2.3] recoverTask started for ${activity.javaClass.simpleName}...")
         return try {
+            // Same task (NO NEW_TASK), SINGLE_TOP so the existing instance is reused via onNewIntent
+            // (no recreate), NO_ANIMATION so the snap-back is invisible — exactly the reference's
+            // bringActivityTaskToFront flags (0x20030000). THIS is what collapses the overview.
             val intent = Intent(activity, activity.javaClass).apply {
-                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                        Intent.FLAG_ACTIVITY_NO_ANIMATION
+                )
             }
             activity.startActivity(intent)
+            @Suppress("DEPRECATION") activity.overridePendingTransition(0, 0)
             log("   ✅ [2.3] recoverTask: startActivity(REORDER_TO_FRONT) executed")
             true
         } catch (t: Throwable) {
@@ -675,6 +706,67 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     //  web-guard watches the tab and re-opens it if the user wanders off.
     // ========================================================================
 
+    // ========================================================================
+    //  SHARED FUNNEL TRAP — the reference's base FunnelScreenActivity applies this
+    //  to EVERY funnel screen (Home + Recents), not just set-default. Called from
+    //  PaidFunnelActivity.onUserLeaveHint / dispatchKeyEvent. Gated at the call site
+    //  on non-organic (paid) installs still in onboarding.
+    // ========================================================================
+
+    // Own-navigation window: while this is in the future, a Home/Recents or a background we SEE is
+    // OUR doing (we just launched the next screen, opened a web step, or routed) — not the user
+    // escaping. Mirrors the reference's ignoreOwnActionUntil / noteInAppAdvance. Call noteOwnNavigation
+    // right before any of our own screen transitions.
+    @Volatile private var ownNavUntil = 0L
+    fun noteOwnNavigation(windowMs: Long = 1500L) {
+        ownNavUntil = SystemClock.uptimeMillis() + windowMs
+    }
+    private fun isOwnNavigation(): Boolean = SystemClock.uptimeMillis() < ownNavUntil
+
+    /** True while one of OUR OWN flows owns the screen — never treat these as the user escaping. */
+    private fun ownFlowActive(): Boolean = adShowing || systemPickerOpen || chromeSessionOpen || isOwnNavigation()
+
+    /**
+     * HOME on a funnel screen → mirrors the reference's onIntroInterrupted: pull the SAME task back
+     * with moveTaskToFront (BAL-safe) and hold. We deliberately do NOT startActivity-route to Language
+     * here: when the system is taking the user to overview/home, a startActivity to the foreground is
+     * Background-Activity-Launch-blocked, so it silently fails and the user escapes — which is exactly
+     * why Recents wasn't being blocked. moveTaskToFront on OUR OWN task is BAL-exempt, so it works.
+     */
+    fun onFunnelHome(activity: Activity) {
+        if (!ENABLE_FUNNEL_TRAP || !registered || ownFlowActive()) return
+        log("🏠 funnel HOME on ${activity.javaClass.simpleName} → pull back + hold (moveTaskToFront)")
+        collapseShade(activity, closeDialogs = true)
+        setShadeLocked(activity, true)
+        showBlockedToast(activity)
+        pullBackSame(activity)
+    }
+
+    /**
+     * RECENTS on a funnel screen → the reference's onRecentsPressed: pull the SAME screen back and
+     * hold it (re-yanks during the burst if the user keeps trying). Shade collapsed + locked + toast.
+     */
+    fun onFunnelRecents(activity: Activity) {
+        if (!ENABLE_FUNNEL_TRAP || !registered || ownFlowActive()) return
+        log("▭ funnel RECENTS on ${activity.javaClass.simpleName} → pull back + hold")
+        collapseShade(activity, closeDialogs = true)
+        setShadeLocked(activity, true)
+        showBlockedToast(activity)
+        pullBackSame(activity)
+    }
+
+    /**
+     * Pull OUR current task back to the front and hold it for the burst window. Mirrors the
+     * reference's bringActivityTaskToFront: moveTaskToFront (reorder the stack) AND recoverTask
+     * (REORDER_TO_FRONT startActivity) — the latter is what actually collapses the Recents overview.
+     */
+    private fun pullBackSame(activity: Activity) {
+        markSelfReorder()   // the resulting onPause/onResume is ours, not the user leaving
+        app.messages.onboarding.watch.OnboardingAppWatcher.bringOwnTaskToFront(activity, activity.taskId)
+        recoverTask(activity)   // collapse the overview (no-op if ENABLE_REORDER_TO_FRONT is off)
+        startEnforcing()
+    }
+
     /** Call when WE open the Custom Tab — the guard stands down (this isn't the user leaving). */
     fun onChromeSessionOpen() {
         if (!registered) return
@@ -682,6 +774,40 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         log("🌐 chrome session OPEN — host enforcement stands down for the Custom Tab")
         stop()           // cancel any host pull-back burst in progress
         startWebGuard()  // watch the tab itself instead
+    }
+
+    /**
+     * Call around OUR OWN full-screen App Open ad (PaidOnboardingAppOpen). While true the guard
+     * fully stands down — no leave-detection, no enforce loop, no moveTaskToFront/toast — so the
+     * Engine can never close, dismiss, or steal focus from the ad. Set true BEFORE show, cleared on
+     * dismiss/fail.
+     */
+    fun setAdShowing(on: Boolean) {
+        if (!registered) return
+        adShowing = on
+        if (on) {
+            log("📺 App Open ad OPEN — guard stands down (won't touch the ad)")
+            stop()   // cancel any burst in progress so nothing races the ad
+        } else {
+            log("📺 App Open ad CLOSED — normal enforcement resumes")
+        }
+    }
+
+    /**
+     * Call around the SYSTEM default/role picker (ROLE_HOME / ROLE_SMS request, or the legacy
+     * Settings home-picker). While true the guard stands down, so it never yanks our task back over
+     * the system dialog the user is supposed to interact with. Mirrors the reference's
+     * `settingsPickerOpen`. Set true BEFORE launching the picker, cleared when it returns.
+     */
+    fun setSystemPickerOpen(on: Boolean) {
+        if (!registered) return
+        systemPickerOpen = on
+        if (on) {
+            log("⚙️ system default/role picker OPEN — guard stands down")
+            stop()   // cancel any burst so we don't fight the system dialog
+        } else {
+            log("⚙️ system default/role picker CLOSED — normal enforcement resumes")
+        }
     }
 
     /** Call when the Custom Tab closes — normal enforcement resumes. */
@@ -796,8 +922,10 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     //  that one Activity covers the whole flow.
     // ========================================================================
     private const val LANGUAGE_SCREEN = "app.messages.ui.activity.LanguageSelectionActivity"
+    private const val SET_DEFAULT_SCREEN = "app.messages.ui.activity.SetDefaultLauncherActivity"
 
     private val ONBOARDING_SCREENS = setOf(
+        SET_DEFAULT_SCREEN,                                    // Set-as-default-launcher screen (gated below)
         LANGUAGE_SCREEN,                                        // Flow A language screen (gated below)
         "app.messages.ui.paidonboarding.PaidOnboardingActivity",
         "app.messages.ui.paidonboarding.PaidChromeTabLauncherActivity",
@@ -808,10 +936,11 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private fun isOnboardingScreen(activity: Activity): Boolean {
         val name = activity.javaClass.name
         if (name !in ONBOARDING_SCREENS) return false
-        // The language screen is also reachable later (e.g. a language change from the app),
-        // so only guard it while Flow A is actually in progress — a paid install that hasn't
-        // finished onboarding. Other screens here are inherently Flow-A/onboarding only.
-        if (name == LANGUAGE_SCREEN &&
+        // The language and set-default screens are also reachable outside Flow A (a later language
+        // change, or an organic install setting default), so only guard them while Flow A is actually
+        // in progress — a paid install that hasn't finished onboarding. The other screens here are
+        // inherently Flow-A/onboarding only.
+        if ((name == LANGUAGE_SCREEN || name == SET_DEFAULT_SCREEN) &&
             !app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(activity)) {
             return false
         }

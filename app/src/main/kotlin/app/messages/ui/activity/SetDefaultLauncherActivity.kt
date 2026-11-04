@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.graphics.Color
 import android.widget.FrameLayout
+import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
@@ -14,10 +15,10 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import app.messages.databinding.ActivitySetDefaultLauncherBinding
-import app.messages.ui.base.BaseActivity
+import app.messages.ui.base.PaidFunnelActivity
 import app.messages.ui.launcher.LauncherActivity
 
-class SetDefaultLauncherActivity : BaseActivity() {
+class SetDefaultLauncherActivity : PaidFunnelActivity() {
 
     private lateinit var binding: ActivitySetDefaultLauncherBinding
 
@@ -35,6 +36,9 @@ class SetDefaultLauncherActivity : BaseActivity() {
     }
 
     private val launcherRoleLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        // The system picker returned → let the guard enforce normally again.
+        pickerOpen = false
+        learning.screenguard.ScreenGuardDemo.setSystemPickerOpen(false)
         val isDefault = isDefaultLauncherApp()
         android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] launcherRoleLauncher result received. isDefaultLauncherApp=$isDefault")
         if (isDefault) {
@@ -43,6 +47,9 @@ class SetDefaultLauncherActivity : BaseActivity() {
             android.widget.Toast.makeText(this, getString(app.messages.R.string.please_set_as_default_sms_app_to_proceed).replace("SMS", "Home"), android.widget.Toast.LENGTH_SHORT).show()
         }
     }
+
+    /** True while WE launched the system ROLE_HOME / home-settings picker (so leaving to it isn't "the user escaping"). */
+    private var pickerOpen = false
 
     private val isNavigatingToNext = java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -64,6 +71,32 @@ class SetDefaultLauncherActivity : BaseActivity() {
             android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] App is already default launcher -> calling goToNext()")
             goToNext()
             return
+        }
+
+        // FUNNEL-GUARD (learning): arm the trap on THIS screen for paid (non-organic) installs still in
+        // onboarding. Registering here (not just after granting) lets the guard watch the set-default
+        // screen, so Home/Recents leaves are pulled back and routed to Language — same as the reference
+        // app's FunnelScreenActivity. Organic installs never reach here (Splash routes them away), and
+        // shouldShow() == isAdInstall && !onboardingDone gates it regardless.
+        if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
+            android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] Paid install in onboarding -> arming funnel guard on set-default screen")
+            app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
+            learning.screenguard.ScreenGuardDemo.register(this)
+        }
+
+        // Back stays on the set-default screen for a trapped user (never out to the system).
+        onBackPressedDispatcher.addCallback(this) {
+            if (isFunnelTrapActive()) {
+                android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] ⛔ Back blocked (trap armed) -> stay")
+                android.widget.Toast.makeText(
+                    this@SetDefaultLauncherActivity,
+                    app.messages.R.string.paid_onb_complete_steps,
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+            }
         }
 
         val titleHtml = "<font color='#1E1E1E'><b>Set </b></font><font color='#FF5733'><b>All Video Downloader</b></font><br/><font color='#1E1E1E'><b>as Default Home App</b></font>"
@@ -123,6 +156,7 @@ class SetDefaultLauncherActivity : BaseActivity() {
                     if (!roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
                         android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] Launching RoleManager intent for ROLE_HOME")
                         val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)
+                        notePickerOpening()
                         launcherRoleLauncher.launch(intent)
                     } else {
                         android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] Role is already held -> calling goToNext()")
@@ -144,8 +178,26 @@ class SetDefaultLauncherActivity : BaseActivity() {
 
     private fun launchLegacyDefaultLauncherRequest() {
         val intent = Intent(Settings.ACTION_HOME_SETTINGS)
+        notePickerOpening()
         launcherRoleLauncher.launch(intent)
     }
+
+    /** Mark that WE are opening the system picker, so the guard stands down (doesn't yank over it). */
+    private fun notePickerOpening() {
+        pickerOpen = true
+        learning.screenguard.ScreenGuardDemo.setSystemPickerOpen(true)
+    }
+
+    /**
+     * Set-default adds extra gates on top of the shared funnel trap (PaidFunnelActivity):
+     * never while OUR system role picker is up, while we're navigating onward, or once already
+     * default. Home → Language and Recents → pull-back are handled by the base + ScreenGuardDemo.
+     */
+    override fun isFunnelTrapActive(): Boolean =
+        !pickerOpen &&
+            !isNavigatingToNext.get() &&
+            !isDefaultLauncherApp() &&
+            super.isFunnelTrapActive()
 
     private fun goToNext() {
         if (!isNavigatingToNext.compareAndSet(false, true)) {

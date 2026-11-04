@@ -176,18 +176,14 @@ class LauncherActivity : AppCompatActivity() {
         if (!app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) return false
         // We are the default launcher and onboarding isn't finished: keep the watcher running.
         app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
-        // NEW UPDATE (2026-11-02): On Home during Flow A, RESUME at the current page
-        // instead of restarting from Language, and show the "complete steps" toast.
-        // PaidOnboardingActivity.intent() reopens at the saved step (PaidOnboardingPrefs.step).
-        // Previous behavior: startActivity(PaidOnboardingActivity.restartFromLanguage(this)).
+        // IDENTICAL TO REFERENCE (FunnelNav.onIntroHome): a Home press while onboarding isn't done
+        // sends the user to the LANGUAGE screen (Flow A restarts from page 1), with the "complete the
+        // steps" toast. restartFromLanguage() opens LanguageSelectionActivity (onboarding mode) as a
+        // fresh, cleared task. (Earlier 2026-11-02 build resumed at the current Flow-A page instead.)
         Toast.makeText(this, R.string.paid_onb_complete_steps, Toast.LENGTH_SHORT).show()
         startActivity(
-            app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                // NEW UPDATE (2026-11-02): no-animation switch so the return to
-                // onboarding is instant (snaps) instead of sliding. Standard Android
-                // technique: FLAG_ACTIVITY_NO_ANIMATION on the intent + a 0,0
-                // overridePendingTransition right after startActivity().
+            app.messages.ui.paidonboarding.PaidOnboardingActivity.restartFromLanguage(this).apply {
+                // No-animation so the return to onboarding snaps instantly instead of sliding.
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
         )
