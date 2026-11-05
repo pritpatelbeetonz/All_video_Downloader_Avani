@@ -9,6 +9,7 @@ import app.messages.databinding.ItemLanguageBinding
 class LanguageAdapter : RecyclerView.Adapter<LanguageAdapter.ViewHolder>() {
 
     private val items = mutableListOf<LanguageModel>()
+    var onLanguageSelected: ((LanguageModel) -> Unit)? = null
 
     fun submitList(list: List<LanguageModel>) {
         items.clear()
@@ -62,6 +63,7 @@ class LanguageAdapter : RecyclerView.Adapter<LanguageAdapter.ViewHolder>() {
                 }
                 items[position].isSelected = true
                 notifyDataSetChanged()
+                onLanguageSelected?.invoke(items[position])
             }
 
         }

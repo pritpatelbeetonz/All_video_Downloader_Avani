@@ -97,13 +97,6 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             }
         }
 
-        // Mark as selected immediately so pressing Home/Back doesn't cause a loop
-        if (prefs?.isLanguageSelected() == false) {
-            Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Setting language selected flag = true (default en)")
-            prefs?.setLanguageSelected(true)
-            prefs?.setSelectedLanguageCode("en")
-        }
-        
         // Warm it now so the Done tap shows it instantly rather than parking the
         // user on a loader while it fetches on demand.
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Preloading language interstitial ad and generic interstitial")
@@ -172,6 +165,14 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
                 Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Back button pressed")
                 if (isPaidOnboarding) {
                     // Onboarding focus: Back doesn't move on or leave; only Done does
+                    android.widget.Toast.makeText(
+                        this@LanguageSelectionActivity,
+                        app.messages.R.string.paid_onb_complete_steps,
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return
+                }
+                if (!adapter.hasSelection() && !isFromSettings) {
                     android.widget.Toast.makeText(
                         this@LanguageSelectionActivity,
                         app.messages.R.string.paid_onb_complete_steps,
@@ -295,20 +296,28 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
         binding.recyclerView.adapter = adapter
 
         val prefs = app.messages.preferences.PreferenceHelper.getInstance(this)
-        // Default to "en" on first launch so English is pre-selected
-        val selectedCode = prefs.getSelectedLanguageCode().ifBlank { "en" }
         val countries = LanguageData.getCountries().toMutableList()
 
-        // Mark the selected language (pre-selects English on first launch)
-        countries.forEach { it.isSelected = it.code == selectedCode }
+        if (isFromSettings) {
+            // Opened from Settings: keep previously selected language selected and Done button visible
+            val selectedCode = prefs.getSelectedLanguageCode().ifBlank { "en" }
+            countries.forEach { it.isSelected = it.code == selectedCode }
+            binding.btnDone.visibility = View.VISIBLE
+            val selectedIndex = countries.indexOfFirst { it.isSelected }
+            if (selectedIndex >= 0) {
+                binding.recyclerView.scrollToPosition(selectedIndex)
+            }
+        } else {
+            // First-launch onboarding: NO language selected by default, Done button HIDDEN
+            countries.forEach { it.isSelected = false }
+            binding.btnDone.visibility = View.GONE
+        }
+
+        adapter.onLanguageSelected = {
+            binding.btnDone.visibility = View.VISIBLE
+        }
 
         adapter.submitList(countries)
-
-        // Scroll to the selected item so it is visible
-        val selectedIndex = countries.indexOfFirst { it.isSelected }
-        if (selectedIndex >= 0) {
-            binding.recyclerView.scrollToPosition(selectedIndex)
-        }
     }
 
     private fun isTaskRootLauncher(): Boolean {

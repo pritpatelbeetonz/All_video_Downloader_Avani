@@ -11,7 +11,9 @@ import android.view.ViewGroup
 import android.view.WindowMetrics
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.activity.result.ActivityResultLauncher
+import androidx.core.content.ContextCompat
 import app.messages.R
 import app.messages.config.AdsConfigManager
 import app.messages.config.AdsConfigManager.FlowAAdKind
@@ -217,6 +219,13 @@ object FlowAAdBinder {
         try {
             val adView = activity.layoutInflater.inflate(R.layout.ads_native_big, null) as NativeAdView
             AdsConfigManager.populateNativeAdView(ad, adView)
+
+            // Make native ad CTA button identically match the Flow A Next button (orange gradient & rounded corners)
+            adView.findViewById<TextView>(R.id.ad_call_to_action)?.apply {
+                background = ContextCompat.getDrawable(activity, R.drawable.bg_paid_onb_button)
+                backgroundTintList = null
+            }
+
             container.removeAllViews()
             container.addView(adView)
             container.visibility = View.VISIBLE
