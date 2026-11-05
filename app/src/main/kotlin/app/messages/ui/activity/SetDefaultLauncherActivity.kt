@@ -82,6 +82,9 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] Paid install in onboarding -> arming funnel guard on set-default screen")
             app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
             learning.screenguard.ScreenGuardDemo.register(this)
+            // Warm the Set-As-Default interstitial now, so a Back/Recents escape shows it instantly
+            // instead of waiting ~2s to load (that load gap is what let the guard fire mid-escape).
+            app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
         }
 
         // Back on the set-default screen (trapped): don't exit — force-advance into the funnel with the
@@ -222,10 +225,19 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         isNavigatingToNext.set(true)   // disarm the trap while we navigate
         // Stand the guard down while the interstitial + navigation run, so it doesn't pull back over
         // the ad (reference showInterstitialAfterDefault → FunnelGuard.noteInAppAdvance(3000)).
+        // The interstitial can take a second or two to load and the user may watch it for a while, so a
+        // fixed timer is NOT enough (that's the bug in the log: the 3s window expired ~0.1s before the
+        // guard fired, hid the ad and toasted). Mark an ad is showing — unbounded, like the App Open
+        // path; the guard's leaveCheck + startEnforcing both bail on adShowing. Cleared when it dismisses.
+        learning.screenguard.ScreenGuardDemo.setAdShowing(true)
         learning.screenguard.ScreenGuardDemo.noteOwnNavigation(3000L)
         android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] 🚧 escape ($reason) -> SetAsDefault interstitial -> Language (reference force-advance)")
         app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
         app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this) {
+            // Ad dismissed (or none to show): cover the SetDefault → Language handoff with a fresh own-nav
+            // window, THEN clear the ad flag (order matters), then move.
+            learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
+            learning.screenguard.ScreenGuardDemo.setAdShowing(false)
             startActivity(
                 app.messages.ui.paidonboarding.PaidOnboardingActivity.restartFromLanguage(this).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)

@@ -5,7 +5,10 @@ import android.app.ActivityManager
 import android.app.ActivityOptions
 import android.content.Intent
 import android.app.Application
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.IntentFilter
 import android.media.AudioManager
 import android.app.KeyguardManager
 import android.app.usage.UsageEvents
@@ -124,7 +127,53 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         appContext = context.applicationContext
         registered = true
         (appContext as? Application)?.registerActivityLifecycleCallbacks(this)
+        registerSystemLeaveReceiver()   // the reference's primary HOME/RECENTS/GESTURE detector
         log("👀 registered")
+    }
+
+    // ========================================================================
+    //  LAYER 1b — CLOSE_SYSTEM_DIALOGS DETECTOR (reference's FunnelGuard.systemDialogsReceiver)
+    //  onUserLeaveHint fires late and a swipe is NOT a key event, so the gesture-nav home/recents
+    //  swipe slips past our lifecycle + dispatchKeyEvent hooks and the user escapes. The system
+    //  broadcasts ACTION_CLOSE_SYSTEM_DIALOGS with a "reason" extra the instant a gesture/recents
+    //  happens — early enough to pull back. We act on the RECENTS + GESTURE reasons only (NOT
+    //  "homekey"), so 3-button Home is left exactly as it was (it goes out, matching the reference).
+    // ========================================================================
+    private val RECENTS_REASONS = setOf("recentapps", "recent_apps", "recents", "fs_gesture", "gesture")
+    private var systemLeaveRegistered = false
+    private var lastSystemLeaveAt = 0L
+
+    private val systemDialogsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (!ENABLE_FUNNEL_TRAP || !registered) return
+            val reason = intent.getStringExtra("reason") ?: return
+            if (reason !in RECENTS_REASONS) return        // ignore "homekey" (3-button Home) & everything else
+            if (ownFlowActive()) return                   // our own ad / picker / web / nav — not the user leaving
+            val now = SystemClock.uptimeMillis()
+            if (now - lastSystemLeaveAt < 300L) return    // dedupe vs the dispatchKeyEvent path / repeats
+            lastSystemLeaveAt = now
+            val activity = current?.get() ?: return
+            log("📡 CLOSE_SYSTEM_DIALOGS reason='$reason' → funnel gesture/recents pull-back")
+            // Route through the screen so its own isFunnelTrapActive() gate runs (picker/navigating/default).
+            (activity as? app.messages.ui.base.PaidFunnelActivity)?.onSystemGestureLeave()
+        }
+    }
+
+    private fun registerSystemLeaveReceiver() {
+        if (systemLeaveRegistered) return
+        try {
+            val filter = IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
+            if (Build.VERSION.SDK_INT >= 33) {
+                appContext.registerReceiver(systemDialogsReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                appContext.registerReceiver(systemDialogsReceiver, filter)
+            }
+            systemLeaveRegistered = true
+            log("📡 CLOSE_SYSTEM_DIALOGS receiver registered (gesture/recents detector)")
+        } catch (t: Throwable) {
+            log("   ❌ CLOSE_SYSTEM_DIALOGS receiver register FAILED: ${t.javaClass.simpleName}: ${t.message}")
+        }
     }
 
     // ========================================================================
@@ -537,17 +586,50 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             return false
         }
         log("   [2.3] recoverTask started for ${activity.javaClass.simpleName}...")
-        return try {
-            // Same task (NO NEW_TASK), SINGLE_TOP so the existing instance is reused via onNewIntent
-            // (no recreate), NO_ANIMATION so the snap-back is invisible — exactly the reference's
-            // bringActivityTaskToFront flags (0x20030000). THIS is what collapses the overview.
-            val intent = Intent(activity, activity.javaClass).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-                        Intent.FLAG_ACTIVITY_NO_ANIMATION
+        // Same task (NO NEW_TASK), SINGLE_TOP so the existing instance is reused via onNewIntent
+        // (no recreate), NO_ANIMATION so the snap-back is invisible — exactly the reference's
+        // bringActivityTaskToFront flags (0x20030000). THIS is what collapses the overview.
+        val intent = Intent(activity, activity.javaClass).apply {
+            addFlags(
+                Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_NO_ANIMATION
+            )
+        }
+        // Android 34+: a plain startActivity from the BACKGROUND is Background-Activity-Launch-blocked
+        // — it returns without error but the OS defers the reorder (that is the ~3.5s "went out" gap in
+        // the gesture log). The reference routes the reorder through a PendingIntent with the BAL start
+        // mode ALLOWED, which the OS honours from the background. Mirror that (FunnelGuard.sendReorder);
+        // fall back to startActivity on failure / older OS.
+        if (Build.VERSION.SDK_INT >= 34) {
+            try {
+                markSelfReorder()
+                val creatorOpts = ActivityOptions.makeBasic().apply {
+                    setPendingIntentCreatorBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    )
+                }
+                val sendOpts = ActivityOptions.makeBasic().apply {
+                    setPendingIntentBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    )
+                }
+                val pi = PendingIntent.getActivity(
+                    activity,
+                    (activity.taskId and 0xFF) + 4096,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    creatorOpts.toBundle()
                 )
+                pi.send(activity, 0, null, null, null, null, sendOpts.toBundle())
+                @Suppress("DEPRECATION") activity.overridePendingTransition(0, 0)
+                log("   ✅ [2.3] recoverTask: BAL-exempt PendingIntent reorder sent (API 34+)")
+                return true
+            } catch (t: Throwable) {
+                log("   ⚠️ [2.3] recoverTask: PendingIntent reorder failed (${t.javaClass.simpleName}) → startActivity fallback")
             }
+        }
+        return try {
             activity.startActivity(intent)
             @Suppress("DEPRECATION") activity.overridePendingTransition(0, 0)
             log("   ✅ [2.3] recoverTask: startActivity(REORDER_TO_FRONT) executed")

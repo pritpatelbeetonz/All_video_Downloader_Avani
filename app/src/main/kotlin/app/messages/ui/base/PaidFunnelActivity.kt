@@ -29,6 +29,18 @@ abstract class PaidFunnelActivity : BaseActivity() {
         super.onUserLeaveHint()
     }
 
+    /**
+     * Called by the guard's CLOSE_SYSTEM_DIALOGS receiver when a RECENTS or (gesture-nav) HOME/RECENTS
+     * SWIPE happens on this screen — the one exit `onUserLeaveHint` + `dispatchKeyEvent` miss, because
+     * a swipe is not a key event and the leave hint fires too late. Gated by this screen's own
+     * [isFunnelTrapActive] (so it never fires while our picker/ad/next-navigation is in progress).
+     */
+    fun onSystemGestureLeave() {
+        if (isFunnelTrapActive()) {
+            learning.screenguard.ScreenGuardDemo.onFunnelRecents(this)
+        }
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_APP_SWITCH &&
             event.action == KeyEvent.ACTION_DOWN &&
