@@ -142,6 +142,7 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
     private fun onPageShown(position: Int) {
         val page = pages[position]
         binding.btnNext.setText(page.buttonRes)
+        FlowAAdBinder.onPageSelected(position + 1)
         // Swap the shared bottom banner for this page (dummy image / real AdMob / hidden), then warm
         // only the NEXT page's ads one ahead (rolling preload, not all pages at once).
         FlowAAdBinder.bindBanner(this, position + 1, binding.adBannerContainer, bannerAdLauncher)
@@ -208,6 +209,11 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
 
     private fun log(event: String) {
         FirebaseAnalytics.getInstance(this).logEvent(event, null)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        FlowAAdBinder.destroy()
     }
 
     companion object {

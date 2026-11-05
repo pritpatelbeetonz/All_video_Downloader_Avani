@@ -11,7 +11,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingHorizontal="24dp"
-        android:paddingTop="32dp"
+        android:paddingTop="20dp"
         android:paddingBottom="16dp">
 
         <TextView
@@ -20,17 +20,19 @@
             android:layout_height="wrap_content"
             android:fontFamily="@font/geist_bold"
             android:textColor="@color/colorTextBlack"
-            android:textSize="28sp" />
+            android:textSize="22sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
         <TextView
             android:id="@+id/tvSubtitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="20dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="12dp"
             android:fontFamily="@font/geist_regular"
             android:textColor="@color/colorTextGrey"
-            android:textSize="16sp" />
+            android:textSize="14sp" />
 
         <com.google.android.material.chip.ChipGroup
             android:id="@+id/chipGroup"

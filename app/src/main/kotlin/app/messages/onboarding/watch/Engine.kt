@@ -105,6 +105,12 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private const val ENABLE_BACKGROUND_LEAVE_GUARD = true
     private const val LEAVE_CHECK_DELAY_MS = 90L
     private const val TAB_HIDDEN_DELAY_MS = 350L   // confirm a TAB_HIDDEN is a real escape, not a legit close
+    // After a confirmed tab escape we RE-PULL in a loop (not one shot), exactly like the reference's
+    // pullChromeBackOverSettings (settingsPullUntil = now + 2400, re-post ~16ms). A single moveToFront
+    // loses the race to the Settings/notification activity that just launched; hammering wins. Needed
+    // because without Usage Access the foreground poll is blind, so TAB_HIDDEN is the only catcher.
+    private const val CHROME_RECOVER_WINDOW_MS = 2000L   // keep re-pulling for ~2s after the escape
+    private const val CHROME_RECOVER_RETRY_MS  = 80L     // how often to re-pull within that window
 
     private var hiddenApiExempt = false
     private var shadeLocked = false
@@ -941,16 +947,30 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         if (!registered || !ENABLE_RECOVER_CHROME) return
         if (!chromeSessionOpen) return
         log("🌐 [tabHidden] Chrome reported TAB_HIDDEN — confirming escape vs. legit close…")
+        // Re-pull for a window (reference: pullChromeBackOverSettings, settingsPullUntil = now + 2400).
+        chromeRecoverUntil = SystemClock.uptimeMillis() + TAB_HIDDEN_DELAY_MS + CHROME_RECOVER_WINDOW_MS
         handler.removeCallbacks(tabHiddenCheck)
         handler.postDelayed(tabHiddenCheck, TAB_HIDDEN_DELAY_MS)
     }
 
-    private val tabHiddenCheck = Runnable {
-        if (!chromeSessionOpen) { log("   ↳ [tabHidden] session already closed (legit close) — no recover"); return@Runnable }
-        val host = current?.get()
-        if (host != null && host.hasWindowFocus()) { log("   ↳ [tabHidden] user already back in our app — no recover"); return@Runnable }
-        log("   ↳ [tabHidden] user escaped the tab → recoverChrome() (no foreground read / no Usage Access)")
-        recoverChrome("tab_hidden")
+    private var chromeRecoverUntil = 0L
+
+    /**
+     * Repeating re-pull while the user is away from our Custom Tab — NOT a single shot. A lone
+     * moveToFront loses the race to the Settings / notification activity that just launched; the
+     * reference re-pulls every ~16ms for 2400ms (pullChromeBackOverSettings) and wins. Self-stops the
+     * instant the session legitimately closes, the user is back, or the ~2s window ends — so it never
+     * fights a legit tab close and touches nothing outside the Custom-Tab recovery path.
+     */
+    private val tabHiddenCheck = object : Runnable {
+        override fun run() {
+            if (!chromeSessionOpen) { log("   ↳ [tabHidden] session closed (legit close) — stop re-pull"); return }
+            val host = current?.get()
+            if (host != null && host.hasWindowFocus()) { log("   ↳ [tabHidden] user back in our app — stop re-pull"); return }
+            if (SystemClock.uptimeMillis() >= chromeRecoverUntil) { log("   ↳ [tabHidden] re-pull window ended — stop"); return }
+            recoverChrome("tab_hidden")
+            handler.postDelayed(this, CHROME_RECOVER_RETRY_MS)
+        }
     }
 
     /** Mark that WE just reordered a task, so our own resulting onPause is ignored (FunnelGuard trick). */

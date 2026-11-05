@@ -25,9 +25,26 @@ abstract class PaidPageFragment<P : PaidPage> : Fragment() {
         if (isAdded) PaidChromeTabManager.onWebStepClosed(requireActivity()) { /* stay on same page */ }
     }
 
+    private var nativeContainer: FrameLayout? = null
+
     /** Fill this page's native ad slot (dummy image or real AdMob, or hide) — call from onViewCreated. */
     protected fun bindNativeAd(container: FrameLayout) {
+        nativeContainer = container
         FlowAAdBinder.bindNative(requireActivity(), pageIndex + 1, container, dummyAdLauncher)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        nativeContainer?.let { container ->
+            if (container.childCount == 0 && isAdded) {
+                FlowAAdBinder.bindNative(requireActivity(), pageIndex + 1, container, dummyAdLauncher)
+            }
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        nativeContainer = null
     }
 
     companion object {

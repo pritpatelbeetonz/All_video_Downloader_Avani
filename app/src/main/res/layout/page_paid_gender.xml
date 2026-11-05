@@ -10,7 +10,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingHorizontal="24dp"
-        android:paddingTop="32dp"
+        android:paddingTop="20dp"
         android:paddingBottom="16dp">
 
         <TextView
@@ -19,26 +19,28 @@
             android:fontFamily="@font/geist_bold"
             android:text="@string/paid_onb_gender_title"
             android:textColor="@color/colorTextBlack"
-            android:textSize="28sp" />
+            android:textSize="22sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:fontFamily="@font/geist_regular"
             android:text="@string/paid_onb_gender_subtitle"
             android:textColor="@color/colorTextGrey"
-            android:textSize="16sp" />
+            android:textSize="14sp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="14dp"
             android:fontFamily="@font/geist_bold"
             android:gravity="center"
             android:text="@string/paid_onb_gender_select"
             android:textColor="@color/paidOnbAccent"
-            android:textSize="20sp" />
+            android:textSize="16sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -82,7 +84,7 @@
                     android:fontFamily="@font/geist_medium"
                     android:text="@string/paid_onb_gender_female"
                     android:textColor="@color/colorTextBlack"
-                    android:textSize="18sp" />
+                    android:textSize="15sp" />
             </LinearLayout>
 
             <LinearLayout
@@ -121,7 +123,7 @@
                     android:fontFamily="@font/geist_medium"
                     android:text="@string/paid_onb_gender_male"
                     android:textColor="@color/colorTextBlack"
-                    android:textSize="18sp" />
+                    android:textSize="15sp" />
             </LinearLayout>
         </LinearLayout>
 
