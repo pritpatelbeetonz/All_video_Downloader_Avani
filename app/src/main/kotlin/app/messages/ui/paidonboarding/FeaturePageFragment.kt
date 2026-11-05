@@ -21,6 +21,7 @@ class FeaturePageFragment : PaidPageFragment<PaidPage.Feature>() {
         binding.tvTitle.setText(page.titleRes)
         binding.tvDescription.setText(page.descriptionRes)
         binding.ivFeature.setImageResource(page.imageRes)
+        bindNativeAd(binding.adNativeContainer)
     }
 
     override fun onDestroyView() {

@@ -538,6 +538,21 @@ object AdsConfigManager {
             paidAppOpenCloseInterval = fromJson.paidAppOpenCloseInterval,
             paidAppOpenOnlyMode = fromJson.paidAppOpenOnlyMode,
             paidAppOpenAdId = fromJson.paidAppOpenAdId,
+            flowaNativeOn = fromJson.flowaNativeOn,
+            flowaNativeDummyOn = fromJson.flowaNativeDummyOn,
+            flowaNativeRealOn = fromJson.flowaNativeRealOn,
+            flowaBannerOn = fromJson.flowaBannerOn,
+            flowaBannerDummyOn = fromJson.flowaBannerDummyOn,
+            flowaBannerRealOn = fromJson.flowaBannerRealOn,
+            flowaAdPreloadOn = fromJson.flowaAdPreloadOn,
+            flowaNativeDummyPages = fromJson.flowaNativeDummyPages,
+            flowaBannerDummyPages = fromJson.flowaBannerDummyPages,
+            flowaNativeRealPages = fromJson.flowaNativeRealPages,
+            flowaBannerRealPages = fromJson.flowaBannerRealPages,
+            flowaNativeRealAdId = fromJson.flowaNativeRealAdId,
+            flowaBannerRealAdId = fromJson.flowaBannerRealAdId,
+            serverUrl = fromJson.serverUrl,
+            serverBaseFolderName = fromJson.serverBaseFolderName,
         )
     }
 
@@ -569,6 +584,56 @@ object AdsConfigManager {
         if (id.isBlank() || id == "11") return false
         return Regex("^ca-app-pub-\\d+/\\d+$").matches(id)
     }
+
+    // ---- Flow-A two-ad system (native + banner on the 11 onboarding pages) --------------------
+    enum class FlowAAdKind { OFF, DUMMY, REAL }
+
+    private fun isAdUnitValid(id: String): Boolean {
+        val t = id.trim()
+        if (t.isBlank() || t == "11") return false
+        return Regex("^ca-app-pub-\\d+/\\d+$").matches(t)
+    }
+
+    fun flowaNativeRealAdId(): String = config.flowaNativeRealAdId.trim()
+    fun flowaBannerRealAdId(): String = config.flowaBannerRealAdId.trim()
+    fun isFlowaNativeRealIdValid(): Boolean = isAdUnitValid(flowaNativeRealAdId())
+    fun isFlowaBannerRealIdValid(): Boolean = isAdUnitValid(flowaBannerRealAdId())
+
+    fun serverUrl(): String = config.serverUrl.trim().trimEnd('/')
+    fun serverBaseFolder(): String = config.serverBaseFolderName.trim().trim('/')
+
+    /**
+     * Resolve the NATIVE slot for a 1-based [pageNumber]. [hasDummyImage] = the server native.json
+     * provides a non-blank image for this page. Precedence: a real-listed page (with a valid unit)
+     * wins; otherwise a dummy if an image exists; else OFF.
+     */
+    fun flowaNativeKind(pageNumber: Int, hasDummyImage: Boolean): FlowAAdKind {
+        if (!config.flowaNativeOn) return FlowAAdKind.OFF
+        // DUMMY is checked FIRST, so a page listed in BOTH flowa_native_dummy_pages and
+        // flowa_native_real_pages shows the DUMMY (dummy overrides real). Needs the page in the dummy
+        // list, the dummy master on, and an actual image fetched from the server.
+        if (config.flowaNativeDummyOn && pageNumber in config.flowaNativeDummyPages && hasDummyImage) {
+            return FlowAAdKind.DUMMY
+        }
+        if (config.flowaNativeRealOn && pageNumber in config.flowaNativeRealPages && isFlowaNativeRealIdValid()) {
+            return FlowAAdKind.REAL
+        }
+        return FlowAAdKind.OFF
+    }
+
+    /** Resolve the BANNER slot for a 1-based [pageNumber] (same rules as native; dummy overrides real). */
+    fun flowaBannerKind(pageNumber: Int, hasDummyImage: Boolean): FlowAAdKind {
+        if (!config.flowaBannerOn) return FlowAAdKind.OFF
+        if (config.flowaBannerDummyOn && pageNumber in config.flowaBannerDummyPages && hasDummyImage) {
+            return FlowAAdKind.DUMMY
+        }
+        if (config.flowaBannerRealOn && pageNumber in config.flowaBannerRealPages && isFlowaBannerRealIdValid()) {
+            return FlowAAdKind.REAL
+        }
+        return FlowAAdKind.OFF
+    }
+
+    fun isFlowaAdPreloadOn(): Boolean = config.flowaAdPreloadOn
 
     fun getChromeTabUrl(): String {
         val url = config.chromeTabUrl.trim()

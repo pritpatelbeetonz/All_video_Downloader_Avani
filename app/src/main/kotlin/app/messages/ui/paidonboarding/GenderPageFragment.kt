@@ -24,6 +24,7 @@ class GenderPageFragment : PaidPageFragment<PaidPage.Gender>() {
         select(selected)
         binding.llFemale.setOnClickListener { select(FEMALE) }
         binding.llMale.setOnClickListener { select(MALE) }
+        bindNativeAd(binding.adNativeContainer)
     }
 
     private fun select(id: String) {

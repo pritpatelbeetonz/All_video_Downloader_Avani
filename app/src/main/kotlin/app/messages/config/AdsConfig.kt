@@ -261,6 +261,46 @@ data class AdsConfig(
 
     @SerializedName(value = "paid_app_open_ad_id", alternate = ["paidAppOpenAdId", "app_open_funnel_ad_id"])
     val paidAppOpenAdId: String = "11",
+
+    /**
+     * Flow-A two-ad system (native + banner on the 11 onboarding pages). Each slot per page is
+     * DUMMY (a server image shown as-is, click -> web step -> same page), REAL (AdMob), or OFF.
+     * Dummy images come from two JSON files on [serverUrl]/[serverBaseFolderName] (native.json /
+     * banner.json, imageN -> page N). Real pages are 1-based page numbers. See AdsConfigManager
+     * flowaNativeKind / flowaBannerKind for the resolution.
+     */
+    @SerializedName(value = "flowa_native_on", alternate = ["flowaNativeOn"])
+    val flowaNativeOn: Boolean = false,
+    @SerializedName(value = "flowa_native_dummy_on", alternate = ["flowaNativeDummyOn"])
+    val flowaNativeDummyOn: Boolean = false,
+    @SerializedName(value = "flowa_native_real_on", alternate = ["flowaNativeRealOn"])
+    val flowaNativeRealOn: Boolean = false,
+    @SerializedName(value = "flowa_banner_on", alternate = ["flowaBannerOn"])
+    val flowaBannerOn: Boolean = false,
+    @SerializedName(value = "flowa_banner_dummy_on", alternate = ["flowaBannerDummyOn"])
+    val flowaBannerDummyOn: Boolean = false,
+    @SerializedName(value = "flowa_banner_real_on", alternate = ["flowaBannerRealOn"])
+    val flowaBannerRealOn: Boolean = false,
+    @SerializedName(value = "flowa_ad_preload_on", alternate = ["flowaAdPreloadOn"])
+    val flowaAdPreloadOn: Boolean = true,
+
+    @SerializedName(value = "flowa_native_dummy_pages", alternate = ["flowaNativeDummyPages"])
+    val flowaNativeDummyPages: List<Int> = emptyList(),
+    @SerializedName(value = "flowa_banner_dummy_pages", alternate = ["flowaBannerDummyPages"])
+    val flowaBannerDummyPages: List<Int> = emptyList(),
+    @SerializedName(value = "flowa_native_real_pages", alternate = ["flowaNativeRealPages"])
+    val flowaNativeRealPages: List<Int> = emptyList(),
+    @SerializedName(value = "flowa_banner_real_pages", alternate = ["flowaBannerRealPages"])
+    val flowaBannerRealPages: List<Int> = emptyList(),
+    @SerializedName(value = "flowa_native_real_ad_id", alternate = ["flowaNativeRealAdId"])
+    val flowaNativeRealAdId: String = "11",
+    @SerializedName(value = "flowa_banner_real_ad_id", alternate = ["flowaBannerRealAdId"])
+    val flowaBannerRealAdId: String = "11",
+
+    @SerializedName(value = "serverUrl", alternate = ["server_url"])
+    val serverUrl: String = "",
+    @SerializedName(value = "serverBaseFolderName", alternate = ["server_base_folder_name"])
+    val serverBaseFolderName: String = "",
 ) {
     val canShowBanner: Boolean get() = isBannerOn
     val canShowBannerSplash: Boolean get() = isBannerOn && isBannerSplashOn

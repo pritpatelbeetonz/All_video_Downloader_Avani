@@ -25,6 +25,7 @@ class InterestsPageFragment : PaidPageFragment<PaidPage.Interests>() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         binding.tvTitle.setText(page.titleRes)
         binding.tvSubtitle.setText(page.subtitleRes)
+        bindNativeAd(binding.adNativeContainer)
 
         val context = requireContext()
         val accent = ContextCompat.getColor(context, R.color.paidOnbAccent)

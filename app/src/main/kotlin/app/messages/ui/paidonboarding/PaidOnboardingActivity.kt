@@ -8,8 +8,10 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
+import kotlinx.coroutines.launch
 import app.messages.R
 import app.messages.databinding.ActivityPaidOnboardingBinding
 import app.messages.ui.activity.LanguageSelectionActivity
@@ -54,6 +56,13 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         }
     }
 
+    /** Dummy BANNER ad click → web step; on close stay on the same page (no advance). */
+    private val bannerAdLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) {
+        PaidChromeTabManager.onWebStepClosed(this) { /* stay on same page */ }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Flow A is only shown to paid installs mid-onboarding, so the watcher belongs here too
@@ -63,6 +72,18 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         PaidOnboardingAppOpen.preload(this)                   // App Open for web-step close / app-open-only mode
         binding = ActivityPaidOnboardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Flow-A two-ad system: make sure the dummy images are fetched (normally already done on the
+        // Language screen), bind the current page's banner, then warm ONLY the next page one ahead
+        // (rolling — never all 11 at once).
+        lifecycleScope.launch {
+            FlowADummyImages.fetch()
+            if (!isFinishing && !isDestroyed) {
+                val current = binding.pager.currentItem
+                FlowAAdBinder.bindBanner(this@PaidOnboardingActivity, current + 1, binding.adBannerContainer, bannerAdLauncher)
+                FlowAAdBinder.preloadForPage(this@PaidOnboardingActivity, current + 2) // next page's ads
+            }
+        }
 
         binding.pager.isUserInputEnabled = false
         binding.pager.adapter = object : FragmentStateAdapter(this) {
@@ -121,6 +142,10 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
     private fun onPageShown(position: Int) {
         val page = pages[position]
         binding.btnNext.setText(page.buttonRes)
+        // Swap the shared bottom banner for this page (dummy image / real AdMob / hidden), then warm
+        // only the NEXT page's ads one ahead (rolling preload, not all pages at once).
+        FlowAAdBinder.bindBanner(this, position + 1, binding.adBannerContainer, bannerAdLauncher)
+        FlowAAdBinder.preloadForPage(this, position + 2)
         if (page is PaidPage.Feature) {
             binding.tvCaption.setText(page.captionRes)
             binding.tvCaption.visibility = View.VISIBLE

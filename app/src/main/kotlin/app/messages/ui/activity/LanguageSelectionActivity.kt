@@ -88,6 +88,13 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             app.messages.ui.paidonboarding.PaidChromeTabManager.warmup(this)
             // Preload the funnel App Open ad so it's ready for the after-language web-step close.
             app.messages.ui.paidonboarding.PaidOnboardingAppOpen.preload(this)
+            // Fetch the Flow-A dummy ad images now (native.json / banner.json) so they're cached and
+            // ready by the time Flow A opens after Done, then warm ONLY the first Flow-A page's ads
+            // (rolling preload — page 1 here, each later page warms the next one itself).
+            lifecycleScope.launch {
+                app.messages.ui.paidonboarding.FlowADummyImages.fetch()
+                app.messages.ui.paidonboarding.FlowAAdBinder.preloadForPage(this@LanguageSelectionActivity, 1)
+            }
         }
 
         // Mark as selected immediately so pressing Home/Back doesn't cause a loop

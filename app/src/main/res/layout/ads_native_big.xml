@@ -18,7 +18,7 @@
         <RelativeLayout
             android:id="@+id/iv_relative"
             android:layout_width="match_parent"
-            android:layout_height="@dimen/_130sdp"
+            android:layout_height="@dimen/_115sdp"
             android:layout_marginHorizontal="@dimen/_8sdp"
             android:layout_marginTop="@dimen/_8sdp"
             android:clipToOutline="true"
@@ -84,8 +84,8 @@
                             android:singleLine="true"
                             android:textColor="@color/text_primary"
                             android:textDirection="locale"
-                            android:textSize="@dimen/_14ssp"
-                            android:fontFamily="@font/geist_bold" />
+                            android:textSize="@dimen/_13ssp"
+                            android:fontFamily="@font/geist_medium" />
                     </LinearLayout>
 
                     <TextView
