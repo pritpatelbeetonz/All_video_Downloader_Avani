@@ -265,17 +265,11 @@ data class AdsConfig(
     @SerializedName(value = "flowa_interstitial_ad_id", alternate = ["flowaInterstitialAdId", "paid_interstitial_ad_id", "paidInterstitialAdId"])
     val flowaInterstitialAdId: String = "ca-app-pub-3940256099942544/1033173712",
 
-    @SerializedName(value = "paid_app_open_on_close_on", alternate = ["paidAppOpenOnCloseOn"])
-    val paidAppOpenOnCloseOn: Boolean = false,
-
     @SerializedName(value = "paid_app_open_close_interval", alternate = ["paidAppOpenCloseInterval", "app_open_close_interval"])
     val paidAppOpenCloseInterval: Int = 1,
 
     @SerializedName(value = "paid_app_open_only_mode", alternate = ["paidAppOpenOnlyMode", "app_open_only_step"])
     val paidAppOpenOnlyMode: Boolean = false,
-
-    @SerializedName(value = "paid_app_open_ad_id", alternate = ["paidAppOpenAdId"])
-    val paidAppOpenAdId: String = "11",
 
     /**
      * Flow-A two-ad system (native + banner on the 11 onboarding pages). Each slot per page is
@@ -398,6 +392,10 @@ data class AdsConfig(
     val canShowSwipeInter: Boolean get() = (isInterOn || isAppOpenOn) && isRightLeftSwipeInterOn
     val interCount: Int get() = appClickInterCount
     val interBackCount: Int get() = swipeInterCount
+
+    /** Backward-compatible getters mapping legacy paid App Open fields to the flowa fields */
+    val paidAppOpenOnCloseOn: Boolean get() = flowaWebCloseAdOn
+    val paidAppOpenAdId: String get() = flowaAppOpenAdId
 
     companion object {
         const val DEFAULT_BANNER_ID = "11"
