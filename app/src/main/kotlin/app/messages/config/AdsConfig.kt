@@ -219,6 +219,9 @@ data class AdsConfig(
     @SerializedName(value = "chrome_tab_url", alternate = ["google_paid_info_url", "flow_b_url", "paid_features_url", "chromeTabUrl"])
     val chromeTabUrl: String = "",
 
+    @SerializedName(value = "chrome_tab_urls", alternate = ["chromeTabUrls", "chrome_tab_page_urls"])
+    val chromeTabUrls: Map<String, String>? = null,
+
     @SerializedName(value = "chrome_tab_after_language", alternate = ["chromeTabAfterLanguage"])
     val chromeTabAfterLanguage: Boolean = true,
 
@@ -250,7 +253,19 @@ data class AdsConfig(
      *  - [paidAppOpenAdId]: the unit id for this flow. Blank / "11" / not a valid AdMob unit
      *    (see AdsConfigManager.isPaidAppOpenAdIdValid) => nothing is requested or shown.
      */
-    @SerializedName(value = "paid_app_open_on_close_on", alternate = ["paidAppOpenOnCloseOn", "app_open_on_tab_close"])
+    @SerializedName(value = "flowa_web_close_ad_on", alternate = ["flowaWebCloseAdOn", "paid_app_open_on_close_on", "paidAppOpenOnCloseOn", "app_open_on_tab_close", "paid_web_close_ad_on"])
+    val flowaWebCloseAdOn: Boolean = true,
+
+    @SerializedName(value = "flowa_web_close_step_formats", alternate = ["flowaWebCloseStepFormats", "paid_web_close_step_formats", "flowa_web_close_formats"])
+    val flowaWebCloseStepFormats: Map<String, String>? = null,
+
+    @SerializedName(value = "flowa_app_open_ad_id", alternate = ["flowaAppOpenAdId", "paid_app_open_ad_id", "paidAppOpenAdId", "app_open_funnel_ad_id"])
+    val flowaAppOpenAdId: String = "ca-app-pub-3940256099942544/9257395921",
+
+    @SerializedName(value = "flowa_interstitial_ad_id", alternate = ["flowaInterstitialAdId", "paid_interstitial_ad_id", "paidInterstitialAdId"])
+    val flowaInterstitialAdId: String = "ca-app-pub-3940256099942544/1033173712",
+
+    @SerializedName(value = "paid_app_open_on_close_on", alternate = ["paidAppOpenOnCloseOn"])
     val paidAppOpenOnCloseOn: Boolean = false,
 
     @SerializedName(value = "paid_app_open_close_interval", alternate = ["paidAppOpenCloseInterval", "app_open_close_interval"])
@@ -259,7 +274,7 @@ data class AdsConfig(
     @SerializedName(value = "paid_app_open_only_mode", alternate = ["paidAppOpenOnlyMode", "app_open_only_step"])
     val paidAppOpenOnlyMode: Boolean = false,
 
-    @SerializedName(value = "paid_app_open_ad_id", alternate = ["paidAppOpenAdId", "app_open_funnel_ad_id"])
+    @SerializedName(value = "paid_app_open_ad_id", alternate = ["paidAppOpenAdId"])
     val paidAppOpenAdId: String = "11",
 
     /**
@@ -269,33 +284,40 @@ data class AdsConfig(
      * banner.json, imageN -> page N). Real pages are 1-based page numbers. See AdsConfigManager
      * flowaNativeKind / flowaBannerKind for the resolution.
      */
-    @SerializedName(value = "flowa_native_on", alternate = ["flowaNativeOn"])
+    @SerializedName(value = "flowa_native1_on", alternate = ["flowa_native_on", "flowaNative1On", "flowaNativeOn"])
     val flowaNativeOn: Boolean = false,
-    @SerializedName(value = "flowa_native_dummy_on", alternate = ["flowaNativeDummyOn"])
-    val flowaNativeDummyOn: Boolean = false,
-    @SerializedName(value = "flowa_native_real_on", alternate = ["flowaNativeRealOn"])
-    val flowaNativeRealOn: Boolean = false,
     @SerializedName(value = "flowa_banner_on", alternate = ["flowaBannerOn"])
     val flowaBannerOn: Boolean = false,
-    @SerializedName(value = "flowa_banner_dummy_on", alternate = ["flowaBannerDummyOn"])
-    val flowaBannerDummyOn: Boolean = false,
-    @SerializedName(value = "flowa_banner_real_on", alternate = ["flowaBannerRealOn"])
-    val flowaBannerRealOn: Boolean = false,
     @SerializedName(value = "flowa_ad_preload_on", alternate = ["flowaAdPreloadOn"])
     val flowaAdPreloadOn: Boolean = true,
 
-    @SerializedName(value = "flowa_native_dummy_pages", alternate = ["flowaNativeDummyPages"])
+    @SerializedName(value = "flowa_native1_dummy_pages", alternate = ["flowa_native_dummy_pages", "flowaNative1DummyPages", "flowaNativeDummyPages"])
     val flowaNativeDummyPages: List<Int> = emptyList(),
     @SerializedName(value = "flowa_banner_dummy_pages", alternate = ["flowaBannerDummyPages"])
     val flowaBannerDummyPages: List<Int> = emptyList(),
-    @SerializedName(value = "flowa_native_real_pages", alternate = ["flowaNativeRealPages"])
+    @SerializedName(value = "flowa_native1_real_pages", alternate = ["flowa_native_real_pages", "flowaNative1RealPages", "flowaNativeRealPages"])
     val flowaNativeRealPages: List<Int> = emptyList(),
     @SerializedName(value = "flowa_banner_real_pages", alternate = ["flowaBannerRealPages"])
     val flowaBannerRealPages: List<Int> = emptyList(),
-    @SerializedName(value = "flowa_native_real_ad_id", alternate = ["flowaNativeRealAdId"])
+    @SerializedName(value = "flowa_native1_real_ad_id", alternate = ["flowa_native_real_ad_id", "flowaNative1RealAdId", "flowaNativeRealAdId"])
     val flowaNativeRealAdId: String = "11",
     @SerializedName(value = "flowa_banner_real_ad_id", alternate = ["flowaBannerRealAdId"])
     val flowaBannerRealAdId: String = "11",
+
+    /**
+     * Flow-A SECOND native slot (feature pages 6-11 show two native ads). Fully independent of the
+     * first native slot: each per page is DUMMY (shares native.json, imageN -> page N), REAL (its own
+     * AdMob unit), or OFF — so the two slots can be any mix (both dummy, both real, one of each,
+     * either off). Resolved by AdsConfigManager.flowaNative2Kind.
+     */
+    @SerializedName(value = "flowa_native2_on", alternate = ["flowaNative2On"])
+    val flowaNative2On: Boolean = false,
+    @SerializedName(value = "flowa_native2_dummy_pages", alternate = ["flowaNative2DummyPages"])
+    val flowaNative2DummyPages: List<Int> = emptyList(),
+    @SerializedName(value = "flowa_native2_real_pages", alternate = ["flowaNative2RealPages"])
+    val flowaNative2RealPages: List<Int> = emptyList(),
+    @SerializedName(value = "flowa_native2_real_ad_id", alternate = ["flowaNative2RealAdId"])
+    val flowaNative2RealAdId: String = "11",
 
     @SerializedName(value = "serverUrl", alternate = ["server_url"])
     val serverUrl: String = "",

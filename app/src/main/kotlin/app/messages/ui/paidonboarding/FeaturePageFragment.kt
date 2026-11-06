@@ -20,8 +20,9 @@ class FeaturePageFragment : PaidPageFragment<PaidPage.Feature>() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         binding.tvTitle.setText(page.titleRes)
         binding.tvDescription.setText(page.descriptionRes)
-        binding.ivFeature.setImageResource(page.imageRes)
+        // Icon hero removed; feature pages now show two independent native ad slots.
         bindNativeAd(binding.adNativeContainer)
+        bindNativeAd2(binding.adNativeContainer2)
     }
 
     override fun onDestroyView() {

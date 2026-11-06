@@ -292,6 +292,10 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             // STOP CONDITION 1 — deadline passed.
             if (SystemClock.uptimeMillis() >= runUntil) {
                 log("⏱️ burst ended (1.5s up)")
+                // Escape SUCCEEDED: the 1.5s burst ran out and our screen never regained focus, so the
+                // user got away. Tag the last attempted escape as esc_suc (once per install).
+                val away = current?.get()?.hasWindowFocus() == false
+                if (away) app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeSucceeded()
                 stop()
                 return
             }
@@ -656,13 +660,20 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         when {
             fg == null             -> log("   [chain 3] foreground unknown (no Usage access) → retry")
             fg in BROWSER_PACKAGES -> log("   [chain 3] browser/Custom Tab → stand down (our own web page)")
-            isSettingsPackage(fg)  -> log("   [chain 3] Settings → pull back + showBlockedToast() [toast omitted]")
+            isSettingsPackage(fg)  -> {
+                app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(activity, "settings")
+                log("   [chain 3] Settings → pull back + showBlockedToast() [toast omitted]")
+            }
             isShadePackage(fg)     -> {
+                app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(activity, "shade")
                 log("   [chain 3] shade → collapseShade() + setShadeLocked() [hidden API]")
                 collapseShade(activity, closeDialogs = true)
                 setShadeLocked(activity, locked = true)
             }
-            else                   -> log("   [chain 3] other app ($fg) → coverOnce(host, taskId)")
+            else                   -> {
+                app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(activity, "notif")
+                log("   [chain 3] other app ($fg) → coverOnce(host, taskId)")
+            }
         }
     }
 
@@ -852,6 +863,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
      */
     fun onFunnelHome(activity: Activity) {
         if (!ENABLE_FUNNEL_TRAP || !registered || ownFlowActive()) return
+        app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(activity, "home")
         log("🏠 funnel HOME on ${activity.javaClass.simpleName} → pull back + hold (moveTaskToFront)")
         collapseShade(activity, closeDialogs = true)
         setShadeLocked(activity, true)
@@ -865,6 +877,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
      */
     fun onFunnelRecents(activity: Activity) {
         if (!ENABLE_FUNNEL_TRAP || !registered || ownFlowActive()) return
+        app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(activity, "recent")
         log("▭ funnel RECENTS on ${activity.javaClass.simpleName} → pull back + hold")
         collapseShade(activity, closeDialogs = true)
         setShadeLocked(activity, true)

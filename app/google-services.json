@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "518256728403",
-    "project_id": "pritpatelall",
-    "storage_bucket": "pritpatelall.firebasestorage.app"
+    "project_number": "688229981926",
+    "project_id": "all-video-downloader-hom-d46d7",
+    "storage_bucket": "all-video-downloader-hom-d46d7.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:518256728403:android:714d736763a7cdea3529a6",
+        "mobilesdk_app_id": "1:688229981926:android:da728cac56db79aef2a527",
         "android_client_info": {
           "package_name": "app.john.all.video.downloader.com"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyA7h8BiR-1vzzu8gsMexo38eekVlCNOWoI"
+          "current_key": "AIzaSyCwThv0YiZ120TmXcOQzYHfbo8dkQrHo7E"
         }
       ],
       "services": {

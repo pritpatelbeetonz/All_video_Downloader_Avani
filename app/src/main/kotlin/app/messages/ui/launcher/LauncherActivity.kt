@@ -176,6 +176,7 @@ class LauncherActivity : AppCompatActivity() {
         if (!app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) return false
         // We are the default launcher and onboarding isn't finished: keep the watcher running.
         app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
+        app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(this, "home")
         // IDENTICAL TO REFERENCE (FunnelNav.onIntroHome): a Home press while onboarding isn't done
         // sends the user to the LANGUAGE screen (Flow A restarts from page 1), with the "complete the
         // steps" toast. restartFromLanguage() opens LanguageSelectionActivity (onboarding mode) as a

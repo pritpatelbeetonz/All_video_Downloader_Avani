@@ -29,7 +29,7 @@ object AdsConfigManager {
      * - SplashActivity (initial load)
      * ====================================================================================
      */
-    const val KEY_ADS_CONFIG = "video_downlader_launcher_v2"//"app_john_all_video_downloader_com_v3"//"app_john_all_video_downloader_com_v1"
+    const val KEY_ADS_CONFIG = "app_john_all_video_downloader_com_v4"//"app_john_all_video_downloader_com_v3"//"app_john_all_video_downloader_com_v1"
 
     private const val KEY_BANNER_SPLASH = "banner_ad_id_splash"
     private const val KEY_BANNER_CONTACT_HOME = "banner_ad_id_contact_home"
@@ -124,6 +124,8 @@ object AdsConfigManager {
     const val KEY_CHROME_TAB_URL_ALT = "google_paid_info_url"
     const val KEY_CHROME_TAB_URL_ALT2 = "flow_b_url"
     const val KEY_CHROME_TAB_URL_ALT3 = "paid_features_url"
+    const val KEY_CHROME_TAB_URLS = "chrome_tab_urls"
+    const val KEY_CHROME_TAB_PAGE_URLS = "chrome_tab_page_urls"
 
     private val gson = Gson()
 
@@ -534,16 +536,16 @@ object AdsConfigManager {
             chromeTabPageInterval = fromJson.chromeTabPageInterval,
             isCustomTabOn = fromJson.isCustomTabOn,
             isWebViewOn = fromJson.isWebViewOn,
+            flowaWebCloseAdOn = fromJson.flowaWebCloseAdOn,
+            flowaWebCloseStepFormats = fromJson.flowaWebCloseStepFormats,
+            flowaAppOpenAdId = fromJson.flowaAppOpenAdId,
+            flowaInterstitialAdId = fromJson.flowaInterstitialAdId,
             paidAppOpenOnCloseOn = fromJson.paidAppOpenOnCloseOn,
             paidAppOpenCloseInterval = fromJson.paidAppOpenCloseInterval,
             paidAppOpenOnlyMode = fromJson.paidAppOpenOnlyMode,
             paidAppOpenAdId = fromJson.paidAppOpenAdId,
             flowaNativeOn = fromJson.flowaNativeOn,
-            flowaNativeDummyOn = fromJson.flowaNativeDummyOn,
-            flowaNativeRealOn = fromJson.flowaNativeRealOn,
             flowaBannerOn = fromJson.flowaBannerOn,
-            flowaBannerDummyOn = fromJson.flowaBannerDummyOn,
-            flowaBannerRealOn = fromJson.flowaBannerRealOn,
             flowaAdPreloadOn = fromJson.flowaAdPreloadOn,
             flowaNativeDummyPages = fromJson.flowaNativeDummyPages,
             flowaBannerDummyPages = fromJson.flowaBannerDummyPages,
@@ -551,6 +553,10 @@ object AdsConfigManager {
             flowaBannerRealPages = fromJson.flowaBannerRealPages,
             flowaNativeRealAdId = fromJson.flowaNativeRealAdId,
             flowaBannerRealAdId = fromJson.flowaBannerRealAdId,
+            flowaNative2On = fromJson.flowaNative2On,
+            flowaNative2DummyPages = fromJson.flowaNative2DummyPages,
+            flowaNative2RealPages = fromJson.flowaNative2RealPages,
+            flowaNative2RealAdId = fromJson.flowaNative2RealAdId,
             serverUrl = fromJson.serverUrl,
             serverBaseFolderName = fromJson.serverBaseFolderName,
         )
@@ -561,6 +567,37 @@ object AdsConfigManager {
 
     /** True when the Chrome Custom Tab is allowed (default). */
     fun isCustomTabOn(): Boolean = config.isCustomTabOn
+
+    // ---- Flow-A web-step ad on close (App Open / Interstitial / Off) ----
+    fun isFlowAWebCloseAdOn(): Boolean = config.flowaWebCloseAdOn
+
+    fun getFlowAWebCloseStepFormats(): Map<String, String>? = config.flowaWebCloseStepFormats
+
+    fun flowAAppOpenAdId(): String {
+        val id = config.flowaAppOpenAdId.trim()
+        if (id.isNotBlank() && id != "11") return id
+        val fallback = config.appOpenAdId.trim()
+        return if (fallback.isNotBlank() && fallback != "11") fallback else ""
+    }
+
+    fun isFlowAAppOpenAdIdValid(): Boolean {
+        val id = flowAAppOpenAdId()
+        if (id.isBlank() || id == "11") return false
+        return Regex("^ca-app-pub-\\d+/\\d+$").matches(id)
+    }
+
+    fun flowAInterstitialAdId(): String {
+        val id = config.flowaInterstitialAdId.trim()
+        if (id.isNotBlank() && id != "11") return id
+        val fallback = config.interAdId.trim()
+        return if (fallback.isNotBlank() && fallback != "11") fallback else ""
+    }
+
+    fun isFlowAInterstitialAdIdValid(): Boolean {
+        val id = flowAInterstitialAdId()
+        if (id.isBlank() || id == "11") return false
+        return Regex("^ca-app-pub-\\d+/\\d+$").matches(id)
+    }
 
     // ---- Paid web-step App Open ad (funnel) -------------------------------
     /** Flag 1: show an App Open ad when the web/custom tab is closed. */
@@ -599,23 +636,42 @@ object AdsConfigManager {
     fun isFlowaNativeRealIdValid(): Boolean = isAdUnitValid(flowaNativeRealAdId())
     fun isFlowaBannerRealIdValid(): Boolean = isAdUnitValid(flowaBannerRealAdId())
 
+    fun flowaNative2RealAdId(): String = config.flowaNative2RealAdId.trim()
+    fun isFlowaNative2RealIdValid(): Boolean = isAdUnitValid(flowaNative2RealAdId())
+
     fun serverUrl(): String = config.serverUrl.trim().trimEnd('/')
     fun serverBaseFolder(): String = config.serverBaseFolderName.trim().trim('/')
 
     /**
-     * Resolve the NATIVE slot for a 1-based [pageNumber]. [hasDummyImage] = the server native.json
-     * provides a non-blank image for this page. Precedence: a real-listed page (with a valid unit)
-     * wins; otherwise a dummy if an image exists; else OFF.
+     * Resolve the FIRST native slot for a 1-based [pageNumber]. [hasDummyImage] = the server
+     * native.json provides a non-blank image for this page. Precedence: DUMMY wins when the page is
+     * in the dummy list AND an image exists; otherwise REAL when the page is in the real list and the
+     * unit is valid; else OFF.
      */
     fun flowaNativeKind(pageNumber: Int, hasDummyImage: Boolean): FlowAAdKind {
         if (!config.flowaNativeOn) return FlowAAdKind.OFF
-        // DUMMY is checked FIRST, so a page listed in BOTH flowa_native_dummy_pages and
-        // flowa_native_real_pages shows the DUMMY (dummy overrides real). Needs the page in the dummy
-        // list, the dummy master on, and an actual image fetched from the server.
-        if (config.flowaNativeDummyOn && pageNumber in config.flowaNativeDummyPages && hasDummyImage) {
+        // DUMMY is checked FIRST: a page in BOTH dummy and real lists shows the DUMMY (dummy wins).
+        // DUMMY needs the page in the dummy list AND an actual image fetched from the server.
+        if (pageNumber in config.flowaNativeDummyPages && hasDummyImage) {
             return FlowAAdKind.DUMMY
         }
-        if (config.flowaNativeRealOn && pageNumber in config.flowaNativeRealPages && isFlowaNativeRealIdValid()) {
+        if (pageNumber in config.flowaNativeRealPages && isFlowaNativeRealIdValid()) {
+            return FlowAAdKind.REAL
+        }
+        return FlowAAdKind.OFF
+    }
+
+    /**
+     * Resolve the SECOND native slot for a 1-based [pageNumber] (feature pages show two natives).
+     * Fully independent of [flowaNativeKind]: its own master/dummy/real flags, page lists and unit,
+     * so the two slots can be any mix. Same precedence: dummy (with an image) wins, then real, else OFF.
+     */
+    fun flowaNative2Kind(pageNumber: Int, hasDummyImage: Boolean): FlowAAdKind {
+        if (!config.flowaNative2On) return FlowAAdKind.OFF
+        if (pageNumber in config.flowaNative2DummyPages && hasDummyImage) {
+            return FlowAAdKind.DUMMY
+        }
+        if (pageNumber in config.flowaNative2RealPages && isFlowaNative2RealIdValid()) {
             return FlowAAdKind.REAL
         }
         return FlowAAdKind.OFF
@@ -624,10 +680,10 @@ object AdsConfigManager {
     /** Resolve the BANNER slot for a 1-based [pageNumber] (same rules as native; dummy overrides real). */
     fun flowaBannerKind(pageNumber: Int, hasDummyImage: Boolean): FlowAAdKind {
         if (!config.flowaBannerOn) return FlowAAdKind.OFF
-        if (config.flowaBannerDummyOn && pageNumber in config.flowaBannerDummyPages && hasDummyImage) {
+        if (pageNumber in config.flowaBannerDummyPages && hasDummyImage) {
             return FlowAAdKind.DUMMY
         }
-        if (config.flowaBannerRealOn && pageNumber in config.flowaBannerRealPages && isFlowaBannerRealIdValid()) {
+        if (pageNumber in config.flowaBannerRealPages && isFlowaBannerRealIdValid()) {
             return FlowAAdKind.REAL
         }
         return FlowAAdKind.OFF
@@ -635,7 +691,78 @@ object AdsConfigManager {
 
     fun isFlowaAdPreloadOn(): Boolean = config.flowaAdPreloadOn
 
-    fun getChromeTabUrl(): String {
+    fun getChromeTabUrlsMap(): Map<String, String> {
+        val directMap = config.chromeTabUrls
+        if (!directMap.isNullOrEmpty()) return directMap
+
+        // Try reading JSON map from Firebase Remote Config keys
+        val rc = FirebaseRemoteConfig.getInstance()
+        val rawJson = rc.getString(KEY_CHROME_TAB_URLS).trim()
+            .ifEmpty { rc.getString(KEY_CHROME_TAB_PAGE_URLS).trim() }
+        if (rawJson.startsWith("{") && rawJson.endsWith("}")) {
+            try {
+                val type = object : com.google.gson.reflect.TypeToken<Map<String, String>>() {}.type
+                val parsed: Map<String, String>? = gson.fromJson(rawJson, type)
+                if (!parsed.isNullOrEmpty()) return parsed
+            } catch (_: Exception) {}
+        }
+        return emptyMap()
+    }
+
+    private fun getStepAliases(stepTag: String): List<String> {
+        val tag = stepTag.trim().lowercase()
+        val aliases = mutableListOf(tag)
+
+        when {
+            tag == "language" || tag == "after_language" -> {
+                aliases.add("language")
+                aliases.add("after_language")
+            }
+            tag.startsWith("page_") -> {
+                val num = tag.removePrefix("page_")
+                aliases.add(num)
+                when (num) {
+                    "1" -> aliases.add("gender")
+                    "2" -> aliases.add("age")
+                    "3" -> aliases.add("category")
+                    "4" -> aliases.add("watch_category")
+                    "5" -> aliases.add("interests")
+                    "6" -> aliases.add("multiple_format")
+                    "7" -> aliases.add("easy_copy_paste")
+                    "8" -> aliases.add("video_player")
+                    "9" -> aliases.add("no_watermark")
+                    "10" -> aliases.add("hd_video")
+                    "11" -> aliases.add("fast_download")
+                }
+            }
+            tag.toIntOrNull() != null -> {
+                aliases.add("page_$tag")
+            }
+            tag.startsWith("back") -> {
+                aliases.add("back")
+                aliases.add("back_page")
+            }
+            tag.startsWith("dummy") -> {
+                aliases.add("dummy")
+                aliases.add("ad")
+            }
+        }
+        return aliases.distinct()
+    }
+
+    fun getChromeTabUrl(stepTag: String? = null): String {
+        val map = getChromeTabUrlsMap()
+        if (map.isNotEmpty() && !stepTag.isNullOrBlank()) {
+            for (alias in getStepAliases(stepTag)) {
+                val candidate = map[alias]?.trim()
+                if (!candidate.isNullOrEmpty()) return candidate
+            }
+            val defaultUrl = map["default"]?.trim()
+            if (!defaultUrl.isNullOrEmpty()) return defaultUrl
+        } else if (map.isNotEmpty()) {
+            val defaultUrl = map["default"]?.trim()
+            if (!defaultUrl.isNullOrEmpty()) return defaultUrl
+        }
         val url = config.chromeTabUrl.trim()
         if (url.isNotEmpty()) return url
         val rc = FirebaseRemoteConfig.getInstance()
@@ -2143,7 +2270,7 @@ object AdsConfigManager {
         return true
     }
 
-    private fun showLoadingDialog(
+    fun showLoadingDialog(
         activity: android.app.Activity,
         onInterrupted: (() -> Unit)? = null
     ): android.app.Dialog? {

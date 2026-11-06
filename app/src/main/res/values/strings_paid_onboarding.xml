@@ -4,6 +4,7 @@
     <string name="paid_onb_next">Next</string>
     <string name="paid_onb_start_app">Start app</string>
     <string name="paid_onb_complete_steps">Please complete the steps first</string>
+    <string name="paid_onb_select_to_continue">Please make a selection to continue</string>
 
     <!-- 1. Gender -->
     <string name="paid_onb_gender_title">Personalized information</string>

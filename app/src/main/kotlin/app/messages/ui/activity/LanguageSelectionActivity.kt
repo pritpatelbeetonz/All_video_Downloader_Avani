@@ -50,8 +50,8 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) {
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Chrome tab closed -> continue to Flow A")
-        // Guard resumes + optional App Open ad on close (flags 1/2), then continue to Flow A.
-        app.messages.ui.paidonboarding.PaidChromeTabManager.onWebStepClosed(this) {
+        // Guard resumes + optional ad on close (App Open or Interstitial), then continue to Flow A.
+        app.messages.ui.paidonboarding.PaidChromeTabManager.onWebStepClosed(this, stepTag = "language") {
             startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
             finish()
         }
@@ -79,6 +79,8 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             (intent.getBooleanExtra("from_settings", false) || (prefs?.isLanguageSelected() == true))
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] isPaidOnboarding=$isPaidOnboarding isFromSettings=$isFromSettings")
         if (isPaidOnboarding) {
+            // Flow A attribution funnel: ${prefix}_user_lang_visited.
+            app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelEvery(this, "user_lang_visited")
             app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
             // Register the guard HERE too: the Language screen comes before PaidOnboardingActivity,
             // so without this the guard isn't listening yet while this screen is in front.
@@ -86,8 +88,8 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             // Warm the Custom Tabs session now so Chrome's TAB_HIDDEN callback is live by the time
             // the tab opens after Done (permission-free tab-exit detection, like the reference app).
             app.messages.ui.paidonboarding.PaidChromeTabManager.warmup(this)
-            // Preload the funnel App Open ad so it's ready for the after-language web-step close.
-            app.messages.ui.paidonboarding.PaidOnboardingAppOpen.preload(this)
+            // Preload the Flow A ad (App Open or Interstitial) for the after-language web-step close.
+            app.messages.ui.paidonboarding.FlowAAdManager.preloadForStep(this, "language")
             // Fetch the Flow-A dummy ad images now (native.json / banner.json) so they're cached and
             // ready by the time Flow A opens after Done, then warm ONLY the first Flow-A page's ads
             // (rolling preload — page 1 here, each later page warms the next one itself).
@@ -153,17 +155,20 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
         binding.btnNext.setOnClickListener {
             Log.d("SetDefaultFlow", "[LanguageSelectionActivity] User clicked Next button")
             AnalyticsHelper.logEvent("language_done_clicked", EventScreenName.LANGUAGE)
+            if (isPaidOnboarding) app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelEvery(this, "user_lang_clicked")
             saveLanguage()
         }
         binding.btnDone.setOnClickListener {
             Log.d("SetDefaultFlow", "[LanguageSelectionActivity] User clicked Done button")
             AnalyticsHelper.logEvent("language_done_clicked", EventScreenName.LANGUAGE)
+            if (isPaidOnboarding) app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelEvery(this, "user_lang_clicked")
             saveLanguage()
         }
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Back button pressed")
                 if (isPaidOnboarding) {
+                    app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(this@LanguageSelectionActivity, "back")
                     // Onboarding focus: Back doesn't move on or leave; only Done does
                     android.widget.Toast.makeText(
                         this@LanguageSelectionActivity,
@@ -195,6 +200,8 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] saveLanguage() called. Selected language: $selectedCode")
         prefs?.setLanguageSelected(true)
         prefs?.setSelectedLanguageCode(selectedCode)
+        // Flow A attribution funnel: ${prefix}_user_lang_success (language applied, moving forward).
+        if (isPaidOnboarding) app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelEvery(this, "user_lang_success")
         app.messages.utility.LocaleHelper.setLocale(this, selectedCode)
         app.messages.utility.LocaleHelper.syncLanguageToFlutter(this, selectedCode)
         app.messages.ui.videodownloader.VideoDownloaderEngineHelper.notifyLanguageChanged(selectedCode)
@@ -268,7 +275,11 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
                 )
                 // launch() now signals the guard itself (stand down for a Custom Tab, stay active for the
                 // WebView fallback), so we just stop here when it opened a web step.
-                if (launched) return
+                if (launched) {
+                    // Flow A attribution funnel: ${prefix}_user_lang_web_open.
+                    app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelEvery(this, "user_lang_web_open")
+                    return
+                }
             }
             android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] Paid install -> PaidOnboardingActivity (Flow A)")
             startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))

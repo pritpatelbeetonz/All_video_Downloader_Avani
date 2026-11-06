@@ -8,7 +8,7 @@ import androidx.core.content.ContextCompat
 import app.messages.R
 import app.messages.databinding.PagePaidGenderBinding
 
-/** Page 1: Personalized information (gender). Female is preselected, as in the reference. */
+/** Page 1: Personalized information (gender). Nothing is preselected — the user must pick to continue. */
 class GenderPageFragment : PaidPageFragment<PaidPage.Gender>() {
 
     private var _binding: PagePaidGenderBinding? = null
@@ -20,12 +20,15 @@ class GenderPageFragment : PaidPageFragment<PaidPage.Gender>() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        val selected = PaidOnboardingPrefs.answer(requireContext(), page.key) ?: FEMALE
-        select(selected)
+        // Unselected by default; only restore a previously picked answer.
+        PaidOnboardingPrefs.answer(requireContext(), page.key)?.let { select(it) }
         binding.llFemale.setOnClickListener { select(FEMALE) }
         binding.llMale.setOnClickListener { select(MALE) }
         bindNativeAd(binding.adNativeContainer)
     }
+
+    override fun isAnswered(): Boolean =
+        PaidOnboardingPrefs.answer(requireContext(), page.key) != null
 
     private fun select(id: String) {
         PaidOnboardingPrefs.setAnswer(requireContext(), page.key, id)

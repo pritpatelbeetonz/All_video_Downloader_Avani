@@ -35,44 +35,16 @@
             android:textColor="@color/colorTextGrey"
             android:textSize="14sp" />
 
-        <!-- Icon hero: halo, ring, orange disc, white icon (on top of ad) -->
-        <FrameLayout
-            android:layout_width="180dp"
-            android:layout_height="180dp"
-            android:layout_marginTop="16dp">
-
-            <View
-                android:layout_width="180dp"
-                android:layout_height="180dp"
-                android:layout_gravity="center"
-                android:background="@drawable/bg_paid_onb_hero_outer" />
-
-            <View
-                android:layout_width="135dp"
-                android:layout_height="135dp"
-                android:layout_gravity="center"
-                android:background="@drawable/bg_paid_onb_hero_mid" />
-
-            <FrameLayout
-                android:layout_width="96dp"
-                android:layout_height="96dp"
-                android:layout_gravity="center"
-                android:background="@drawable/bg_paid_onb_hero_inner"
-                android:elevation="6dp">
-
-                <ImageView
-                    android:id="@+id/ivFeature"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="@null"
-                    android:scaleType="fitCenter" />
-            </FrameLayout>
-        </FrameLayout>
-
-        <!-- Ads: native at bottom, filled later -->
+        <!-- Ads: two independent native slots, filled later (icon hero removed) -->
         <FrameLayout
             android:id="@+id/adNativeContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/adNativeContainer2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"

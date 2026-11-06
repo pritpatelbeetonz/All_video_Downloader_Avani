@@ -3,6 +3,7 @@ package app.messages.attribution
 import android.content.Context
 import com.facebook.FacebookSdk
 import com.facebook.applinks.AppLinkData
+import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -33,6 +34,9 @@ internal object FacebookSourceDetector {
                 return "deferred_link"
             }
             AttributionLog.d("🟣 [Facebook] ❌ Deferred link has no Facebook marker")
+            log(context, "src_fb_deferred_link_not_matched")
+        } else {
+            log(context, "src_fb_deferred_link_not_found")
         }
 
         // 2. Play referrer
@@ -42,11 +46,16 @@ internal object FacebookSourceDetector {
                 return "referrer"
             }
             AttributionLog.d("🟣 [Facebook] ❌ Play referrer has no marker from fbUtm ${config.fbUtm}")
+            log(context, "src_fb_referrer_not_match")
         }
 
         AttributionLog.d("🟣 [Facebook] ❌ No match")
         return null
     }
+
+    /** Fire-and-forget attribution diagnostic event (reference parity: src_fb_* events). */
+    private fun log(context: Context, event: String) =
+        FirebaseAnalytics.getInstance(context).logEvent(event, null)
 
     // The SDK may still be starting on the first launch, so this waits and retries.
     private suspend fun fetchDeferredLink(context: Context, config: AttributionConfig): String? {
@@ -66,6 +75,7 @@ internal object FacebookSourceDetector {
                 }
             } catch (e: Exception) {
                 AttributionLog.w("🟣 [Facebook] ⚠️ Deferred link failed", e)
+                log(context, "src_fb_deferred_link_failed")
                 null
             }
             if (link != null) return link

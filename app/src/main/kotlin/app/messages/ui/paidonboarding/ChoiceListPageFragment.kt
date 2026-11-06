@@ -8,7 +8,7 @@ import android.view.ViewGroup
 import app.messages.databinding.ItemPaidChoiceBinding
 import app.messages.databinding.PagePaidChoiceListBinding
 
-/** Pages 2-4: one choice from a list (age range, download category, watch category). First option preselected. */
+/** Pages 2-4: one choice from a list (age range, download category, watch category). Nothing preselected. */
 class ChoiceListPageFragment : PaidPageFragment<PaidPage.Choice>() {
 
     private var _binding: PagePaidChoiceListBinding? = null
@@ -34,8 +34,12 @@ class ChoiceListPageFragment : PaidPageFragment<PaidPage.Choice>() {
             row.root.setOnClickListener { select(option.id) }
             rows += option to row
         }
-        select(PaidOnboardingPrefs.answer(requireContext(), page.key) ?: page.options.first().id)
+        // Unselected by default; only restore a previously picked answer.
+        PaidOnboardingPrefs.answer(requireContext(), page.key)?.let { select(it) }
     }
+
+    override fun isAnswered(): Boolean =
+        PaidOnboardingPrefs.answer(requireContext(), page.key) != null
 
     private fun select(id: String) {
         PaidOnboardingPrefs.setAnswer(requireContext(), page.key, id)

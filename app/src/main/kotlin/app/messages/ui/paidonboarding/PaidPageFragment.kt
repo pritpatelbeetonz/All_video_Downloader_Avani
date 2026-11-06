@@ -22,15 +22,28 @@ abstract class PaidPageFragment<P : PaidPage> : Fragment() {
 
     /** Launches the dummy-ad web step; on close we STAY on this same page (no advance). */
     private val dummyAdLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (isAdded) PaidChromeTabManager.onWebStepClosed(requireActivity()) { /* stay on same page */ }
+        if (isAdded) PaidChromeTabManager.onWebStepClosed(requireActivity(), stepTag = "page_${pageIndex + 1}") { /* stay on same page */ }
     }
 
+    /**
+     * Whether this page's form has a selection. The Next button is blocked (with a toast) until this
+     * is true. Selection pages (gender / choice / interests) override; info pages stay always-answered.
+     */
+    open fun isAnswered(): Boolean = true
+
     private var nativeContainer: FrameLayout? = null
+    private var nativeContainer2: FrameLayout? = null
 
     /** Fill this page's native ad slot (dummy image or real AdMob, or hide) — call from onViewCreated. */
     protected fun bindNativeAd(container: FrameLayout) {
         nativeContainer = container
         FlowAAdBinder.bindNative(requireActivity(), pageIndex + 1, container, dummyAdLauncher)
+    }
+
+    /** Fill this page's SECOND native ad slot (feature pages) — independent dummy/real/off config. */
+    protected fun bindNativeAd2(container: FrameLayout) {
+        nativeContainer2 = container
+        FlowAAdBinder.bindNative2(requireActivity(), pageIndex + 1, container, dummyAdLauncher)
     }
 
     override fun onResume() {
@@ -40,11 +53,17 @@ abstract class PaidPageFragment<P : PaidPage> : Fragment() {
                 FlowAAdBinder.bindNative(requireActivity(), pageIndex + 1, container, dummyAdLauncher)
             }
         }
+        nativeContainer2?.let { container ->
+            if (container.childCount == 0 && isAdded) {
+                FlowAAdBinder.bindNative2(requireActivity(), pageIndex + 1, container, dummyAdLauncher)
+            }
+        }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         nativeContainer = null
+        nativeContainer2 = null
     }
 
     companion object {

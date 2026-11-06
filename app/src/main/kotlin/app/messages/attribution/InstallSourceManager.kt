@@ -100,6 +100,7 @@ object InstallSourceManager {
                 applyRegularToAll()
             } else {
                 setUserProperty(saved)
+                logEvent("src_${saved}_from_prefs")
                 onSourceDecided(saved, fromPrefs = true)
             }
             // An ad source whose Firestore write failed earlier is written now
@@ -157,12 +158,15 @@ object InstallSourceManager {
             return
         }
 
+        logEvent("src_check_start")
+
         // Reinstall: this phone was already decided as an ad install
         var deviceKey: String? = null
         if (config.isFirestoreEnabled) {
             deviceKey = FirestoreSourceStore.deviceKey(appContext)
             if (deviceKey == null) {
                 AttributionLog.w("🔥 [Firestore] ⏭️ No device key; lookup skipped")
+                logEvent("src_no_device_key")
             } else {
                 try {
                     val src = FirestoreSourceStore.read(deviceKey, config.firestoreReadTimeoutSec)
@@ -170,8 +174,10 @@ object InstallSourceManager {
                         decide(src!!, "src_${src}_from_firestore", "firestore")
                         return
                     }
+                    logEvent("src_firestore_not_found")
                 } catch (e: Exception) {
                     AttributionLog.w("🔥 [Firestore] ⚠️ Lookup failed; carrying on with the checks", e)
+                    logEvent("src_firestore_failed")
                 }
             }
         } else {
@@ -213,17 +219,20 @@ object InstallSourceManager {
         }
 
         if (config.isCheckGoogleSource) {
-            GoogleSourceDetector.detect(referrer, config)?.let {
-                decide(GOOGLE, "src_from_google", it, deviceKey)
+            val googleMatch = GoogleSourceDetector.detect(referrer, config)
+            if (googleMatch != null) {
+                decide(GOOGLE, "src_from_google", googleMatch, deviceKey)
                 return
             }
+            if (referrer.isOk) logEvent("src_google_not_match")
         } else {
             AttributionLog.d("🔵 [Google] ⏭️ Off in Remote Config")
         }
 
         if (config.isCheckFacebookSource) {
+            // Match type ("deferred_link" / "referrer") -> src_from_facebook_deferred_link / _referrer (reference parity).
             FacebookSourceDetector.detect(appContext, referrer, config)?.let {
-                decide(FACEBOOK, "src_from_facebook", it, deviceKey)
+                decide(FACEBOOK, "src_from_facebook_$it", it, deviceKey)
                 return
             }
         } else {

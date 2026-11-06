@@ -15,7 +15,6 @@ import androidx.browser.customtabs.CustomTabsServiceConnection
 import androidx.browser.customtabs.CustomTabsSession
 import app.messages.attribution.InstallSourceManager
 import app.messages.config.AdsConfigManager
-import com.google.firebase.analytics.FirebaseAnalytics
 
 /**
  * Manages the in-app Chrome Custom Tab experience for paid Google users during onboarding.
@@ -75,9 +74,9 @@ object PaidChromeTabManager {
             Log.d(TAG, "chromeTabAfterLanguage is disabled -> skip Chrome")
             return false
         }
-        val url = AdsConfigManager.getChromeTabUrl()
+        val url = AdsConfigManager.getChromeTabUrl("language")
         if (url.isBlank()) {
-            Log.d(TAG, "Chrome tab URL is empty in Remote Config -> skip Chrome")
+            Log.d(TAG, "Chrome tab URL is empty in Remote Config for language step -> skip Chrome")
             return false
         }
         return true
@@ -96,7 +95,7 @@ object PaidChromeTabManager {
             return false
         }
 
-        val url = AdsConfigManager.getChromeTabUrl()
+        val url = AdsConfigManager.getChromeTabUrl("page_${currentPosition + 1}")
         if (url.isBlank()) return false
         return true
     }
@@ -195,9 +194,9 @@ object PaidChromeTabManager {
         // after Done isn't mistaken for the user escaping (reference noteInAppAdvance).
         learning.screenguard.ScreenGuardDemo.noteOwnNavigation()
 
-        val url = AdsConfigManager.getChromeTabUrl()
+        val url = AdsConfigManager.getChromeTabUrl(stepTag)
         if (url.isBlank()) {
-            Log.w(TAG, "Cannot launch Chrome tab: URL is blank")
+            Log.w(TAG, "Cannot launch Chrome tab for $stepTag: URL is blank")
             onFallback()
             return false
         }
@@ -211,6 +210,9 @@ object PaidChromeTabManager {
             PaidOnboardingAppOpen.showIfReady(activity, onDone = onFallback)
             return true
         }
+
+        // Preload the configured ad format for this step (if not already loaded or loading)
+        FlowAAdManager.preloadForStep(activity, stepTag)
 
         val freshUrl = freshUrl(url)
         // Remote Config decides the surface via two booleans:
@@ -237,9 +239,6 @@ object PaidChromeTabManager {
                 }
                 Log.d(TAG, "📌 Pinned Custom Tab to browser: $pkg (no chooser)")
                 Log.d(TAG, "🚀 Opening Chrome Custom Tab ($stepTag) for URL: $url")
-                try {
-                    FirebaseAnalytics.getInstance(activity).logEvent("paid_chrome_tab_opened", null)
-                } catch (_: Exception) {}
 
                 launcher.launch(intent)
                 // The Custom Tab is CHROME's activity, not ours → tell the guard to stand down for it
@@ -258,28 +257,21 @@ object PaidChromeTabManager {
      * Call from the web-step close hook (the chromeTabLauncher ActivityResult callback, which fires
      * for BOTH the close button and the OS back gesture, on the Custom Tab and the WebView alike).
      *
-     * Resumes the guard, then — if the master switch is on (flag 1) — shows an App Open ad on every
-     * [AdsConfigManager.paidAppOpenCloseInterval]-th close (flag 2). Either way [onContinue] runs
-     * exactly once to advance the flow; an invalid ad id or no loaded ad continues instantly.
+     * Resumes the guard, then checks FlowAAdManager to show either an App Open or Interstitial ad
+     * (or advance immediately if off/timeout/fail).
      */
-    fun onWebStepClosed(activity: Activity, onContinue: () -> Unit) {
+    fun onWebStepClosed(
+        activity: Activity,
+        stepTag: String = "default",
+        onContinue: () -> Unit
+    ) {
         learning.screenguard.ScreenGuardDemo.onChromeSessionClosed()   // tab closed → guard resumes normal behaviour
         // The continue below navigates to the next funnel screen (e.g. Language → Flow A) and finishes
         // this one. Mark it as our own navigation so a Home press / leave signal during that brief
         // handoff doesn't make the guard yank the finishing screen back instead of advancing.
         learning.screenguard.ScreenGuardDemo.noteOwnNavigation(900L)
 
-        if (!AdsConfigManager.isPaidAppOpenOnCloseOn()) {
-            onContinue(); return
-        }
-        val count = PaidOnboardingPrefs.incrementWebCloseCount(activity)
-        val interval = AdsConfigManager.paidAppOpenCloseInterval()
-        if (count % interval != 0) {
-            Log.d(TAG, "App Open on close: skip (close #$count, interval $interval)")
-            onContinue(); return
-        }
-        Log.d(TAG, "App Open on close: show (close #$count, interval $interval)")
-        PaidOnboardingAppOpen.showIfReady(activity, onDone = onContinue)
+        FlowAAdManager.showAdForStep(activity, stepTag, onDone = onContinue)
     }
 }
 

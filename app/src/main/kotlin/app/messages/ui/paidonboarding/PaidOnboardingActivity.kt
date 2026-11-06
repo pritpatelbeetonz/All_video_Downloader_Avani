@@ -18,7 +18,6 @@ import app.messages.ui.activity.LanguageSelectionActivity
 import app.messages.ui.base.PaidFunnelActivity
 import app.messages.ui.launcher.LauncherActivity
 import app.messages.ui.paidonboarding.PaidPageFragment.Companion.withIndex
-import com.google.firebase.analytics.FirebaseAnalytics
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -39,17 +38,25 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
     private var pendingNextPosition = -1
     private var pendingBackPosition = -1   // #3: back-on-funnel opened a web step → go to this (previous) page on close
 
+    /** 1-based number of the page currently shown (used by FlowAEscapeLogger for the onb_N screen tag). */
+    val currentPageNumber: Int
+        get() = (binding.pager.currentItem + 1).coerceIn(1, pages.size)
+
+    private var pendingStepTag: String? = null
+
     private val chromeTabLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) {
         val backPos = pendingBackPosition
         val nextPos = pendingNextPosition
+        val tag = pendingStepTag ?: if (nextPos in 0 until pages.size) "page_${nextPos}" else "default"
         pendingBackPosition = -1
         pendingNextPosition = -1
+        pendingStepTag = null
         val target = if (backPos in 0 until pages.size) backPos else nextPos
-        Log.d(TAG, "Chrome Custom Tab closed -> go to page ${target + 1} (${if (backPos >= 0) "back" else "next"})")
-        // Guard resumes + optional App Open ad on close (flags 1/2), then move.
-        PaidChromeTabManager.onWebStepClosed(this) {
+        Log.d(TAG, "Chrome Custom Tab closed ($tag) -> go to page ${target + 1} (${if (backPos >= 0) "back" else "next"})")
+        // Guard resumes + optional ad on close (App Open or Interstitial), then move.
+        PaidChromeTabManager.onWebStepClosed(this, stepTag = tag) {
             if (target in 0 until pages.size) {
                 binding.pager.currentItem = target
             }
@@ -60,7 +67,8 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
     private val bannerAdLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) {
-        PaidChromeTabManager.onWebStepClosed(this) { /* stay on same page */ }
+        val current = binding.pager.currentItem
+        PaidChromeTabManager.onWebStepClosed(this, stepTag = "page_${current + 1}") { /* stay on same page */ }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,7 +77,7 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         // (covers the Splash -> Language -> Flow A relaunch path, which skips the launcher).
         app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
         learning.screenguard.ScreenGuardDemo.register(this)   // timed-loop mechanism demo (log-only)
-        PaidOnboardingAppOpen.preload(this)                   // App Open for web-step close / app-open-only mode
+        FlowAAdManager.preloadForStep(this, "page_1")         // Preload ad for page 1 web-step close early
         binding = ActivityPaidOnboardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -115,21 +123,25 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         // #3 (reference onIntroBack): for a non-organic user, a Back that moves to a previous page first
         // shows a web step, then lands on that page — same "monetise the back press" behaviour.
         onBackPressedDispatcher.addCallback(this) {
+            FlowAEscapeLogger.onEscapeAttempt(this@PaidOnboardingActivity, "back")
             val current = binding.pager.currentItem
             if (current > 0) {
                 val prev = current - 1
                 if (isFunnelTrapActive() && PaidChromeTabManager.shouldShowBetweenPages(this@PaidOnboardingActivity, prev)) {
                     pendingBackPosition = prev
+                    pendingStepTag = "back_${current + 1}"
                     val launched = PaidChromeTabManager.launch(
                         activity = this@PaidOnboardingActivity,
                         launcher = chromeTabLauncher,
-                        stepTag = "back_$current",
+                        stepTag = "back_${current + 1}",
                         onFallback = {
                             binding.pager.currentItem = prev
                             pendingBackPosition = -1
+                            pendingStepTag = null
                         }
                     )
                     if (launched) return@addCallback
+                    pendingStepTag = null
                 }
                 binding.pager.currentItem = prev
             } else {
@@ -147,6 +159,7 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         // only the NEXT page's ads one ahead (rolling preload, not all pages at once).
         FlowAAdBinder.bindBanner(this, position + 1, binding.adBannerContainer, bannerAdLauncher)
         FlowAAdBinder.preloadForPage(this, position + 2)
+        FlowAAdManager.preloadForStep(this, "page_${position + 1}")
         if (page is PaidPage.Feature) {
             binding.tvCaption.setText(page.captionRes)
             binding.tvCaption.visibility = View.VISIBLE
@@ -157,29 +170,44 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         if (lastLoggedView != position) {
             lastLoggedView = position
             Log.d(TAG, "📄 Page ${position + 1}/${pages.size}: ${page.key}")
-            log("paid_onb_${page.key}_view")
+            // Flow A attribution funnel: ${prefix}_onb_${N}_visited (once per install, ad installs only).
+            FlowAEscapeLogger.logFunnelEvery(this, "onb_${position + 1}_visited")
         }
     }
 
     private fun next() {
         val position = binding.pager.currentItem
-        log("paid_onb_${pages[position].key}_next")
+        // Block advancing until the current page's form has a selection (gender / choice / interests).
+        val fragment = supportFragmentManager.findFragmentByTag("f$position") as? PaidPageFragment<*>
+        if (fragment != null && !fragment.isAnswered()) {
+            Toast.makeText(this, R.string.paid_onb_select_to_continue, Toast.LENGTH_SHORT).show()
+            return
+        }
+        // Flow A attribution funnel: ${prefix}_onb_${N}_clicked.
+        FlowAEscapeLogger.logFunnelEvery(this, "onb_${position + 1}_clicked")
         if (position < pages.lastIndex) {
             val nextPos = position + 1
             if (PaidChromeTabManager.shouldShowBetweenPages(this, position)) {
                 pendingNextPosition = nextPos
+                pendingStepTag = "page_${position + 1}"
                 val launched = PaidChromeTabManager.launch(
                     activity = this,
                     launcher = chromeTabLauncher,
-                    stepTag = "page_$position",
+                    stepTag = "page_${position + 1}",
                     onFallback = {
                         binding.pager.currentItem = nextPos
                         pendingNextPosition = -1
+                        pendingStepTag = null
                     }
                 )
                 // launch() signals the guard itself (stand down for a Custom Tab, stay active for the
                 // WebView fallback), so we just stop here when it opened a web step.
-                if (launched) return
+                if (launched) {
+                    // Flow A attribution funnel: ${prefix}_onb_${N}_web_open.
+                    FlowAEscapeLogger.logFunnelEvery(this, "onb_${position + 1}_web_open")
+                    return
+                }
+                pendingStepTag = null
             }
             binding.pager.currentItem = nextPos
         } else {
@@ -197,7 +225,8 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         if (!isLeaving.compareAndSet(false, true)) return
         Log.d(TAG, "✅ Flow A done -> Launcher")
         PaidOnboardingPrefs.setDone(this)
-        log("paid_onb_done")
+        // Flow A attribution funnel: ${prefix}_onb_done (completion).
+        FlowAEscapeLogger.logFunnelEvery(this, "onb_done")
         startActivity(
             Intent(this, LauncherActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -205,10 +234,6 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
             }
         )
         finish()
-    }
-
-    private fun log(event: String) {
-        FirebaseAnalytics.getInstance(this).logEvent(event, null)
     }
 
     override fun onDestroy() {

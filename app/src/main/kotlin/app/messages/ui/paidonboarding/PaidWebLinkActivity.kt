@@ -12,7 +12,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
+import app.messages.ui.base.PaidFunnelActivity
 
 /**
  * In-app WebView fallback for the paid onboarding web step — used when NO Custom-Tabs-capable
@@ -28,7 +28,7 @@ import androidx.appcompat.app.AppCompatActivity
  *  - SSL errors are CANCELLED, never proceed()'d — security + Google Play policy. Fail closed.
  *  - Non-http(s) links (market://, intent://, tel:, mailto:, …) are routed to the system, not the WebView.
  */
-class PaidWebLinkActivity : AppCompatActivity() {
+class PaidWebLinkActivity : PaidFunnelActivity() {
 
     private var webView: WebView? = null
 

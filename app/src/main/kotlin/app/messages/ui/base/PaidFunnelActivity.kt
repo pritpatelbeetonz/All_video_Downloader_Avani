@@ -51,4 +51,11 @@ abstract class PaidFunnelActivity : BaseActivity() {
         }
         return super.dispatchKeyEvent(event)
     }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus && isFunnelTrapActive() && !isFinishing && !isDestroyed) {
+            app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(this, "shade")
+        }
+    }
 }

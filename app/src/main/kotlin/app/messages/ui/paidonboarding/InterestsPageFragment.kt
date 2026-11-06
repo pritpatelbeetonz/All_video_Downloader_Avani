@@ -11,11 +11,14 @@ import app.messages.R
 import app.messages.databinding.PagePaidInterestsBinding
 import com.google.android.material.chip.Chip
 
-/** Page 5: interests as chips, any number (none is fine). */
+/** Page 5: interests as chips, any number — but at least one is required to continue. */
 class InterestsPageFragment : PaidPageFragment<PaidPage.Interests>() {
 
     private var _binding: PagePaidInterestsBinding? = null
     private val binding get() = _binding!!
+
+    override fun isAnswered(): Boolean =
+        PaidOnboardingPrefs.interests(requireContext()).isNotEmpty()
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = PagePaidInterestsBinding.inflate(inflater, container, false)

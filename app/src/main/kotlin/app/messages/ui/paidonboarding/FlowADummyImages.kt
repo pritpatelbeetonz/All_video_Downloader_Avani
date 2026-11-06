@@ -31,6 +31,9 @@ object FlowADummyImages {
     @Volatile private var fetched = false
 
     fun nativeImage(pageNumber: Int): String? = nativeImages[pageNumber]
+
+    /** Second native slot reuses the SAME native.json image for the page — no separate native2.json. */
+    fun native2Image(pageNumber: Int): String? = nativeImages[pageNumber]
     fun bannerImage(pageNumber: Int): String? = bannerImages[pageNumber]
 
     /** Base = {serverUrl}/{serverBaseFolderName}, or null when either is not configured. */
@@ -86,6 +89,7 @@ object FlowADummyImages {
             return
         }
         withContext(Dispatchers.IO) {
+            // Both native slots share native.json (native2Image reads the same map); only banner.json extra.
             nativeImages = fetchJson(base, "native.json")
             bannerImages = fetchJson(base, "banner.json")
             fetched = true

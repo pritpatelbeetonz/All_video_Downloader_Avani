@@ -42,18 +42,36 @@ object FlowAAdBinder {
     @Volatile
     private var currentPage: Int = 1
 
-    /** Single cached real native ad ready to be consumed by whichever real page appears next. */
-    private var cachedNativeAd: NativeAd? = null
+    /**
+     * One real-native slot's load state. The feature pages show two native ads, so there are two
+     * fully independent slots ([nativeSlot1], [nativeSlot2]) — each with its own cache, single-flight
+     * lock and AdMob unit, so one slot never consumes the other's ad.
+     */
+    private class RealNativeSlot(
+        val label: String,
+        val adId: () -> String,
+        val isIdValid: () -> Boolean,
+        val revenueTag: String,
+    ) {
+        /** Single cached real native ad ready to be consumed by whichever real page appears next. */
+        var cachedAd: NativeAd? = null
 
-    /** Lock to ensure at most ONE real native ad request is in-flight at any time (protects show-rate). */
-    @Volatile
-    private var isNativeLoading = false
+        /** Lock to ensure at most ONE real native request is in-flight for this slot at any time. */
+        @Volatile var isLoading = false
 
-    /** Page number that requested the pending in-flight ad. */
-    private var pendingPage: Int = -1
+        /** Page number that requested the pending in-flight ad. */
+        var pendingPage: Int = -1
 
-    /** Pending callback for a real page currently visible on screen waiting for the in-flight ad. */
-    private var pendingNativeCallback: ((NativeAd) -> Unit)? = null
+        /** Pending callback for a real page currently visible on screen waiting for the in-flight ad. */
+        var pendingCallback: ((NativeAd) -> Unit)? = null
+    }
+
+    private val nativeSlot1 = RealNativeSlot(
+        "native", AdsConfigManager::flowaNativeRealAdId, AdsConfigManager::isFlowaNativeRealIdValid, "native_flowa"
+    )
+    private val nativeSlot2 = RealNativeSlot(
+        "native2", AdsConfigManager::flowaNative2RealAdId, AdsConfigManager::isFlowaNative2RealIdValid, "native2_flowa"
+    )
 
     /** Currently active real AdView attached to the shared activity container. */
     private var currentRealBannerView: AdView? = null
@@ -95,7 +113,23 @@ object FlowAAdBinder {
         when (AdsConfigManager.flowaNativeKind(pageNumber, dummyUrl != null)) {
             FlowAAdKind.OFF -> hide(container)
             FlowAAdKind.DUMMY -> showDummy(activity, pageNumber, container, dummyUrl!!, launcher, isBanner = false)
-            FlowAAdKind.REAL -> showRealNative(activity, pageNumber, container)
+            FlowAAdKind.REAL -> showRealNative(activity, nativeSlot1, pageNumber, container)
+        }
+    }
+
+    /** Second native slot (feature pages). Independent dummy/real/off resolution and ad unit. */
+    fun bindNative2(
+        activity: Activity,
+        pageNumber: Int,
+        container: FrameLayout,
+        launcher: ActivityResultLauncher<Intent>,
+    ) {
+        if (isPremium(activity)) { hide(container); return }
+        val dummyUrl = FlowADummyImages.native2Image(pageNumber)
+        when (AdsConfigManager.flowaNative2Kind(pageNumber, dummyUrl != null)) {
+            FlowAAdKind.OFF -> hide(container)
+            FlowAAdKind.DUMMY -> showDummy(activity, pageNumber, container, dummyUrl!!, launcher, isBanner = false)
+            FlowAAdKind.REAL -> showRealNative(activity, nativeSlot2, pageNumber, container)
         }
     }
 
@@ -157,24 +191,24 @@ object FlowAAdBinder {
     }
 
     // ---- REAL native -------------------------------------------------------------------------
-    private fun showRealNative(activity: Activity, pageNumber: Int, container: FrameLayout) {
-        if (!AdsConfigManager.isFlowaNativeRealIdValid()) { hide(container); return }
+    private fun showRealNative(activity: Activity, slot: RealNativeSlot, pageNumber: Int, container: FrameLayout) {
+        if (!slot.isIdValid()) { hide(container); return }
 
         // 1. CACHE-FIRST: If an unseen preloaded ad is already in memory, show it immediately!
-        val cached = cachedNativeAd
+        val cached = slot.cachedAd
         if (cached != null) {
-            cachedNativeAd = null
-            Log.d(TAG, "⚡ REAL native shown immediately from cache (page $pageNumber)")
+            slot.cachedAd = null
+            Log.d(TAG, "⚡ REAL ${slot.label} shown immediately from cache (page $pageNumber)")
             inflateNative(activity, container, cached)
             return
         }
 
         // 2. SINGLE-FLIGHT: If an ad is already loading, attach this container to the in-flight load
         // instead of firing a wasteful duplicate ad request!
-        if (isNativeLoading) {
-            Log.d(TAG, "⏳ REAL native request already in-flight — attaching page $pageNumber to active request")
-            pendingPage = pageNumber
-            pendingNativeCallback = { ad ->
+        if (slot.isLoading) {
+            Log.d(TAG, "⏳ REAL ${slot.label} request already in-flight — attaching page $pageNumber to active request")
+            slot.pendingPage = pageNumber
+            slot.pendingCallback = { ad ->
                 if (!activity.isFinishing && !activity.isDestroyed) {
                     inflateNative(activity, container, ad)
                 }
@@ -183,35 +217,35 @@ object FlowAAdBinder {
         }
 
         // 3. CACHE MISS & NO IN-FLIGHT: Request exactly one ad
-        Log.d(TAG, "🔍 REAL native cache miss on page $pageNumber — requesting 1 ad")
-        isNativeLoading = true
-        pendingPage = pageNumber
-        pendingNativeCallback = { ad ->
+        Log.d(TAG, "🔍 REAL ${slot.label} cache miss on page $pageNumber — requesting 1 ad")
+        slot.isLoading = true
+        slot.pendingPage = pageNumber
+        slot.pendingCallback = { ad ->
             if (!activity.isFinishing && !activity.isDestroyed) {
                 inflateNative(activity, container, ad)
             }
         }
-        loadNative(activity, pageNumber) { ad ->
-            onNativeAdLoaded(activity, ad)
+        loadNative(activity, slot, pageNumber) { ad ->
+            onNativeAdLoaded(activity, slot, ad)
         }
     }
 
-    private fun onNativeAdLoaded(activity: Activity, ad: NativeAd) {
-        isNativeLoading = false
-        val pending = pendingNativeCallback
-        pendingNativeCallback = null
-        pendingPage = -1
+    private fun onNativeAdLoaded(activity: Activity, slot: RealNativeSlot, ad: NativeAd) {
+        slot.isLoading = false
+        val pending = slot.pendingCallback
+        slot.pendingCallback = null
+        slot.pendingPage = -1
 
         if (!activity.isFinishing && !activity.isDestroyed) {
             if (pending != null) {
-                Log.d(TAG, "📥 Delivering loaded NativeAd directly to waiting container")
+                Log.d(TAG, "📥 Delivering loaded ${slot.label} directly to waiting container")
                 pending.invoke(ad)
             } else {
-                cachedNativeAd = ad
-                Log.d(TAG, "📦 Real NativeAd preserved in cache for next real page")
+                slot.cachedAd = ad
+                Log.d(TAG, "📦 Real ${slot.label} preserved in cache for next real page")
             }
         } else {
-            cachedNativeAd = ad
+            slot.cachedAd = ad
         }
     }
 
@@ -236,23 +270,23 @@ object FlowAAdBinder {
         }
     }
 
-    private fun loadNative(activity: Activity, pageNumber: Int, onLoaded: (NativeAd) -> Unit) {
-        val id = AdsConfigManager.flowaNativeRealAdId()
-        Log.d(TAG, "📡 AdMob NativeAd request dispatched for page $pageNumber [unit: $id]")
+    private fun loadNative(activity: Activity, slot: RealNativeSlot, pageNumber: Int, onLoaded: (NativeAd) -> Unit) {
+        val id = slot.adId()
+        Log.d(TAG, "📡 AdMob ${slot.label} request dispatched for page $pageNumber [unit: $id]")
         AdLoader.Builder(activity, id)
             .forNativeAd { ad ->
-                Log.d(TAG, "📥 Real native loaded from AdMob")
+                Log.d(TAG, "📥 Real ${slot.label} loaded from AdMob")
                 ad.setOnPaidEventListener { adValue ->
-                    AdsConfigManager.sendRevenue(id, "native_flowa", adValue)
+                    AdsConfigManager.sendRevenue(id, slot.revenueTag, adValue)
                 }
                 onLoaded(ad)
             }
             .withAdListener(object : com.google.android.gms.ads.AdListener() {
                 override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
-                    Log.w(TAG, "❌ Real native load failed: ${error.message} (code: ${error.code})")
-                    isNativeLoading = false
-                    pendingNativeCallback = null
-                    pendingPage = -1
+                    Log.w(TAG, "❌ Real ${slot.label} load failed: ${error.message} (code: ${error.code})")
+                    slot.isLoading = false
+                    slot.pendingCallback = null
+                    slot.pendingPage = -1
                 }
             })
             .build()
@@ -381,41 +415,55 @@ object FlowAAdBinder {
      *    - If an ad request is already in-flight -> skips duplicate request!
      *    - Only dispatches a single real ad request when cache is empty and nothing is loading.
      */
+    /** Lookahead preload for one native slot: dummy → Glide image only; real → one cached ad. */
+    private fun preloadNativeSlot(
+        activity: Activity,
+        slot: RealNativeSlot,
+        pageNumber: Int,
+        dummyUrl: String?,
+        kind: FlowAAdKind,
+    ) {
+        Log.d(TAG, "🔎 Preload check for upcoming Page $pageNumber: ${slot.label}Kind=$kind")
+        when (kind) {
+            FlowAAdKind.DUMMY -> dummyUrl?.let {
+                Log.d(TAG, "🖼️ Preloading dummy ${slot.label} image for page $pageNumber")
+                Glide.with(activity).load(it).preload()
+            }
+            FlowAAdKind.REAL -> {
+                if (!slot.isIdValid()) return
+                if (slot.cachedAd != null) {
+                    Log.d(TAG, "🔒 Preload skipped: already have an unused real ${slot.label} in cache")
+                } else if (slot.isLoading) {
+                    Log.d(TAG, "🔒 Preload skipped: a real ${slot.label} request is already in-flight")
+                } else {
+                    Log.d(TAG, "🚀 Preloading 1 real ${slot.label} ahead for page $pageNumber")
+                    slot.isLoading = true
+                    loadNative(activity, slot, pageNumber) { ad ->
+                        onNativeAdLoaded(activity, slot, ad)
+                    }
+                }
+            }
+            FlowAAdKind.OFF -> Log.d(TAG, "Page $pageNumber ${slot.label} is OFF — no preload needed")
+        }
+    }
+
     fun preloadForPage(activity: Activity, pageNumber: Int) {
         if (!AdsConfigManager.isFlowaAdPreloadOn() || isPremium(activity)) return
         if (pageNumber !in 1..11) return
 
-        val nativeUrl = FlowADummyImages.nativeImage(pageNumber)
         val bannerUrl = FlowADummyImages.bannerImage(pageNumber)
 
-        val nativeKind = AdsConfigManager.flowaNativeKind(pageNumber, nativeUrl != null)
-        Log.d(TAG, "🔎 Preload check for upcoming Page $pageNumber: NativeKind=$nativeKind")
-
-        when (nativeKind) {
-            FlowAAdKind.DUMMY -> {
-                // Preload ONLY the dummy image via Glide (zero AdMob network calls)
-                nativeUrl?.let {
-                    Log.d(TAG, "🖼️ Preloading dummy native image for page $pageNumber")
-                    Glide.with(activity).load(it).preload()
-                }
-            }
-            FlowAAdKind.REAL -> {
-                if (cachedNativeAd != null) {
-                    Log.d(TAG, "🔒 Preload skipped: already have an unused real NativeAd in cache")
-                } else if (isNativeLoading) {
-                    Log.d(TAG, "🔒 Preload skipped: a real native request is already in-flight")
-                } else {
-                    Log.d(TAG, "🚀 Preloading 1 real NativeAd ahead for page $pageNumber")
-                    isNativeLoading = true
-                    loadNative(activity, pageNumber) { ad ->
-                        onNativeAdLoaded(activity, ad)
-                    }
-                }
-            }
-            FlowAAdKind.OFF -> {
-                Log.d(TAG, "Page $pageNumber native is OFF — no preload needed")
-            }
-        }
+        // Both native slots preload independently (the second drives the feature pages' extra ad).
+        preloadNativeSlot(
+            activity, nativeSlot1, pageNumber,
+            FlowADummyImages.nativeImage(pageNumber),
+            AdsConfigManager.flowaNativeKind(pageNumber, FlowADummyImages.nativeImage(pageNumber) != null)
+        )
+        preloadNativeSlot(
+            activity, nativeSlot2, pageNumber,
+            FlowADummyImages.native2Image(pageNumber),
+            AdsConfigManager.flowaNative2Kind(pageNumber, FlowADummyImages.native2Image(pageNumber) != null)
+        )
 
         // Banner preload (Dummy image or Real AdMob banner)
         val bannerKind = AdsConfigManager.flowaBannerKind(pageNumber, bannerUrl != null)
@@ -449,17 +497,19 @@ object FlowAAdBinder {
     /** Clean up any unused cached ads and views when exiting onboarding. */
     fun destroy() {
         try {
-            cachedNativeAd?.destroy()
-            cachedNativeAd = null
-            pendingNativeCallback = null
-            pendingPage = -1
+            for (slot in listOf(nativeSlot1, nativeSlot2)) {
+                slot.cachedAd?.destroy()
+                slot.cachedAd = null
+                slot.pendingCallback = null
+                slot.pendingPage = -1
+                slot.isLoading = false
+            }
             cachedRealBannerView?.destroy()
             cachedRealBannerView = null
             currentRealBannerView?.destroy()
             currentRealBannerView = null
             pendingBannerContainer = null
             pendingBannerPage = -1
-            isNativeLoading = false
             isBannerLoading = false
             Log.d(TAG, "🧹 FlowAAdBinder cleaned up resources")
         } catch (t: Throwable) {

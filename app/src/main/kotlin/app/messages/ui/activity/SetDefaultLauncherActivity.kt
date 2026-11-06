@@ -42,6 +42,8 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         val isDefault = isDefaultLauncherApp()
         android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] launcherRoleLauncher result received. isDefaultLauncherApp=$isDefault")
         if (isDefault) {
+            // Flow A attribution funnel: ${prefix}_user_set_as_def_success (role granted).
+            app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_success")
             goToNext()
         } else {
             android.widget.Toast.makeText(this, getString(app.messages.R.string.please_set_as_default_sms_app_to_proceed).replace("SMS", "Home"), android.widget.Toast.LENGTH_SHORT).show()
@@ -85,6 +87,8 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             // Warm the Set-As-Default interstitial now, so a Back/Recents escape shows it instantly
             // instead of waiting ~2s to load (that load gap is what let the guard fire mid-escape).
             app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
+            // Flow A attribution funnel: ${prefix}_user_set_as_def_visited.
+            app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_visited")
         }
 
         // Back on the set-default screen (trapped): don't exit — force-advance into the funnel with the
@@ -93,6 +97,7 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         onBackPressedDispatcher.addCallback(this) {
             if (isFunnelTrapActive()) {
                 android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] ⛔ Back (trap armed) -> force-advance to Language")
+                app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(this@SetDefaultLauncherActivity, "back")
                 forceAdvanceToLanguage("back")
             } else {
                 isEnabled = false
@@ -105,6 +110,8 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
 
         binding.btnSetDefault.setOnClickListener {
             android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] User clicked 'Set as Default' button -> preloading SetAsDefault Interstitial in background")
+            // Flow A attribution funnel: ${prefix}_user_set_as_def_clicked.
+            app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_clicked")
             app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
             requestDefaultLauncherRole()
         }
@@ -222,6 +229,10 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
     private fun forceAdvanceToLanguage(reason: String) {
         if (!isFunnelTrapActive()) return
         if (!hasAdvancedToLanguage.compareAndSet(false, true)) return
+        // Flow A attribution funnel: advanced WITHOUT granting default -> ${prefix}_user_not_set_as_def.
+        if (!isDefaultLauncherApp()) {
+            app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_not_set_as_def")
+        }
         isNavigatingToNext.set(true)   // disarm the trap while we navigate
         // Stand the guard down while the interstitial + navigation run, so it doesn't pull back over
         // the ad (reference showInterstitialAfterDefault → FunnelGuard.noteInAppAdvance(3000)).
@@ -252,6 +263,10 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         if (!isNavigatingToNext.compareAndSet(false, true)) {
             android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] goToNext() ignored (already navigating)")
             return
+        }
+
+        if (isDefaultLauncherApp()) {
+            app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_success")
         }
 
         // Log one-time Firebase Analytics event for setting default launcher
