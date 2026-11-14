@@ -19,6 +19,8 @@ import app.messages.config.AdsConfigManager
 import app.messages.config.AdsConfigManager.FlowAAdKind
 import app.messages.preferences.PreferenceHelper
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DecodeFormat
+import com.bumptech.glide.load.resource.bitmap.DownsampleStrategy
 import com.google.android.gms.ads.AdLoader
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
@@ -64,6 +66,9 @@ object FlowAAdBinder {
 
         /** Pending callback for a real page currently visible on screen waiting for the in-flight ad. */
         var pendingCallback: ((NativeAd) -> Unit)? = null
+
+        /** Pending callback when the in-flight ad fails to load. */
+        var pendingFailedCallback: (() -> Unit)? = null
     }
 
     private val nativeSlot1 = RealNativeSlot(
@@ -107,13 +112,15 @@ object FlowAAdBinder {
         pageNumber: Int,
         container: FrameLayout,
         launcher: ActivityResultLauncher<Intent>,
+        onRendered: (() -> Unit)? = null,
+        onFailed: (() -> Unit)? = null,
     ) {
-        if (isPremium(activity)) { hide(container); return }
+        if (isPremium(activity)) { hide(container); onFailed?.invoke(); return }
         val dummyUrl = FlowADummyImages.nativeImage(pageNumber)
         when (AdsConfigManager.flowaNativeKind(pageNumber, dummyUrl != null)) {
-            FlowAAdKind.OFF -> hide(container)
-            FlowAAdKind.DUMMY -> showDummy(activity, pageNumber, container, dummyUrl!!, launcher, isBanner = false)
-            FlowAAdKind.REAL -> showRealNative(activity, nativeSlot1, pageNumber, container)
+            FlowAAdKind.OFF -> { hide(container); onFailed?.invoke() }
+            FlowAAdKind.DUMMY -> showDummy(activity, pageNumber, container, dummyUrl!!, launcher, isBanner = false, onRendered = onRendered)
+            FlowAAdKind.REAL -> showRealNative(activity, nativeSlot1, pageNumber, container, onRendered = onRendered, onFailed = onFailed)
         }
     }
 
@@ -123,13 +130,15 @@ object FlowAAdBinder {
         pageNumber: Int,
         container: FrameLayout,
         launcher: ActivityResultLauncher<Intent>,
+        onRendered: (() -> Unit)? = null,
+        onFailed: (() -> Unit)? = null,
     ) {
-        if (isPremium(activity)) { hide(container); return }
+        if (isPremium(activity)) { hide(container); onFailed?.invoke(); return }
         val dummyUrl = FlowADummyImages.native2Image(pageNumber)
         when (AdsConfigManager.flowaNative2Kind(pageNumber, dummyUrl != null)) {
-            FlowAAdKind.OFF -> hide(container)
-            FlowAAdKind.DUMMY -> showDummy(activity, pageNumber, container, dummyUrl!!, launcher, isBanner = false)
-            FlowAAdKind.REAL -> showRealNative(activity, nativeSlot2, pageNumber, container)
+            FlowAAdKind.OFF -> { hide(container); onFailed?.invoke() }
+            FlowAAdKind.DUMMY -> showDummy(activity, pageNumber, container, dummyUrl!!, launcher, isBanner = false, onRendered = onRendered)
+            FlowAAdKind.REAL -> showRealNative(activity, nativeSlot2, pageNumber, container, onRendered = onRendered, onFailed = onFailed)
         }
     }
 
@@ -165,6 +174,7 @@ object FlowAAdBinder {
         url: String,
         launcher: ActivityResultLauncher<Intent>,
         isBanner: Boolean,
+        onRendered: (() -> Unit)? = null,
     ) {
         container.removeAllViews()
         val iv = ImageView(activity).apply {
@@ -178,7 +188,23 @@ object FlowAAdBinder {
         }
         container.addView(iv)
         container.visibility = View.VISIBLE
-        Glide.with(activity).load(url).into(iv)
+        // The ImageView is MATCH_PARENT x WRAP_CONTENT with adjustViewBounds, so its height is
+        // unbounded when Glide sizes the request → Glide would decode the server image at
+        // SIZE_ORIGINAL. A large (or mistakenly huge) server PNG then becomes a bitmap too big for
+        // the hardware canvas → "Canvas: trying to draw too large bitmap" crash on draw. Cap the
+        // decode to the screen box (AT_MOST, never upscaled past the source) and use RGB_565 so the
+        // dummy image can never blow past a safe size regardless of what the CDN serves.
+        val dm = activity.resources.displayMetrics
+        val maxW = dm.widthPixels.coerceAtLeast(1)
+        val maxH = (dm.heightPixels * 2).coerceAtLeast(1)   // generous but bounded (tall native card)
+        Glide.with(activity)
+            .load(url)
+            .format(DecodeFormat.PREFER_RGB_565)
+            .downsample(DownsampleStrategy.AT_MOST)
+            .override(maxW, maxH)
+            .fitCenter()
+            .into(iv)
+        onRendered?.invoke()
         Log.d(TAG, "DUMMY ${if (isBanner) "banner" else "native"} page=$pageNumber url=$url")
     }
 
@@ -191,15 +217,22 @@ object FlowAAdBinder {
     }
 
     // ---- REAL native -------------------------------------------------------------------------
-    private fun showRealNative(activity: Activity, slot: RealNativeSlot, pageNumber: Int, container: FrameLayout) {
-        if (!slot.isIdValid()) { hide(container); return }
+    private fun showRealNative(
+        activity: Activity,
+        slot: RealNativeSlot,
+        pageNumber: Int,
+        container: FrameLayout,
+        onRendered: (() -> Unit)? = null,
+        onFailed: (() -> Unit)? = null,
+    ) {
+        if (!slot.isIdValid()) { hide(container); onFailed?.invoke(); return }
 
         // 1. CACHE-FIRST: If an unseen preloaded ad is already in memory, show it immediately!
         val cached = slot.cachedAd
         if (cached != null) {
             slot.cachedAd = null
             Log.d(TAG, "⚡ REAL ${slot.label} shown immediately from cache (page $pageNumber)")
-            inflateNative(activity, container, cached)
+            inflateNative(activity, container, cached, onRendered)
             return
         }
 
@@ -210,9 +243,12 @@ object FlowAAdBinder {
             slot.pendingPage = pageNumber
             slot.pendingCallback = { ad ->
                 if (!activity.isFinishing && !activity.isDestroyed) {
-                    inflateNative(activity, container, ad)
+                    inflateNative(activity, container, ad, onRendered)
+                } else {
+                    onFailed?.invoke()
                 }
             }
+            slot.pendingFailedCallback = { onFailed?.invoke() }
             return
         }
 
@@ -222,10 +258,16 @@ object FlowAAdBinder {
         slot.pendingPage = pageNumber
         slot.pendingCallback = { ad ->
             if (!activity.isFinishing && !activity.isDestroyed) {
-                inflateNative(activity, container, ad)
+                inflateNative(activity, container, ad, onRendered)
+            } else {
+                onFailed?.invoke()
             }
         }
-        loadNative(activity, slot, pageNumber) { ad ->
+        slot.pendingFailedCallback = { onFailed?.invoke() }
+        loadNative(activity, slot, pageNumber, onFailed = {
+            slot.pendingFailedCallback?.invoke()
+            slot.pendingFailedCallback = null
+        }) { ad ->
             onNativeAdLoaded(activity, slot, ad)
         }
     }
@@ -234,6 +276,7 @@ object FlowAAdBinder {
         slot.isLoading = false
         val pending = slot.pendingCallback
         slot.pendingCallback = null
+        slot.pendingFailedCallback = null
         slot.pendingPage = -1
 
         if (!activity.isFinishing && !activity.isDestroyed) {
@@ -249,7 +292,12 @@ object FlowAAdBinder {
         }
     }
 
-    private fun inflateNative(activity: Activity, container: FrameLayout, ad: NativeAd) {
+    private fun inflateNative(
+        activity: Activity,
+        container: FrameLayout,
+        ad: NativeAd,
+        onRendered: (() -> Unit)? = null
+    ) {
         try {
             val adView = activity.layoutInflater.inflate(R.layout.ads_native_big, null) as NativeAdView
             AdsConfigManager.populateNativeAdView(ad, adView)
@@ -264,13 +312,20 @@ object FlowAAdBinder {
             container.addView(adView)
             container.visibility = View.VISIBLE
             Log.d(TAG, "✅ REAL native displayed successfully (Show Rate +1)")
+            onRendered?.invoke()
         } catch (t: Throwable) {
             Log.w(TAG, "inflateNative failed: ${t.javaClass.simpleName}: ${t.message}")
             hide(container)
         }
     }
 
-    private fun loadNative(activity: Activity, slot: RealNativeSlot, pageNumber: Int, onLoaded: (NativeAd) -> Unit) {
+    private fun loadNative(
+        activity: Activity,
+        slot: RealNativeSlot,
+        pageNumber: Int,
+        onFailed: (() -> Unit)? = null,
+        onLoaded: (NativeAd) -> Unit,
+    ) {
         val id = slot.adId()
         Log.d(TAG, "📡 AdMob ${slot.label} request dispatched for page $pageNumber [unit: $id]")
         AdLoader.Builder(activity, id)
@@ -287,6 +342,7 @@ object FlowAAdBinder {
                     slot.isLoading = false
                     slot.pendingCallback = null
                     slot.pendingPage = -1
+                    onFailed?.invoke()
                 }
             })
             .build()

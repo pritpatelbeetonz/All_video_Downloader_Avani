@@ -12,9 +12,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ProcessLifecycleOwner
-import com.google.android.gms.ads.MobileAds
-import com.google.android.gms.ads.RequestConfiguration
-import com.google.android.gms.ads.initialization.InitializationStatus
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.gson.Gson
 import app.messages.ads.listeners.AppOpenAdsListener
@@ -110,7 +107,12 @@ open class Controller : Application() {
         processLifecycleOwner()
         registerActivityLifecycle()
 
-        adsConfiguration()
+        // NOTE: MobileAds init (and its test-device RequestConfiguration) is handled entirely by
+        // AdsConfigManager.initialize() above, on a background thread. We must NOT call any
+        // MobileAds.* method here on the main thread during Application.onCreate — doing so blocks
+        // on the MobileAds lock held by that background init (which itself waits on WebView) and
+        // ANRs the app on cold devices ("failed to complete startup"). The old adsConfiguration()
+        // did exactly that and has been removed.
 
         // Pre-warm database and cache in background
         ioScope.launch {
@@ -125,21 +127,6 @@ open class Controller : Application() {
             }
         }
     }
-
-    private fun adsConfiguration() {
-        val testDeviceIdAds: List<String> = mutableListOf(
-            "A60DCA743B4F66FE88947C10E6F2A6FE",
-        )
-        val requestConfiguration =
-            RequestConfiguration.Builder()
-                .setTestDeviceIds(testDeviceIdAds)
-                .build()
-
-        MobileAds.setRequestConfiguration(requestConfiguration)
-
-        MobileAds.initialize(this) { initializationStatus: InitializationStatus? -> }
-    }
-
 
     private fun processLifecycleOwner() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(
@@ -274,6 +261,9 @@ open class Controller : Application() {
         currency: String?,
         precision: Int
     ) {
+        // Report to Meta (Facebook) first — its own allowlist, independent of the Firebase one below.
+        app.messages.monetization.ads.MetaRevenueReporter.logAdRevenue(instance, adUnitId, revenue, currency, placement)
+
         val allowed = app.messages.config.AdsConfigManager.shouldSendAdImpression(adUnitId)
         Log.d("AdRevenue", "ad_impression [$placement] unit=$adUnitId allowed=$allowed revenue=$revenue $currency")
         if (!allowed) return

@@ -29,7 +29,7 @@ object AdsConfigManager {
      * - SplashActivity (initial load)
      * ====================================================================================
      */
-    const val KEY_ADS_CONFIG = "app_john_all_video_downloader_com_v4"//"app_john_all_video_downloader_com_v3"//"app_john_all_video_downloader_com_v1"
+    const val KEY_ADS_CONFIG = "app_john_all_video_downloader_com_v5"//"app_john_all_video_downloader_com_v5///"app_john_all_video_downloader_com_v4"//"app_john_all_video_downloader_com_v3"//"app_john_all_video_downloader_com_v1"
 
     private const val KEY_BANNER_SPLASH = "banner_ad_id_splash"
     private const val KEY_BANNER_CONTACT_HOME = "banner_ad_id_contact_home"
@@ -144,16 +144,35 @@ object AdsConfigManager {
     var isInitialized: Boolean = false
         private set
 
+    /** Guards the single MobileAds SDK init (test config + initialize) so it never runs twice. */
+    @Volatile
+    private var adsSdkInitStarted: Boolean = false
+
     fun initialize(context: Context, onComplete: ((success: Boolean) -> Unit)? = null) {
         // MobileAds.initialize does disk and network work; Google's own guidance is
         // to keep it off the main thread. Ad requests issued before it reports ready
         // are dropped, so the first preload hangs off its completion callback (which
         // the SDK delivers on the main thread) rather than running inline below.
-        Thread {
-            runCatching {
-                com.google.android.gms.ads.MobileAds.initialize(context) { /* preloadAllAds(context) */ }
-            }.onFailure { }
-        }.start()
+        // Everything that touches the MobileAds SDK goes here, on ONE background thread.
+        // MobileAds.initialize() grabs an internal lock and then blocks on WebView
+        // (WebSettings.getDefaultUserAgent). If anything on the MAIN thread also calls a
+        // MobileAds.* method during Application.onCreate it waits on that same lock, and on a
+        // cold device (e.g. Google's review emulator) WebView init is slow enough that the main
+        // thread blocks past the ANR deadline → "failed to complete startup" → app never loads.
+        // So test-device config AND init both run here, off the main thread, and this is the only
+        // MobileAds entry point at startup.
+        if (!adsSdkInitStarted) {
+            adsSdkInitStarted = true
+            Thread {
+                runCatching {
+                    val requestConfiguration = com.google.android.gms.ads.RequestConfiguration.Builder()
+                        .setTestDeviceIds(listOf("A60DCA743B4F66FE88947C10E6F2A6FE"))
+                        .build()
+                    com.google.android.gms.ads.MobileAds.setRequestConfiguration(requestConfiguration)
+                    com.google.android.gms.ads.MobileAds.initialize(context) { /* preloadAllAds(context) */ }
+                }.onFailure { }
+            }.start()
+        }
 
         if (FirebaseApp.getApps(context).isEmpty()) {
             FirebaseApp.initializeApp(context)
@@ -542,6 +561,10 @@ object AdsConfigManager {
             flowaInterstitialAdId = fromJson.flowaInterstitialAdId,
             paidAppOpenCloseInterval = fromJson.paidAppOpenCloseInterval,
             paidAppOpenOnlyMode = fromJson.paidAppOpenOnlyMode,
+            flowaNativeShiftOn = fromJson.flowaNativeShiftOn,
+            flowaNativeShiftDelayMs = fromJson.flowaNativeShiftDelayMs,
+            flowaNativeShiftAnimDurationMs = fromJson.flowaNativeShiftAnimDurationMs,
+            flowaNativeShiftSteps = fromJson.flowaNativeShiftSteps,
             flowaNativeOn = fromJson.flowaNativeOn,
             flowaBannerOn = fromJson.flowaBannerOn,
             flowaAdPreloadOn = fromJson.flowaAdPreloadOn,
@@ -595,6 +618,27 @@ object AdsConfigManager {
         val id = flowAInterstitialAdId()
         if (id.isBlank() || id == "11") return false
         return Regex("^ca-app-pub-\\d+/\\d+$").matches(id)
+    }
+
+    // ---- Flow-A native ad delayed appearance & button slide-down ----
+    fun isFlowANativeShiftOn(): Boolean = config.flowaNativeShiftOn
+
+    fun getFlowANativeShiftDelayMs(): Long = config.flowaNativeShiftDelayMs.coerceAtLeast(0L)
+
+    fun getFlowANativeShiftAnimDurationMs(): Long = config.flowaNativeShiftAnimDurationMs.coerceAtLeast(100L)
+
+    fun isFlowANativeShiftEnabledForStep(stepTag: String): Boolean {
+        if (!isFlowANativeShiftOn()) return false
+        val map = config.flowaNativeShiftSteps
+        if (!map.isNullOrEmpty()) {
+            map[stepTag]?.let { return it }
+            map[stepTag.lowercase()]?.let { return it }
+            val normalized = if (stepTag.startsWith("page_")) stepTag else "page_$stepTag"
+            map[normalized]?.let { return it }
+            map["default"]?.let { return it }
+            map["DEFAULT"]?.let { return it }
+        }
+        return true
     }
 
     // ---- Paid web-step App Open ad (funnel) -------------------------------
@@ -872,6 +916,16 @@ object AdsConfigManager {
         if (!config.sendRevenueToAnalytics || adUnitId.isNullOrBlank()) return false
         val id = adUnitId.trim()
         return config.adImpressionEventAllowed.orEmpty().any { it.trim() == id }
+    }
+
+    /**
+     * Whether this ad unit may report revenue to META — gated by the master switch and the SEPARATE
+     * Meta allowlist [AdsConfig.metaAdImpressionAllowed] (independent of the Firebase allowlist).
+     */
+    fun shouldSendMetaAdRevenue(adUnitId: String?): Boolean {
+        if (!config.metaAdRevenueOn || adUnitId.isNullOrBlank()) return false
+        val id = adUnitId.trim()
+        return config.metaAdImpressionAllowed.orEmpty().any { it.trim() == id }
     }
 
     fun sendRevenue(adUnitId: String?, placement: String, adValue: com.google.android.gms.ads.AdValue) {
