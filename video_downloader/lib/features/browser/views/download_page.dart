@@ -82,9 +82,19 @@ class _DownloadPageState extends ConsumerState<DownloadPage> {
 
   //check that image or the video
   String detectTypeFromRapidUrl(String url) {
-    if (url.contains("/v2")) return "video";
-    if (url.contains("/thumb")) return "image";
-    return "unknown";
+    final u = url.toLowerCase();
+    // Explicit image markers -> image; everything else from the video
+    // extractor is a video (e.g. Instagram CDN stream URLs that match no
+    // marker used to fall through to "unknown" and get saved as .jpg).
+    if (u.contains("/thumb") ||
+        u.contains(".jpg") ||
+        u.contains(".jpeg") ||
+        u.contains(".png") ||
+        u.contains(".webp") ||
+        u.contains(".heic")) {
+      return "image";
+    }
+    return "video";
   }
 
   // 🔥 DOWNLOAD FUNCTION
