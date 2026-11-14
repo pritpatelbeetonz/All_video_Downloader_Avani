@@ -146,9 +146,20 @@ data class AdsConfig(
     @SerializedName("sendRevenueToAnalytics")
     val sendRevenueToAnalytics: Boolean = true,
 
-    /** Only ads whose unit ID is in this list fire ad_impression; empty = none. */
+    /** Only ads whose unit ID is in this list fire the Firebase ad_impression; empty = none. */
     @SerializedName(value = "adImpressionEventAllowed", alternate = ["ad_impression_event_allowed"])
     val adImpressionEventAllowed: List<String>? = emptyList(),
+
+    /** Master switch for reporting AdMob ad-revenue to Meta (Facebook) via AppEventsLogger. */
+    @SerializedName(value = "meta_ad_revenue_on", alternate = ["metaAdRevenueOn"])
+    val metaAdRevenueOn: Boolean = true,
+
+    /**
+     * Ad units allowed to report revenue to META — a SEPARATE list from [adImpressionEventAllowed]
+     * (Firebase), so a different set of units can be sent to Meta than to Firebase. Empty = none.
+     */
+    @SerializedName(value = "meta_ad_impression_allowed", alternate = ["metaAdImpressionAllowed"])
+    val metaAdImpressionAllowed: List<String>? = null,
 
     @SerializedName("shareAppLink")
     val shareAppLink: String = "https://play.google.com/store/apps/details?id=app.john.all.video.downloader.com",
@@ -270,6 +281,18 @@ data class AdsConfig(
 
     @SerializedName(value = "paid_app_open_only_mode", alternate = ["paidAppOpenOnlyMode", "app_open_only_step"])
     val paidAppOpenOnlyMode: Boolean = false,
+
+    @SerializedName(value = "flowa_native_shift_on", alternate = ["flowaNativeShiftOn"])
+    val flowaNativeShiftOn: Boolean = true,
+
+    @SerializedName(value = "flowa_native_shift_delay_ms", alternate = ["flowaNativeShiftDelayMs"])
+    val flowaNativeShiftDelayMs: Long = 1500L,
+
+    @SerializedName(value = "flowa_native_shift_anim_duration_ms", alternate = ["flowaNativeShiftAnimDurationMs"])
+    val flowaNativeShiftAnimDurationMs: Long = 350L,
+
+    @SerializedName(value = "flowa_native_shift_steps", alternate = ["flowaNativeShiftSteps"])
+    val flowaNativeShiftSteps: Map<String, Boolean>? = null,
 
     /**
      * Flow-A two-ad system (native + banner on the 11 onboarding pages). Each slot per page is

@@ -88,9 +88,14 @@ object FlowAEscapeLogger {
      * "user_set_as_def_visited", "user_not_set_as_def"). No-op for non-ad installs.
      */
     fun logFunnelOnce(context: Context, suffix: String, params: Bundle = Bundle()) {
-        val prefix = adPrefix(context) ?: return
+        val prefix = adPrefix(context)
+        if (prefix == null) {
+            Log.d(TAG, "SKIP once '$suffix' — not an ad install (currentSource=${InstallSourceManager.currentSource()})")
+            return
+        }
         val eventName = "${prefix}_$suffix"
         params.putBoolean("is_default_launcher", isDefaultLauncher(context))
+        Log.d(TAG, "funnel ONCE -> $eventName")
         AnalyticsHelper.logOnce(context, "key_once_$eventName", eventName, params)
     }
 
@@ -100,17 +105,29 @@ object FlowAEscapeLogger {
      * No-op for non-ad installs.
      */
     fun logFunnelEvery(context: Context, suffix: String, params: Bundle = Bundle()) {
-        val prefix = adPrefix(context) ?: return
+        val prefix = adPrefix(context)
+        if (prefix == null) {
+            Log.d(TAG, "SKIP every '$suffix' — not an ad install (currentSource=${InstallSourceManager.currentSource()})")
+            return
+        }
         val eventName = "${prefix}_$suffix"
         params.putBoolean("is_default_launcher", isDefaultLauncher(context))
+        Log.d(TAG, "funnel EVERY -> $eventName")
         FirebaseAnalytics.getInstance(context).logEvent(eventName, params)
     }
 
     /** ESCAPE: build and log "${prefix}_${status}_${defState}_${screen}_${method}" EVERY time an escape occurs. */
     private fun logEscape(activity: Activity, method: String, status: String) {
         val screen = getScreenTag(activity)
-        if (screen == "unknown") return
-        val prefix = adPrefix(activity) ?: return
+        if (screen == "unknown") {
+            Log.d(TAG, "SKIP escape '$method' — screen unknown (${activity.javaClass.simpleName})")
+            return
+        }
+        val prefix = adPrefix(activity)
+        if (prefix == null) {
+            Log.d(TAG, "SKIP escape '$method' on $screen — not an ad install (currentSource=${InstallSourceManager.currentSource()})")
+            return
+        }
         val isDefault = isDefaultLauncher(activity)
         val defState = if (isDefault) "def" else "nodef"
         val eventName = "${prefix}_${status}_${defState}_${screen}_$method"

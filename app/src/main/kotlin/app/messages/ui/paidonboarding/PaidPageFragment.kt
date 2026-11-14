@@ -37,7 +37,17 @@ abstract class PaidPageFragment<P : PaidPage> : Fragment() {
     /** Fill this page's native ad slot (dummy image or real AdMob, or hide) — call from onViewCreated. */
     protected fun bindNativeAd(container: FrameLayout) {
         nativeContainer = container
-        FlowAAdBinder.bindNative(requireActivity(), pageIndex + 1, container, dummyAdLauncher)
+        val act = activity as? PaidOnboardingActivity
+        val stepTag = "page_${pageIndex + 1}"
+        act?.prepareNativeShift(stepTag, container)
+        FlowAAdBinder.bindNative(
+            activity = requireActivity(),
+            pageNumber = pageIndex + 1,
+            container = container,
+            launcher = dummyAdLauncher,
+            onRendered = { act?.onNativeAdRendered(container) },
+            onFailed = { act?.onNativeAdFailed(container) }
+        )
     }
 
     /** Fill this page's SECOND native ad slot (feature pages) — independent dummy/real/off config. */
@@ -48,9 +58,19 @@ abstract class PaidPageFragment<P : PaidPage> : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        val act = activity as? PaidOnboardingActivity
+        val stepTag = "page_${pageIndex + 1}"
         nativeContainer?.let { container ->
             if (container.childCount == 0 && isAdded) {
-                FlowAAdBinder.bindNative(requireActivity(), pageIndex + 1, container, dummyAdLauncher)
+                act?.prepareNativeShift(stepTag, container)
+                FlowAAdBinder.bindNative(
+                    activity = requireActivity(),
+                    pageNumber = pageIndex + 1,
+                    container = container,
+                    launcher = dummyAdLauncher,
+                    onRendered = { act?.onNativeAdRendered(container) },
+                    onFailed = { act?.onNativeAdFailed(container) }
+                )
             }
         }
         nativeContainer2?.let { container ->

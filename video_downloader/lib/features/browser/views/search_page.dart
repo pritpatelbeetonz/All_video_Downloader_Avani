@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -9,26 +8,13 @@ import 'package:video_downloader/for_ads/ads/ads_variable.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../providers/SearchToBrowser.dart';
 import '../providers/Browser_data_provider.dart';
-import '../providers/Tab_provider.dart';
 import '../widgets/tabs_bottom_sheet.dart';
 import 'BrowserWithBack.dart';
-import 'Loadingscreen.dart';
+import 'download_page.dart';
 
 import 'package:video_downloader/for_ads/utils/app_constants.dart';
 import 'package:video_downloader/main.dart' show routeObserver;
 import 'package:video_downloader/features/home/providers/bottom_nav_provider.dart';
-
-class _QuickAccessItem {
-  final String title;
-  final String icon;
-  final String url;
-
-  const _QuickAccessItem({
-    required this.title,
-    required this.icon,
-    required this.url,
-  });
-}
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -48,49 +34,6 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
 
   /// AdMob's minimum refresh interval; a displayed ad younger than this is kept.
   static const Duration _homeAdMinRefresh = Duration(seconds: 60);
-
-  static const List<_QuickAccessItem> _quickAccessItems = [
-    _QuickAccessItem(
-      title: 'Instagram',
-      icon: 'assets/images/insta.png',
-      url: 'https://www.instagram.com',
-    ),
-    _QuickAccessItem(
-      title: 'Facebook',
-      icon: 'assets/images/fb.png',
-      url: 'https://www.facebook.com',
-    ),
-    _QuickAccessItem(
-      title: 'X (Twitter)',
-      icon: 'assets/images/x.png',
-      url: 'https://x.com',
-    ),
-    _QuickAccessItem(
-      title: 'TikTok',
-      icon: 'assets/images/tiktok.png',
-      url: 'https://www.tiktok.com',
-    ),
-    _QuickAccessItem(
-      title: 'Threads',
-      icon: 'assets/images/thread.png',
-      url: 'https://www.threads.net',
-    ),
-    _QuickAccessItem(
-      title: 'Vimeo',
-      icon: 'assets/images/vimeo.png',
-      url: 'https://vimeo.com',
-    ),
-    _QuickAccessItem(
-      title: 'Snapchat',
-      icon: 'assets/images/snap.png',
-      url: 'https://www.snapchat.com',
-    ),
-    _QuickAccessItem(
-      title: 'Pinterest',
-      icon: 'assets/images/pin.png',
-      url: 'https://www.pinterest.com',
-    ),
-  ];
 
   @override
   void initState() {
@@ -235,59 +178,63 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
     showToast('copied_to_clipboard'.tr);
   }
 
-  void _openUrl(String targetUrl) {
-    AdsVariable.onShowAds(
-      context,
-      place: 'VD_Quick_App',
-      onComplete: () {
-        searchbarController.text = targetUrl;
-        ref.read(tabsProvider.notifier).updateUrl(targetUrl);
-        ref.read(BrowserURl.notifier).submit(targetUrl);
-        FocusScope.of(context).unfocus();
-        ref.read(browserViewProvider.notifier).openBrowser();
-      },
+  /// Pastes the clipboard text into the link field.
+  Future<void> _pasteFromClipboard() async {
+    final data = await Clipboard.getData('text/plain');
+    final text = data?.text?.trim() ?? '';
+    if (text.isEmpty) {
+      showToast('Clipboard is empty');
+      return;
+    }
+    searchbarController.text = text;
+    searchbarController.selection = TextSelection.fromPosition(
+      TextPosition(offset: text.length),
     );
   }
 
-  void _submitSearch() {
-    final text = searchbarController.text.trim();
+  /// Pastes (if the field is empty) and then starts a direct download.
+  Future<void> _pasteAndDownload() async {
+    if (searchbarController.text.trim().isEmpty) {
+      await _pasteFromClipboard();
+    }
+    _startDownload(searchbarController.text);
+  }
+
+  /// Direct link -> download: detect platform, validate, then open the
+  /// DownloadPage (it auto-extracts + downloads). No in-app browser.
+  void _startDownload(String rawText) {
+    final text = rawText.trim();
     if (text.isEmpty) {
       showToast('required_link_or_search'.tr);
       return;
     }
+
+    // Resolve the link + platform through the shared provider.
+    ref.read(BrowserURl.notifier).submit(text);
+    final platform = ref.read(BrowserURl)['platform'] ?? 'unknown';
+
+    // Only accept a recognised, supported video link.
+    if (platform == 'unknown') {
+      showToast('Please paste a valid video link');
+      return;
+    }
+    if (platform == 'youtube' && !AdsVariable.isYouTubeEnabled) {
+      showToast('This link is not supported');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
     AdsVariable.onShowAds(
       context,
       place: 'VD_Url_Open',
       onComplete: () {
-        FocusScope.of(context).unfocus();
-        ref.read(tabsProvider.notifier).updateUrl(text);
-        ref.read(BrowserURl.notifier).submit(text);
-        ref.read(browserViewProvider.notifier).openBrowser();
+        Get.to(() => const DownloadPage());
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(tabsProvider, (prev, next) {
-      final prevIndex = prev?['currentIndex'] as int? ?? 0;
-      final nextIndex = next['currentIndex'] as int? ?? 0;
-      final prevCount = (prev?['tabs'] as List?)?.length ?? 0;
-      final nextCount = (next['tabs'] as List?)?.length ?? 0;
-
-      // When a new tab is created or switched to a fresh/empty tab, clear search bar
-      if (nextCount > prevCount) {
-        searchbarController.clear();
-      } else if (nextIndex != prevIndex) {
-        final currentUrl = ref.read(tabsProvider.notifier).currentUrl;
-        if (currentUrl.isEmpty || currentUrl == "https://www.google.com") {
-          searchbarController.clear();
-        } else {
-          searchbarController.text = currentUrl;
-        }
-      }
-    });
-
     final showBrowser = ref.watch(browserViewProvider);
     return showBrowser
         ? const BrowserWrapper()
@@ -312,7 +259,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                     );
                   },
                 ),
-                SizedBox(width: 16.w,),
+                SizedBox(width: 16.w),
               ],
             ),
             body: SafeArea(
@@ -324,9 +271,54 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                 child: Form(
                   key: _formKey,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
+
+                      /// HERO
+                      Text(
+                        'YOUR MEDIA, YOUR WAY',
+                        style: GoogleFonts.ibmPlexSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.1,
+                          color: const Color(0xFFFE7338),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Save it for later.',
+                        style: GoogleFonts.ibmPlexSans(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Keep the clips and moments you love, close at hand.',
+                        style: GoogleFonts.ibmPlexSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+
+                      const SizedBox(height: 22),
+
+                      /// PASTE A LINK
+                      Text(
+                        'PASTE A LINK',
+                        style: GoogleFonts.ibmPlexSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                          color: const Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      /// LINK FIELD + PASTE BUTTON
                       Container(
                         height: 58,
                         padding: const EdgeInsets.only(
@@ -337,7 +329,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(35),
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: const Color(0xFFE2E8F0),
                             width: 1.5,
@@ -356,7 +348,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                             const Icon(
                               Icons.link_rounded,
                               color: Color(0xFF64748B),
-                              size: 26,
+                              size: 24,
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -380,45 +372,36 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                                   border: InputBorder.none,
                                   isDense: true,
                                   contentPadding: EdgeInsets.zero,
-                                  hintText: 'search_or_paste_url'.tr,
+                                  hintText: 'https://...',
                                   hintStyle: GoogleFonts.ibmPlexSans(
                                     fontWeight: FontWeight.w400,
                                     fontSize: 15,
                                     color: const Color(0xFF94A3B8),
                                   ),
                                 ),
-                                onSubmitted: (_) => _submitSearch(),
+                                onSubmitted: (_) =>
+                                    _startDownload(searchbarController.text),
                               ),
-                            ),
-                            ValueListenableBuilder<TextEditingValue>(
-                              valueListenable: searchbarController,
-                              builder: (context, val, _) {
-                                if (val.text.isEmpty) return const SizedBox.shrink();
-                                return IconButton(
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                  icon: const Icon(Icons.cancel, size: 20, color: Color(0xFF94A3B8)),
-                                  onPressed: () => searchbarController.clear(),
-                                );
-                              },
                             ),
                             const SizedBox(width: 4),
                             Material(
-                              color: Colors.transparent,
+                              color: const Color(0xFFFFF1EA),
+                              borderRadius: BorderRadius.circular(12),
                               child: InkWell(
-                                onTap: _submitSearch,
-                                borderRadius: BorderRadius.circular(25),
-                                child: Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Color(0xFFFE7338),
+                                onTap: _pasteFromClipboard,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
                                   ),
-                                  child: const Icon(
-                                    Icons.arrow_forward_rounded,
-                                    color: Colors.white,
-                                    size: 22,
+                                  child: Text(
+                                    'Paste',
+                                    style: GoogleFonts.ibmPlexSans(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                      color: const Color(0xFFFE7338),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -426,7 +409,55 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 18),
+
+                      const SizedBox(height: 14),
+
+                      /// PASTE AND DOWNLOAD
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: Material(
+                          color: const Color(0xFFFE7338),
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            onTap: _pasteAndDownload,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.download_rounded,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Paste and download',
+                                  style: GoogleFonts.ibmPlexSans(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      /// DISCLAIMER
+                      Text(
+                        'Download only content you own or have the right to save.',
+                        style: GoogleFonts.ibmPlexSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: const Color(0xFF94A3B8),
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
 
                       /// APP BIG NATIVE AD (POOL)
                       AppBigNativeAdWidget(
@@ -434,83 +465,6 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
                         isLoading: _isLoadingBigNativeAd,
                       ),
 
-                      const SizedBox(height: 18),
-
-                      /// QUICK ACCESS SECTION
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'quick_access'.tr,
-                          style: GoogleFonts.ibmPlexSans(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _quickAccessItems.length,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 4,
-                              mainAxisSpacing: 6,
-                              crossAxisSpacing: 10,
-                              childAspectRatio: 1.12,
-                            ),
-                        itemBuilder: (context, index) {
-                          final item = _quickAccessItems[index];
-                          return InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => _openUrl(item.url),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(10),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.05,
-                                        ),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 1.5),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Image.asset(
-                                      item.icon,
-                                      width: 42,
-                                      height: 42,
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  item.title,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.ibmPlexSans(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w500,
-                                    color: const Color(0xFF333333),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
                       const SizedBox(height: 20),
                     ],
                   ),

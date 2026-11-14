@@ -3,8 +3,11 @@ package app.messages.ui.paidonboarding
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.fragment.app.Fragment
@@ -13,6 +16,7 @@ import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
 import kotlinx.coroutines.launch
 import app.messages.R
+import app.messages.config.AdsConfigManager
 import app.messages.databinding.ActivityPaidOnboardingBinding
 import app.messages.ui.activity.LanguageSelectionActivity
 import app.messages.ui.base.PaidFunnelActivity
@@ -43,6 +47,13 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         get() = (binding.pager.currentItem + 1).coerceIn(1, pages.size)
 
     private var pendingStepTag: String? = null
+
+    // Native ad delayed reveal & Next button slide-down
+    private var shiftRunnable: Runnable? = null
+    private var activeShiftContainer: FrameLayout? = null
+    private var isShiftTimerExpired = false
+    private var isShiftAdRendered = false
+    private val shiftHandler = Handler(Looper.getMainLooper())
 
     private val chromeTabLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
@@ -151,7 +162,15 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         }
     }
 
+    private var lastShownPosition = -1
+
     private fun onPageShown(position: Int) {
+        if (lastShownPosition == position) {
+            Log.d(TAG, "onPageShown($position) ignored (already current)")
+            return
+        }
+        lastShownPosition = position
+        cancelNativeShift()
         val page = pages[position]
         binding.btnNext.setText(page.buttonRes)
         FlowAAdBinder.onPageSelected(position + 1)
@@ -176,6 +195,7 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
     }
 
     private fun next() {
+        cancelNativeShift()
         val position = binding.pager.currentItem
         // Block advancing until the current page's form has a selection (gender / choice / interests).
         val fragment = supportFragmentManager.findFragmentByTag("f$position") as? PaidPageFragment<*>
@@ -236,7 +256,155 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         finish()
     }
 
+    // ---- Native ad delayed reveal & Next button slide-down ----
+    fun cancelNativeShift() {
+        shiftRunnable?.let { shiftHandler.removeCallbacks(it) }
+        shiftRunnable = null
+        isShiftTimerExpired = false
+        isShiftAdRendered = false
+        activeShiftContainer?.animate()?.cancel()
+        activeShiftContainer?.alpha = 1f
+        activeShiftContainer = null
+        binding.btnNext.animate()?.cancel()
+        binding.btnNext.translationY = 0f
+    }
+
+    fun prepareNativeShift(stepTag: String, nativeContainer: FrameLayout) {
+        val isEnabled = AdsConfigManager.isFlowANativeShiftEnabledForStep(stepTag)
+        Log.d(TAG, "🎯 [FlowA-Shift] prepareNativeShift($stepTag): isEnabled=$isEnabled")
+        Log.d("FlowAAds", "🎯 [FlowA-Shift] prepareNativeShift($stepTag): isEnabled=$isEnabled")
+
+        if (!isEnabled) {
+            nativeContainer.alpha = 1f
+            return
+        }
+
+        // onViewCreated AND the onResume re-bind both call this for the same container. Without this
+        // guard the second pass runs checkAndApplyShift AFTER the button was already lifted, measures
+        // btnNext at its lifted position (deltaY≈0), skips the shift and reveals the ad early.
+        if (activeShiftContainer == nativeContainer) {
+            Log.d("FlowAAds", "↩️ [FlowA-Shift] Already shifting this container ($stepTag) — skip duplicate prepare")
+            return
+        }
+
+        cancelNativeShift()
+        activeShiftContainer = nativeContainer
+        nativeContainer.alpha = 0f
+        if (nativeContainer.visibility == View.GONE) {
+            nativeContainer.visibility = View.INVISIBLE
+        }
+        isShiftTimerExpired = false
+        isShiftAdRendered = false
+
+        nativeContainer.post {
+            checkAndApplyShift(stepTag, nativeContainer, retryCount = 0)
+        }
+    }
+
+    private fun checkAndApplyShift(stepTag: String, nativeContainer: FrameLayout, retryCount: Int) {
+        if (isFinishing || isDestroyed || activeShiftContainer != nativeContainer) {
+            Log.d("FlowAAds", "⚠️ [FlowA-Shift] Shift check aborted: finishing=$isFinishing, active=${activeShiftContainer == nativeContainer}")
+            return
+        }
+
+        val nativeLoc = IntArray(2)
+        val btnLoc = IntArray(2)
+        nativeContainer.getLocationOnScreen(nativeLoc)
+        binding.btnNext.getLocationOnScreen(btnLoc)
+
+        // Wait for views to be measured if coordinates are not on screen yet
+        if (nativeLoc[1] <= 0 || btnLoc[1] <= 0) {
+            if (retryCount < 5) {
+                nativeContainer.postDelayed({
+                    checkAndApplyShift(stepTag, nativeContainer, retryCount + 1)
+                }, 50)
+                return
+            }
+        }
+
+        // btnLoc already includes any translationY currently applied; subtract it to get the button's
+        // RESTING position, so a re-entrant measurement (button already lifted) still yields the true
+        // offset instead of ~0.
+        val btnRestingY = btnLoc[1] - binding.btnNext.translationY.toInt()
+        val deltaY = (nativeLoc[1] - btnRestingY).toFloat()
+        Log.d(TAG, "🎯 [FlowA-Shift] Coordinates ($stepTag): nativeY=${nativeLoc[1]}, btnRestingY=$btnRestingY -> deltaY=$deltaY")
+        Log.d("FlowAAds", "🎯 [FlowA-Shift] Coordinates ($stepTag): nativeY=${nativeLoc[1]}, btnRestingY=$btnRestingY -> deltaY=$deltaY")
+
+        if (deltaY < -10f) {
+            binding.btnNext.translationY = deltaY
+            Log.d(TAG, "🎯 [FlowA-Shift] Next button shifted up by $deltaY px ($stepTag)")
+            Log.d("FlowAAds", "🎯 [FlowA-Shift] Next button shifted up by $deltaY px ($stepTag)")
+
+            val delay = AdsConfigManager.getFlowANativeShiftDelayMs()
+            val runnable = Runnable {
+                if (isFinishing || isDestroyed || activeShiftContainer != nativeContainer) return@Runnable
+                isShiftTimerExpired = true
+                Log.d(TAG, "⏰ [FlowA-Shift] Delay expired (${delay}ms, adRendered=$isShiftAdRendered)")
+                Log.d("FlowAAds", "⏰ [FlowA-Shift] Delay expired (${delay}ms, adRendered=$isShiftAdRendered)")
+                if (isShiftAdRendered) {
+                    animateShiftDown()
+                }
+            }
+            shiftRunnable = runnable
+            shiftHandler.postDelayed(runnable, delay)
+        } else {
+            Log.d("FlowAAds", "⚠️ [FlowA-Shift] Shift skipped ($stepTag): deltaY ($deltaY) >= -10f")
+            nativeContainer.alpha = 1f
+        }
+    }
+
+    fun onNativeAdRendered(nativeContainer: FrameLayout) {
+        nativeContainer.visibility = View.VISIBLE
+        if (activeShiftContainer != nativeContainer) {
+            Log.d("FlowAAds", "✨ [FlowA-Shift] Native ad rendered (not shifted container) -> alpha=1")
+            nativeContainer.alpha = 1f
+            return
+        }
+        isShiftAdRendered = true
+        Log.d(TAG, "✨ [FlowA-Shift] Native ad rendered in shifted container (timerExpired=$isShiftTimerExpired)")
+        Log.d("FlowAAds", "✨ [FlowA-Shift] Native ad rendered in shifted container (timerExpired=$isShiftTimerExpired)")
+        if (isShiftTimerExpired) {
+            animateShiftDown()
+        }
+    }
+
+    fun onNativeAdFailed(nativeContainer: FrameLayout) {
+        if (activeShiftContainer == nativeContainer) {
+            Log.d("FlowAAds", "❌ [FlowA-Shift] Native ad failed/hidden -> sliding Next button back to bottom")
+            val animDuration = AdsConfigManager.getFlowANativeShiftAnimDurationMs()
+            binding.btnNext.animate()
+                .translationY(0f)
+                .setDuration(animDuration)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
+            shiftRunnable?.let { shiftHandler.removeCallbacks(it) }
+            shiftRunnable = null
+            activeShiftContainer = null
+            isShiftTimerExpired = false
+            isShiftAdRendered = false
+        }
+    }
+
+    private fun animateShiftDown() {
+        val container = activeShiftContainer ?: return
+        val animDuration = AdsConfigManager.getFlowANativeShiftAnimDurationMs()
+        Log.d(TAG, "⬇️ [FlowA-Shift] Animating Next button downside and revealing native ad (${animDuration}ms)")
+        Log.d("FlowAAds", "⬇️ [FlowA-Shift] Animating Next button downside and revealing native ad (${animDuration}ms)")
+
+        binding.btnNext.animate()
+            .translationY(0f)
+            .setDuration(animDuration)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .start()
+
+        container.animate()
+            .alpha(1f)
+            .setDuration(animDuration)
+            .start()
+    }
+
     override fun onDestroy() {
+        cancelNativeShift()
         super.onDestroy()
         FlowAAdBinder.destroy()
     }
