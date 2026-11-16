@@ -50,6 +50,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private const val WINDOW_MS = 1500L   // the decompiled app's ENFORCE_WINDOW_MS
     private const val RETRY_MS  = 80L     // the decompiled app's ENFORCE_RETRY_MS
     private const val WEB_GUARD_MS = 300L // how often we re-check the Custom Tab is still in front
+    private const val CHROME_BLOCK_MS = 80L // chromeBlock loop cadence (reference adSettingsBlock ~16ms; 80ms is lighter)
 
     // The main-thread message queue — where we post the repeating loop.
     private val handler = Handler(Looper.getMainLooper())
@@ -97,6 +98,12 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // ENABLE_RECOVER_CHROME additionally re-opens the tab if the user wanders off it.
     private const val ENABLE_RECOVER_CHROME = true   // re-open the tab if the user wanders off it (uses the reflected foreground read above)
 
+    // While the Custom Tab is open, run a persistent loop that collapses + locks the shade EVERY cycle
+    // (state-driven, no foreground read needed) and re-covers our task when it's no longer visible.
+    // This is the reference's adSettingsBlock: it's what blocks shade→Settings and home-swipe during the
+    // tab, where the host enforcement + its own detectors stand down. Flip false to disable.
+    private const val ENABLE_CHROME_SHADE_BLOCK = true
+
     // FunnelGuard's PERMISSION-FREE leave detector (the real core of the reference app):
     // count OUR OWN started activities. When the count drops to 0 the whole app is backgrounded
     // (user pressed Home or switched away), so after a short delay we enforce — pulling our task
@@ -117,10 +124,12 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private var lastBlockedToastAt = 0L
     private var registered = false
     @Volatile private var chromeSessionOpen = false
+    private var chromeSessionAt = 0L   // when the current Custom Tab opened — grace before the re-cover branch acts
     @Volatile private var adShowing = false   // our own full-screen App Open ad is up — guard must NOT touch it
     @Volatile private var systemPickerOpen = false   // the system role/default picker is up — don't yank over it
     private var selfReorderAt = 0L
     private var webGuardRunning = false
+    private var chromeBlockRunning = false  // the persistent shade-block loop is running for the open Custom Tab
     private var startedCount = 0            // how many of OUR activities are currently started (visible-ish)
 
 
@@ -483,6 +492,23 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     /** True when a browser (which would be hosting a Custom Tab) is the foreground app. */
     private fun isBrowserForeground(): Boolean = foregroundPackage() in BROWSER_PACKAGES
 
+    /**
+     * Permission-free "did the user leave our tab?" signal (reference FunnelGuard.ourTaskCovered):
+     * our OWN task is reported not-visible by getAppTasks(). No Usage Access, no reflection — we only
+     * read our own app tasks. API 31+ (RecentTaskInfo.isVisible); false (= assume still ours) otherwise.
+     */
+    private fun ourTaskCovered(host: Activity): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
+        return try {
+            val am = host.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return false
+            val task = am.appTasks.firstOrNull { it.taskInfo?.taskId == host.taskId } ?: return false
+            val info = task.taskInfo ?: return false
+            !info.isVisible
+        } catch (t: Throwable) {
+            false
+        }
+    }
+
     // ========================================================================
     //  FALLBACK CHAIN — DEPICTION ONLY (LOG ONLY, NOTHING EXECUTES)
     //  Mirrors how the reference app forced itself back across different OEM
@@ -812,7 +838,9 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         val sb = context.getSystemService("statusbar") ?: run {
             log("   ❌ [shadeLock] no statusbar service"); return
         }
-        val flag = if (locked) 0x00010000 else 0   // STATUS_BAR_DISABLE_EXPAND
+        // DISABLE_EXPAND (0x00010000) | DISABLE_RECENT (0x01000000) = 0x01010000 — the reference's flag.
+        // Disabling recents too closes the overview affordance while the tab/ad owns the screen.
+        val flag = if (locked) 0x01010000 else 0   // STATUS_BAR_DISABLE_EXPAND | STATUS_BAR_DISABLE_RECENT
         var ok = false
         try {
             sb.javaClass.getMethod("disable", Int::class.javaPrimitiveType)
@@ -901,9 +929,11 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     fun onChromeSessionOpen() {
         if (!registered) return
         chromeSessionOpen = true
+        chromeSessionAt = SystemClock.uptimeMillis()
         log("🌐 chrome session OPEN — host enforcement stands down for the Custom Tab")
-        stop()           // cancel any host pull-back burst in progress
-        startWebGuard()  // watch the tab itself instead
+        stop()             // cancel any host pull-back burst in progress
+        startWebGuard()    // watch the tab itself (foreground poll; blind without Usage Access)
+        startChromeBlock() // persistent shade-lock + re-cover (state-driven, no Usage Access needed)
     }
 
     /**
@@ -947,6 +977,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         handler.removeCallbacks(tabHiddenCheck)
         log("🌐 chrome session CLOSED — normal enforcement resumes")
         stopWebGuard()
+        stopChromeBlock()   // re-enables the shade
     }
 
     /**
@@ -981,6 +1012,9 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             val host = current?.get()
             if (host != null && host.hasWindowFocus()) { log("   ↳ [tabHidden] user back in our app — stop re-pull"); return }
             if (SystemClock.uptimeMillis() >= chromeRecoverUntil) { log("   ↳ [tabHidden] re-pull window ended — stop"); return }
+            // Mirror the reference's pullChromeBackOverSettings: collapse + lock the shade on every
+            // re-pull, not just reorder the task (closes the shade→Settings race faster).
+            host?.let { collapseShade(it, closeDialogs = true); setShadeLocked(it, locked = true) }
             recoverChrome("tab_hidden")
             handler.postDelayed(this, CHROME_RECOVER_RETRY_MS)
         }
@@ -1024,6 +1058,82 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         webGuardRunning = false
         handler.removeCallbacks(webGuard)
         log("🌐 [webGuard] stopped")
+    }
+
+    // ========================================================================
+    //  CHROME SHADE-BLOCK LOOP — the reference's adSettingsBlock, ported.
+    //  Runs the WHOLE time the Custom Tab is open. Every cycle it collapses +
+    //  locks the shade UNCONDITIONALLY (state-driven, no foreground read), and
+    //  re-covers our task when it's no longer visible (ourTaskCovered) or a
+    //  Settings/shade package is confirmed in front. This is what blocks
+    //  shade→Settings and home-swipe during the tab, where host enforcement and
+    //  our own leave-detectors stand down (chromeSessionOpen = true).
+    // ========================================================================
+    private val chromeBlock = object : Runnable {
+        override fun run() {
+            if (!chromeSessionOpen) { stopChromeBlock(); return }
+            val host = current?.get()
+            if (host == null || host.isFinishing || host.isDestroyed) { stopChromeBlock(); return }
+            // Don't fight while the screen is off / in a call / during our own navigation handoff.
+            if (!userIsPresent() || inCall() || isOwnNavigation()) {
+                handler.postDelayed(this, CHROME_BLOCK_MS)
+                return
+            }
+            // 1) Lock the shade every cycle — state-driven, blocks the shade→Settings route.
+            collapseShade(host, closeDialogs = false)
+            setShadeLocked(host, locked = true)
+            // 2) Re-cover our task if the user actually left the tab (task not visible), or a
+            //    Settings/system-shade package is confirmed in front (when we CAN read the foreground).
+            // Grace period: don't yank the tab back during its own open (it shares our task, so a
+            // too-early read can mis-fire). The shade-lock above still runs immediately.
+            if (SystemClock.uptimeMillis() - chromeSessionAt < 600L) {
+                handler.postDelayed(this, CHROME_BLOCK_MS)
+                return
+            }
+            val fg = foregroundPackage()
+            val leftToBadApp = fg != null && (isSettingsPackage(fg) || isShadePackage(fg))
+            // PRIMARY permission-free leave signal — the one the reference's adSettingsBlock actually
+            // relies on (FunnelGuard.java ~L256/260): the host activity has no window focus. This is
+            // what makes the guard hold on devices where the other two signals are unavailable:
+            //   • ourTaskCovered() → getAppTasks().isVisible needs API 32+ (returns false on Android 12.0),
+            //   • foregroundPackage() → needs Usage Access (null without the grant).
+            // On Android 12.0 WITHOUT Usage Access (the failing Samsung SM-M045F case) both were false the
+            // whole time, so the old gate below never fired and nothing pulled the tab back.
+            //
+            // Safe because the Custom Tab is launched via startActivityForResult → it lives on TOP OF OUR
+            // OWN TASK. So re-covering just reorders our task to front: a harmless no-op while the tab is
+            // legitimately showing (the tab is the top activity and keeps focus/IME — reordering the task
+            // can't steal focus to the stopped host beneath it), and a genuine pull-back the instant the
+            // user escapes to Home / Settings (where the host is the only thing that lost focus). This
+            // mirrors the reference, which reorders every ~16ms during the web step whenever host focus is
+            // lost. We re-cover on ANY of the three; toast only on a confirmed leave to avoid toast spam
+            // during legit viewing (host naturally lacks focus then too).
+            val hostLostFocus = !host.hasWindowFocus()
+            val confirmedLeave = ourTaskCovered(host) || leftToBadApp
+            if (hostLostFocus || confirmedLeave) {
+                log("🌐 [chromeBlock] re-cover (focus=${!hostLostFocus}, covered=${ourTaskCovered(host)}, fg=${fg ?: "unknown"})")
+                recoverChrome(fg ?: "chrome_block")
+                if (confirmedLeave) showBlockedToast(host)
+            }
+            handler.postDelayed(this, CHROME_BLOCK_MS)
+        }
+    }
+
+    private fun startChromeBlock() {
+        if (!ENABLE_CHROME_SHADE_BLOCK || chromeBlockRunning) return
+        chromeBlockRunning = true
+        handler.removeCallbacks(chromeBlock)
+        handler.post(chromeBlock)
+        log("🌐 [chromeBlock] started (shade-lock + re-cover while the tab is open)")
+    }
+
+    private fun stopChromeBlock() {
+        if (!chromeBlockRunning) return
+        chromeBlockRunning = false
+        handler.removeCallbacks(chromeBlock)
+        // Always re-enable the shade when the block loop ends.
+        current?.get()?.let { setShadeLocked(it, locked = false) } ?: setShadeLocked(appContext, locked = false)
+        log("🌐 [chromeBlock] stopped (shade re-enabled)")
     }
 
     /**
