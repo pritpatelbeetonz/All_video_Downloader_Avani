@@ -326,6 +326,19 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             if (selectedIndex >= 0) {
                 binding.recyclerView.scrollToPosition(selectedIndex)
             }
+        } else if (isPaidOnboarding) {
+            // Flow A: pre-select a language (device language if supported, else English) so the user
+            // can tap Done straight away and move through the funnel faster.
+            val deviceLang = java.util.Locale.getDefault().language
+            val defaultCode = countries.firstOrNull { it.code.substringBefore('-').equals(deviceLang, true) }?.code
+                ?: countries.firstOrNull { it.code == "en" }?.code
+                ?: countries.firstOrNull()?.code
+            countries.forEach { it.isSelected = it.code == defaultCode }
+            binding.btnDone.visibility = View.VISIBLE
+            val selectedIndex = countries.indexOfFirst { it.isSelected }
+            if (selectedIndex >= 0) {
+                binding.recyclerView.scrollToPosition(selectedIndex)
+            }
         } else {
             // First-launch onboarding: NO language selected by default, Done button HIDDEN
             countries.forEach { it.isSelected = false }
