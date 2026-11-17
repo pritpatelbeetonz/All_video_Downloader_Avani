@@ -325,6 +325,7 @@ object AdsConfigManager {
         }
         val introAppOpenIdChanged = (config.appOpenAdIdIntroScreen != newConfig.appOpenAdIdIntroScreen)
         if (introAppOpenIdChanged) {
+            if (introAppOpenAd != null) logIntroAppOpenWasted("rc_discarded")
             introAppOpenAd = null
         }
 
@@ -1917,35 +1918,83 @@ object AdsConfigManager {
     private var introAppOpenAd: com.google.android.gms.ads.appopen.AppOpenAd? = null
     @Volatile
     private var isIntroAppOpenLoading = false
-    private var pendingIntroAppOpenShow: ((com.google.android.gms.ads.appopen.AppOpenAd?) -> Unit)? = null
+    /** Invoked with (ad, loadErrorCode). ad == null means the in-flight load failed. */
+    private var pendingIntroAppOpenShow: ((com.google.android.gms.ads.appopen.AppOpenAd?, Int?) -> Unit)? = null
+    /** "preload" (intro page 2) or "on_spot" (Get Started tapped with nothing cached / in flight). */
+    private var introAppOpenLoadTrigger: String = "preload"
+    /** True once the Get Started flow has moved on without an ad; a load landing after that is wasted. */
+    @Volatile
+    private var introAppOpenFlowGaveUp = false
 
-    fun preloadIntroAppOpen(context: Context, onLoaded: ((Boolean) -> Unit)? = null) {
-        val isPremium = app.messages.preferences.PreferenceHelper.getInstance(context).isPremium()
-        Log.d("IntroAd", "🚀 [AdsConfigManager] preloadIntroAppOpen() called. isPremium=$isPremium, canShowIntroAppOpen=${config.canShowIntroAppOpen}, introAppOpenAdPreload=${config.introAppOpenAdPreload}")
-        if (isPremium || !config.canShowIntroAppOpen || !config.introAppOpenAdPreload) {
-            Log.d("IntroAd", "⏭️ [AdsConfigManager] preloadIntroAppOpen() skipped (disabled by config/premium)")
-            onLoaded?.invoke(false)
+    const val EVENT_INTRO_APP_OPEN_NOT_SHOWN = "intro_app_open_not_shown"
+    const val EVENT_INTRO_APP_OPEN_WASTED = "intro_app_open_wasted"
+
+    /**
+     * Logged when the user tapped Get Started and the intro app-open ad did NOT show.
+     * reason: timeout | no_fill | load_failed | backgrounded | show_failed |
+     *         activity_not_resumed | invalid_ad_id
+     */
+    private fun logIntroAppOpenNotShown(reason: String, errorCode: Int? = null) {
+        Log.w("IntroAd", "📉 [AdsConfigManager] Intro App Open NOT shown -> reason=$reason, code=$errorCode, trigger=$introAppOpenLoadTrigger")
+        val params = mutableMapOf<String, Any?>(
+            "reason" to reason,
+            "trigger" to introAppOpenLoadTrigger
+        )
+        if (errorCode != null) params["error_code"] = errorCode
+        app.messages.analytics.AnalyticsHelper.logEvent(EVENT_INTRO_APP_OPEN_NOT_SHOWN, params)
+    }
+
+    /**
+     * Logged when an intro app-open ad was loaded (matched) but thrown away unshown.
+     * reason: loaded_after_timeout | rc_discarded
+     */
+    private fun logIntroAppOpenWasted(reason: String) {
+        Log.w("IntroAd", "🗑️ [AdsConfigManager] Intro App Open WASTED -> reason=$reason, trigger=$introAppOpenLoadTrigger")
+        app.messages.analytics.AnalyticsHelper.logEvent(
+            EVENT_INTRO_APP_OPEN_WASTED,
+            mapOf("reason" to reason, "trigger" to introAppOpenLoadTrigger)
+        )
+    }
+
+    /** Preload entry point (called when the user reaches intro page 2). Honors the preload flag. */
+    fun preloadIntroAppOpen(context: Context) {
+        Log.d("IntroAd", "🚀 [AdsConfigManager] preloadIntroAppOpen() called. introAppOpenAdPreload=${config.introAppOpenAdPreload}")
+        if (!config.introAppOpenAdPreload) {
+            Log.d("IntroAd", "⏭️ [AdsConfigManager] preloadIntroAppOpen() skipped (preload disabled by config)")
             return
+        }
+        loadIntroAppOpen(context, trigger = "preload")
+    }
+
+    /**
+     * Single-flight loader. Never fires a second request while one is in flight or an ad is cached.
+     * @return true if an ad is cached or a load is in flight after this call.
+     */
+    private fun loadIntroAppOpen(context: Context, trigger: String): Boolean {
+        val isPremium = app.messages.preferences.PreferenceHelper.getInstance(context).isPremium()
+        if (isPremium || !config.canShowIntroAppOpen) {
+            Log.d("IntroAd", "⏭️ [AdsConfigManager] loadIntroAppOpen($trigger) skipped (premium=$isPremium, enabled=${config.canShowIntroAppOpen})")
+            return false
         }
         if (introAppOpenAd != null) {
-            Log.d("IntroAd", "ℹ️ [AdsConfigManager] preloadIntroAppOpen() skipped (already loaded in RAM)")
-            onLoaded?.invoke(true)
-            return
+            Log.d("IntroAd", "ℹ️ [AdsConfigManager] loadIntroAppOpen($trigger) skipped (already loaded in RAM)")
+            return true
         }
         if (isIntroAppOpenLoading) {
-            Log.d("IntroAd", "ℹ️ [AdsConfigManager] preloadIntroAppOpen() skipped (already loading)")
-            return
+            Log.d("IntroAd", "ℹ️ [AdsConfigManager] loadIntroAppOpen($trigger) skipped (request already in flight)")
+            return true
         }
 
         val targetAdUnitId = config.appOpenAdIdIntroScreen.takeIf { it.isNotBlank() && it != "11" }
             ?: config.appOpenAdId.takeIf { it.isNotBlank() && it != "11" }
             ?: run {
-                Log.w("IntroAd", "⚠️ [AdsConfigManager] preloadIntroAppOpen() skipped (unit ID is blank or '11')")
-                onLoaded?.invoke(false)
-                return
+                Log.w("IntroAd", "⚠️ [AdsConfigManager] loadIntroAppOpen($trigger) skipped (unit ID is blank or '11')")
+                return false
             }
 
-        Log.d("IntroAd", "🌐 [AdsConfigManager] Preloading Intro App Open with unitId: $targetAdUnitId")
+        Log.d("IntroAd", "🌐 [AdsConfigManager] Loading Intro App Open ($trigger) with unitId: $targetAdUnitId")
+        introAppOpenLoadTrigger = trigger
+        introAppOpenFlowGaveUp = false
         isIntroAppOpenLoading = true
         val adRequest = com.google.android.gms.ads.AdRequest.Builder().build()
         com.google.android.gms.ads.appopen.AppOpenAd.load(
@@ -1954,40 +2003,52 @@ object AdsConfigManager {
             adRequest,
             object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
                 override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
-                    Log.d("IntroAd", "✅ [AdsConfigManager] Intro App Open Ad loaded successfully!")
+                    Log.d("IntroAd", "✅ [AdsConfigManager] Intro App Open Ad loaded successfully ($trigger)")
                     ad.setOnPaidEventListener { adValue ->
                         sendRevenue(ad.adUnitId, "appopen_intro", adValue)
                     }
                     isIntroAppOpenLoading = false
                     val pending = pendingIntroAppOpenShow
-                    if (pending != null) {
-                        pendingIntroAppOpenShow = null
-                        introAppOpenAd = null
-                        pending.invoke(ad)
-                    } else {
-                        introAppOpenAd = ad
+                    when {
+                        pending != null -> {
+                            pendingIntroAppOpenShow = null
+                            introAppOpenAd = null
+                            pending.invoke(ad, null)
+                        }
+                        introAppOpenFlowGaveUp -> {
+                            // User already moved past onboarding (wait timed out) - this ad will never show.
+                            introAppOpenAd = null
+                            logIntroAppOpenWasted("loaded_after_timeout")
+                        }
+                        else -> introAppOpenAd = ad
                     }
-                    onLoaded?.invoke(true)
                 }
 
                 override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
-                    Log.e("IntroAd", "❌ [AdsConfigManager] Intro App Open Ad failed to load: ${error.message} (code=${error.code})")
+                    Log.e("IntroAd", "❌ [AdsConfigManager] Intro App Open Ad failed to load ($trigger): ${error.message} (code=${error.code})")
                     introAppOpenAd = null
                     isIntroAppOpenLoading = false
                     val pending = pendingIntroAppOpenShow
                     if (pending != null) {
                         pendingIntroAppOpenShow = null
-                        pending.invoke(null)
+                        pending.invoke(null, error.code)
                     }
-                    onLoaded?.invoke(false)
                 }
             }
         )
+        return true
     }
 
+    /**
+     * Called on Get Started.
+     *  - Ad cached           -> show it immediately.
+     *  - Request in flight   -> no new request; show loader and wait up to [timeoutMs].
+     *  - Nothing cached/in flight (preload failed, no-filled, or never ran) -> request on the spot + loader.
+     *  - Load no-fills / fails / times out -> move forward without an ad.
+     */
     fun showIntroAppOpen(
         activity: android.app.Activity,
-        timeoutMs: Long = 5000L,
+        timeoutMs: Long = 10_000L,
         onLoadingStateChanged: ((Boolean) -> Unit)? = null,
         onComplete: () -> Unit
     ) {
@@ -1999,6 +2060,7 @@ object AdsConfigManager {
             return
         }
 
+        introAppOpenFlowGaveUp = false
         val completed = java.util.concurrent.atomic.AtomicBoolean(false)
         fun completeOnce() {
             if (completed.compareAndSet(false, true)) {
@@ -2027,6 +2089,7 @@ object AdsConfigManager {
                 override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
                     Log.e("IntroAd", "❌ [AdsConfigManager] Intro App Open Ad failed to show: ${error.message}")
                     introAppOpenAd = null
+                    logIntroAppOpenNotShown("show_failed", error.code)
                     completeOnce()
                 }
 
@@ -2043,6 +2106,7 @@ object AdsConfigManager {
             timeoutMs = timeoutMs,
             onTimeoutOrFailed = {
                 Log.w("IntroAd", "⚠️ [AdsConfigManager] Activity not resumed in time for Intro App Open -> completing without ad")
+                logIntroAppOpenNotShown("activity_not_resumed")
                 completeOnce()
             }
         ) {
@@ -2054,33 +2118,42 @@ object AdsConfigManager {
                 return@runWhenActivityResumed
             }
 
-            if (!isIntroAppOpenLoading) {
-                Log.d("IntroAd", "⚡ [AdsConfigManager] Intro App Open not preloaded yet -> triggering preload now")
-                preloadIntroAppOpen(activity)
+            if (isIntroAppOpenLoading) {
+                Log.d("IntroAd", "⏳ [AdsConfigManager] Intro App Open request already in flight -> no new request, waiting")
+            } else {
+                Log.d("IntroAd", "⚡ [AdsConfigManager] No Intro App Open cached or in flight -> requesting on the spot")
+                if (!loadIntroAppOpen(activity, trigger = "on_spot")) {
+                    logIntroAppOpenNotShown("invalid_ad_id")
+                    completeOnce()
+                    return@runWhenActivityResumed
+                }
             }
 
-            if (!isIntroAppOpenLoading) {
-                Log.d("IntroAd", "ℹ️ [AdsConfigManager] Intro App Open cannot be loaded (disabled, premium, or invalid ID) -> proceeding immediately")
-                completeOnce()
-                return@runWhenActivityResumed
-            }
-
-            Log.d("IntroAd", "⏳ [AdsConfigManager] Intro App Open is loading in background -> waiting with timeout: ${timeoutMs}ms")
+            Log.d("IntroAd", "⏳ [AdsConfigManager] Waiting for Intro App Open with timeout: ${timeoutMs}ms")
             onLoadingStateChanged?.invoke(true)
             val handler = android.os.Handler(android.os.Looper.getMainLooper())
             val timeoutRunnable = Runnable {
                 Log.w("IntroAd", "⏰ [AdsConfigManager] Intro App Open loading wait timed out -> proceeding")
                 pendingIntroAppOpenShow = null
+                introAppOpenFlowGaveUp = true
+                logIntroAppOpenNotShown("timeout")
                 completeOnce()
             }
             handler.postDelayed(timeoutRunnable, timeoutMs)
 
-            pendingIntroAppOpenShow = { ad ->
+            pendingIntroAppOpenShow = { ad, errorCode ->
                 handler.removeCallbacks(timeoutRunnable)
-                if (ad != null && isActivitySafeToShowAd(activity)) {
-                    showAd(ad)
-                } else {
-                    completeOnce()
+                when {
+                    ad == null -> {
+                        val reason = if (errorCode == com.google.android.gms.ads.AdRequest.ERROR_CODE_NO_FILL) "no_fill" else "load_failed"
+                        logIntroAppOpenNotShown(reason, errorCode)
+                        completeOnce()
+                    }
+                    !isActivitySafeToShowAd(activity) -> {
+                        logIntroAppOpenNotShown("backgrounded")
+                        completeOnce()
+                    }
+                    else -> showAd(ad)
                 }
             }
         }

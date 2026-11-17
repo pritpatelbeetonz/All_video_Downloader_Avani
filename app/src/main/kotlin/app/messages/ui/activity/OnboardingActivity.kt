@@ -25,6 +25,13 @@ import androidx.constraintlayout.widget.ConstraintLayout
 
 class OnboardingActivity : BaseActivity() {
 
+    private companion object {
+        /** 0-based page index: 1 == intro page 2. Intro App Open preload starts here. */
+        const val INTRO_APP_OPEN_PRELOAD_PAGE = 1
+        /** Max wait (with loader) on Get Started for an in-flight / on-the-spot Intro App Open. */
+        const val INTRO_APP_OPEN_TIMEOUT_MS = 10_000L
+    }
+
     private lateinit var binding: ActivityOnboardingBinding
     private lateinit var onboardingPages: List<OnboardingModel>
     private lateinit var indicators: Array<View>
@@ -70,9 +77,6 @@ class OnboardingActivity : BaseActivity() {
         setupIndicators(2)
         setCurrentIndicator(0)
 
-        // Preload Intro App Open Ad immediately on step 1
-        app.messages.config.AdsConfigManager.preloadIntroAppOpen(this)
-
         onboardingPages = listOf(
             OnboardingModel(
                 imageRes = R.drawable.img_intro_1,
@@ -102,6 +106,11 @@ class OnboardingActivity : BaseActivity() {
         binding.onboardingViewPager.registerOnPageChangeCallback(object : androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 setCurrentIndicator(position)
+                // Preload the Intro App Open only once the user reaches intro page 2, so users who
+                // drop off on page 1 don't burn a request. Single-flight: no-op if cached/in flight.
+                if (position >= INTRO_APP_OPEN_PRELOAD_PAGE) {
+                    app.messages.config.AdsConfigManager.preloadIntroAppOpen(this@OnboardingActivity)
+                }
             }
         })
     }
@@ -151,7 +160,7 @@ class OnboardingActivity : BaseActivity() {
     private fun navigateToNextScreenWithAd() {
         app.messages.config.AdsConfigManager.showIntroAppOpen(
             activity = this,
-            timeoutMs = 5000L,
+            timeoutMs = INTRO_APP_OPEN_TIMEOUT_MS,
             onLoadingStateChanged = { isLoading ->
                 runOnUiThread {
                     showLoadingDialog(isLoading)
