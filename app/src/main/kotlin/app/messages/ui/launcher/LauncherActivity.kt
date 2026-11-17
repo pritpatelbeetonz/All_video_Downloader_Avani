@@ -176,11 +176,34 @@ class LauncherActivity : AppCompatActivity() {
         if (!app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) return false
         // We are the default launcher and onboarding isn't finished: keep the watcher running.
         app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
+
+        // Remote Config cap: only restart Flow A to Language this many times. After the cap, keep the
+        // user on the SAME onboarding screen (no reset to Language, never the launcher home).
+        //   <0 = unlimited (always restart);  0 = never restart;  N = restart the first N times.
+        val max = app.messages.config.AdsConfigManager.config.homeRestartToLanguageMax
+        val used = app.messages.ui.paidonboarding.PaidOnboardingPrefs.homeRestartCount(this)
+        if (max in 0..used) {
+            android.util.Log.d("SetDefaultFlow", "[LauncherActivity] home-restart cap reached (used=$used, max=$max) -> staying on current onboarding screen")
+            val pulled = learning.screenguard.ScreenGuardDemo.pullCurrentFunnelToFront()
+            if (!pulled) {
+                // No live funnel screen tracked: resume onboarding at the stored step — still NO reset.
+                startActivity(
+                    app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+            }
+            overridePendingTransition(0, 0)
+            finish()   // close the launcher surface so the onboarding screen is what shows
+            return true
+        }
+
         app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(this, "home")
-        // IDENTICAL TO REFERENCE (FunnelNav.onIntroHome): a Home press while onboarding isn't done
-        // sends the user to the LANGUAGE screen (Flow A restarts from page 1), with the "complete the
-        // steps" toast. restartFromLanguage() opens LanguageSelectionActivity (onboarding mode) as a
-        // fresh, cleared task. (Earlier 2026-11-02 build resumed at the current Flow-A page instead.)
+        // Under the cap: IDENTICAL TO REFERENCE (FunnelNav.onIntroHome): a Home press while onboarding
+        // isn't done sends the user to the LANGUAGE screen (Flow A restarts from page 1), with the
+        // "complete the steps" toast. restartFromLanguage() opens LanguageSelectionActivity (onboarding
+        // mode) as a fresh, cleared task. (Earlier 2026-11-02 build resumed at the current Flow-A page.)
+        app.messages.ui.paidonboarding.PaidOnboardingPrefs.incrementHomeRestartCount(this)
         Toast.makeText(this, R.string.paid_onb_complete_steps, Toast.LENGTH_SHORT).show()
         startActivity(
             app.messages.ui.paidonboarding.PaidOnboardingActivity.restartFromLanguage(this).apply {

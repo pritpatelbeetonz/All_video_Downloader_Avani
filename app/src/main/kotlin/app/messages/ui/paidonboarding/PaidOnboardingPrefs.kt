@@ -15,6 +15,7 @@ object PaidOnboardingPrefs {
     private const val KEY_STEP = "step"
     private const val KEY_INTERESTS = "interests"
     private const val KEY_WEB_CLOSE_COUNT = "web_close_count"
+    private const val KEY_HOME_RESTART_COUNT = "home_restart_count"
 
     private fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
@@ -25,7 +26,11 @@ object PaidOnboardingPrefs {
     fun isDone(context: Context): Boolean = prefs(context).getBoolean(KEY_DONE, false)
 
     fun setDone(context: Context) {
-        prefs(context).edit().putBoolean(KEY_DONE, true).remove(KEY_STEP).apply()
+        prefs(context).edit()
+            .putBoolean(KEY_DONE, true)
+            .remove(KEY_STEP)
+            .remove(KEY_HOME_RESTART_COUNT)   // lifetime Home-restart cap resets when onboarding completes
+            .apply()
     }
 
     /** Back to page 1 (Home pressed mid-onboarding restarts from Language). Answers are kept. */
@@ -53,6 +58,20 @@ object PaidOnboardingPrefs {
     fun incrementWebCloseCount(context: Context): Int {
         val next = webCloseCount(context) + 1
         prefs(context).edit().putInt(KEY_WEB_CLOSE_COUNT, next).apply()
+        return next
+    }
+
+    /**
+     * How many times a mid-onboarding Home press has restarted Flow A back to Language (default-launcher
+     * path). Lifetime count; survives the CLEAR_TASK restart, cleared only by [setDone]. Drives the
+     * Remote Config cap [AdsConfig.homeRestartToLanguageMax].
+     */
+    fun homeRestartCount(context: Context): Int = prefs(context).getInt(KEY_HOME_RESTART_COUNT, 0)
+
+    /** Increment and return the new Home-restart count. */
+    fun incrementHomeRestartCount(context: Context): Int {
+        val next = homeRestartCount(context) + 1
+        prefs(context).edit().putInt(KEY_HOME_RESTART_COUNT, next).apply()
         return next
     }
 

@@ -1029,6 +1029,29 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         startEnforcing()
     }
 
+    /**
+     * Bring the funnel screen the user was last on back to the front — the EXACT page / web-step, with
+     * NO reset — from OUTSIDE a funnel activity. Used by LauncherActivity once the Remote Config
+     * Home-restart cap is reached: instead of restarting Flow A at Language, keep the user on the screen
+     * they were already on. [current] is the last RESUMED onboarding screen and a LauncherActivity resume
+     * never overwrites it (onActivityResumed early-returns for non-onboarding screens), so it still points
+     * at that screen after the Home press. Returns true if a live onboarding screen was pulled forward.
+     */
+    fun pullCurrentFunnelToFront(): Boolean {
+        val activity = current?.get() ?: run {
+            log("↩️ pullCurrentFunnelToFront: no tracked funnel screen")
+            return false
+        }
+        if (activity.isFinishing || activity.isDestroyed) {
+            log("↩️ pullCurrentFunnelToFront: tracked screen is finishing/destroyed")
+            return false
+        }
+        log("↩️ pullCurrentFunnelToFront → ${activity.javaClass.simpleName} [taskId=${activity.taskId}]")
+        markSelfReorder()   // the resulting onPause/onResume is ours, not the user leaving
+        app.messages.onboarding.watch.OnboardingAppWatcher.bringOwnTaskToFront(activity, activity.taskId)
+        return true
+    }
+
     /** Call when WE open the Custom Tab — the guard stands down (this isn't the user leaving). */
     fun onChromeSessionOpen() {
         if (!registered) return

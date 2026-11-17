@@ -336,6 +336,19 @@ data class AdsConfig(
     @SerializedName(value = "flowa_native2_real_ad_id", alternate = ["flowaNative2RealAdId"])
     val flowaNative2RealAdId: String = "11",
 
+    /**
+     * How many times a mid-onboarding Home press (while the app IS the default home launcher) is
+     * allowed to yank the user back to the Language screen and restart Flow A from page 1
+     * (LauncherActivity.redirectToPaidOnboardingIfNeeded). After this many, the Home press keeps the
+     * user on the SAME onboarding screen instead (no reset to Language, never the launcher home).
+     *   <0 = unlimited (always restart — the original behaviour, and the default so pre-key builds keep it)
+     *    0 = never restart to Language (stay on the current screen from the very first Home press)
+     *    N = restart for the first N Home presses, then stay on the current screen.
+     * Lifetime count per install; resets only when Flow A completes (PaidOnboardingPrefs.setDone).
+     */
+    @SerializedName(value = "home_restart_to_language_max", alternate = ["homeRestartToLanguageMax", "home_restart_lang_max"])
+    val homeRestartToLanguageMax: Int = -1,
+
     @SerializedName(value = "serverUrl", alternate = ["server_url"])
     val serverUrl: String = "",
     @SerializedName(value = "serverBaseFolderName", alternate = ["server_base_folder_name"])
