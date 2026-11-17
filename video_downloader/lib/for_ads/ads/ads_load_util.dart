@@ -239,28 +239,98 @@ class AdsLoadUtil extends GetxController {
   static String interstitialId = "";
   static bool isAdLoaded = false;
 
+  /// True while a preload request is in flight (single-flight: never a 2nd request).
+  static bool _isPreInterLoading = false;
+  /// When the cached preloaded ad finished loading (for the expiry check).
+  static DateTime? _preInterLoadedAt;
+  /// A screen waiting on the in-flight preload: (ad, loadErrorCode). ad == null -> load failed.
+  static void Function(InterstitialAd? ad, int? errorCode)? _pendingPreInterShow;
+
+  /// Interstitials expire ~1h after load; older ones may fail to show or not count.
+  static const Duration _preInterMaxAge = Duration(minutes: 55);
+  /// Max wait (with loader) on an in-flight preload when an ad is due.
+  static const Duration _preInterWaitTimeout = Duration(seconds: 5);
+  static const int _noFillErrorCode = 3;
+
+  static bool get _isPreInterStale {
+    final loadedAt = _preInterLoadedAt;
+    return loadedAt != null && DateTime.now().difference(loadedAt) > _preInterMaxAge;
+  }
+
+  static int? get _preInterAgeMin {
+    final loadedAt = _preInterLoadedAt;
+    return loadedAt == null ? null : DateTime.now().difference(loadedAt).inMinutes;
+  }
+
+  /// A loaded pre-interstitial was thrown away without being shown.
+  /// reason: stale | disposed_unused
+  static void _logPreInterWasted(String reason) {
+    showLog("🗑️ [PreInter] WASTED reason=$reason ageMin=$_preInterAgeMin");
+    FirebaseAnalyticsService.logEvent(
+      eventName: 'pre_inter_wasted',
+      parameters: {
+        'reason': reason,
+        'age_min': ?_preInterAgeMin,
+      },
+    );
+  }
+
+  /// An interstitial was due but none was shown.
+  /// reason: timeout | no_fill | load_failed | show_failed
+  /// source: preloaded | waited_preload | on_spot
+  static void _logPreInterNotShown(String reason, String source, String place, {int? errorCode}) {
+    showLog("📉 [PreInter] NOT SHOWN reason=$reason source=$source place=$place code=$errorCode");
+    FirebaseAnalyticsService.logEvent(
+      eventName: 'pre_inter_not_shown',
+      parameters: {
+        'reason': reason,
+        'source': source,
+        'place': place,
+        'error_code': ?errorCode,
+      },
+    );
+  }
+
+  static String _loadFailReason(int? code) => code == _noFillErrorCode ? 'no_fill' : 'load_failed';
+
   /// Drops the preloaded interstitial (disposing it once) so a stale or
-  /// already-shown ad is never reused.
-  static void _clearPreloadedInterstitial() {
+  /// already-shown ad is never reused. Pass [wastedReason] when an unshown ad is discarded.
+  static void _clearPreloadedInterstitial({String? wastedReason}) {
     final old = _interstitialAd;
+    if (old != null && wastedReason != null) _logPreInterWasted(wastedReason);
     _interstitialAd = null;
     isAdLoaded = false;
+    _preInterLoadedAt = null;
     old?.dispose();
   }
 
-  static loadPreInterstitialAd({required String adId}) {
+  /// Single-flight preload: no-op while a request is in flight or a fresh ad is
+  /// already cached. A stale cached ad is dropped and replaced.
+  static void loadPreInterstitialAd({required String adId}) {
     if (!isValidAdId(adId)) {
       showLog("Skipping loadPreInterstitialAd - invalid or '11' adId: $adId");
-      _clearPreloadedInterstitial();
+      _clearPreloadedInterstitial(wastedReason: 'disposed_unused');
       return;
     }
+    if (_isPreInterLoading) {
+      showLog("Skipping loadPreInterstitialAd - request already in flight");
+      return;
+    }
+    if (isAdLoaded && _interstitialAd != null) {
+      if (!_isPreInterStale) {
+        showLog("Skipping loadPreInterstitialAd - fresh ad already cached");
+        return;
+      }
+      _clearPreloadedInterstitial(wastedReason: 'stale');
+    }
     interstitialId = adId;
-    _clearPreloadedInterstitial();
+    _isPreInterLoading = true;
     InterstitialAd.load(
       adUnitId: adId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
+          _isPreInterLoading = false;
           FirebaseAnalyticsService.logEvent(eventName: 'SHOW_PRE_INTERSTITIAL');
           ad.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
             FirebaseAnalyticsService.logAdImpression(
@@ -272,17 +342,74 @@ class AdsLoadUtil extends GetxController {
               precision: precision.index,
             );
           };
-          _interstitialAd = ad;
-          isAdLoaded = true;
           showLog("Pre Inter Loaded");
+          final pending = _pendingPreInterShow;
+          if (pending != null) {
+            // A screen is waiting on this exact request -> hand it over directly.
+            _pendingPreInterShow = null;
+            pending(ad, null);
+          } else {
+            _interstitialAd = ad;
+            isAdLoaded = true;
+            _preInterLoadedAt = DateTime.now();
+          }
         },
         onAdFailedToLoad: (error) {
+          _isPreInterLoading = false;
           _interstitialAd = null;
           isAdLoaded = false;
+          _preInterLoadedAt = null;
           showLog("Pre Inter Failed $error");
+          final pending = _pendingPreInterShow;
+          if (pending != null) {
+            _pendingPreInterShow = null;
+            pending(null, error.code);
+          }
         },
       ),
     );
+  }
+
+  /// Shows an already-loaded interstitial; reloads the next preload on dismiss/fail.
+  static void _showLoadedInterstitial(
+    InterstitialAd ad, {
+    required String place,
+    required String source,
+    required Function onDismissed,
+  }) {
+    // Attach compulsory revenue tracking for this placement
+    ad.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
+      FirebaseAnalyticsService.logAdImpression(
+        adUnitId: ad.adUnitId,
+        placement: place,
+        format: 'interstitial',
+        revenue: valueMicros / 1000000.0,
+        currency: currencyCode,
+        precision: precision.index,
+      );
+    };
+
+    // Callbacks must be set before show() so dismissal is never missed.
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdImpression: (ad) {
+        FirebaseAnalyticsService.logEvent(eventName: 'SHOW_INITIAL_AD');
+        showLog("onAdImpression---> true [$place]");
+      },
+      onAdDismissedFullScreenContent: (ad) {
+        showLog("onAdDismissedFullScreenContent---> true");
+        onDismissed();
+        ad.dispose();
+        loadPreInterstitialAd(adId: interstitialId);
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        showLog("onAdFailedToShowFullScreenContent---> Error $error");
+        _logPreInterNotShown('show_failed', source, place, errorCode: error.code);
+        ad.dispose();
+        loadPreInterstitialAd(adId: interstitialId);
+        onDismissed();
+      },
+    );
+    ad.show();
   }
 
   static void showInterstitial({
@@ -296,61 +423,75 @@ class AdsLoadUtil extends GetxController {
       onDismissed();
       return;
     }
+
+    // (B) Never show an expired preload: drop it and load on the spot instead.
+    if (isAdLoaded && _interstitialAd != null && _isPreInterStale) {
+      showLog("Pre Inter is stale (${_preInterAgeMin}m) -> discarding, loading on the spot [$place]");
+      _clearPreloadedInterstitial(wastedReason: 'stale');
+    }
+
     final preloadedAd = _interstitialAd;
     if (isAdLoaded && preloadedAd != null) {
       showLog("IT IS PRE LOADED [$place]");
       // Take ownership so the ad can't be shown twice or reused after dispose.
       _interstitialAd = null;
       isAdLoaded = false;
+      _preInterLoadedAt = null;
       loadingScreen.show();
       // Delay showing the ad for 500 milliseconds
       Future.delayed(const Duration(milliseconds: 500), () {
         loadingScreen.hide();
-
-        // Attach compulsory revenue tracking for this placement
-        preloadedAd.onPaidEvent = (ad, valueMicros, precision, currencyCode) {
-          FirebaseAnalyticsService.logAdImpression(
-            adUnitId: ad.adUnitId,
-            placement: place,
-            format: 'interstitial',
-            revenue: valueMicros / 1000000.0,
-            currency: currencyCode,
-            precision: precision.index,
-          );
-        };
-
-        // Callbacks must be set before show() so dismissal is never missed.
-        preloadedAd.fullScreenContentCallback = FullScreenContentCallback(
-          onAdImpression: (ad) {
-            FirebaseAnalyticsService.logEvent(eventName: 'SHOW_INITIAL_AD');
-            showLog("onAdImpression---> true [$place]");
-          },
-          onAdDismissedFullScreenContent: (ad) {
-            showLog("onAdDismissedFullScreenContent---> true");
-            onDismissed();
-            ad.dispose();
-            loadPreInterstitialAd(adId: interstitialId);
-          },
-          onAdFailedToShowFullScreenContent: (ad, error) {
-            showLog("onAdFailedToShowFullScreenContent---> Error $error");
-            ad.dispose();
-            loadPreInterstitialAd(adId: interstitialId);
-            onDismissed();
-          },
-        );
-        preloadedAd.show();
+        _showLoadedInterstitial(preloadedAd, place: place, source: 'preloaded', onDismissed: onDismissed);
       });
-    } else {
-      loadAndShow(
-        adId: AdsVariable.interPreLoadIOS,
-        place: place,
-        onDismissed: onDismissed,
-      );
+      return;
     }
+
+    // (C) A preload is already in flight: don't fire a 2nd request — wait for it with the loader.
+    if (_isPreInterLoading) {
+      showLog("Pre Inter in flight -> waiting up to ${_preInterWaitTimeout.inSeconds}s [$place]");
+      loadingScreen.show();
+      var finished = false;
+      final timer = Timer(_preInterWaitTimeout, () {
+        if (finished) return;
+        finished = true;
+        // Let the late ad land in the cache for the next slot instead of being thrown away.
+        _pendingPreInterShow = null;
+        loadingScreen.hide();
+        _logPreInterNotShown('timeout', 'waited_preload', place);
+        onDismissed();
+      });
+      _pendingPreInterShow = (ad, errorCode) {
+        if (finished) {
+          // Timed out already: keep the ad for the next slot.
+          if (ad != null) {
+            _interstitialAd = ad;
+            isAdLoaded = true;
+            _preInterLoadedAt = DateTime.now();
+          }
+          return;
+        }
+        finished = true;
+        timer.cancel();
+        loadingScreen.hide();
+        if (ad == null) {
+          _logPreInterNotShown(_loadFailReason(errorCode), 'waited_preload', place, errorCode: errorCode);
+          onDismissed();
+          return;
+        }
+        _showLoadedInterstitial(ad, place: place, source: 'waited_preload', onDismissed: onDismissed);
+      };
+      return;
+    }
+
+    loadAndShow(
+      adId: AdsVariable.interPreLoadIOS,
+      place: place,
+      onDismissed: onDismissed,
+    );
   }
 
   /// Loads a fresh interstitial on the spot and shows it. Only reached when no
-  /// preloaded ad is ready, so it never calls back into [showInterstitial].
+  /// preloaded ad is ready and none is in flight, so it never calls back into [showInterstitial].
   static void loadAndShow({
     required String adId,
     String place = "VD_Quick_App",
@@ -364,7 +505,7 @@ class AdsLoadUtil extends GetxController {
     showLog("IT IS LOAD AND SHOW [$place]");
     log("ads id $adId");
     // Any leftover (failed/stale) preload is discarded before loading anew.
-    _clearPreloadedInterstitial();
+    _clearPreloadedInterstitial(wastedReason: 'disposed_unused');
     interstitialId = adId;
     loadingScreen.show();
 
@@ -399,6 +540,7 @@ class AdsLoadUtil extends GetxController {
               loadPreInterstitialAd(adId: AdsVariable.interPreLoadIOS);
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
+              _logPreInterNotShown('show_failed', 'on_spot', place, errorCode: error.code);
               ad.dispose();
               log("Ad Reloaded");
               loadPreInterstitialAd(adId: AdsVariable.interPreLoadIOS);
@@ -409,6 +551,7 @@ class AdsLoadUtil extends GetxController {
         },
         onAdFailedToLoad: (error) {
           showLog(error.toString());
+          _logPreInterNotShown(_loadFailReason(error.code), 'on_spot', place, errorCode: error.code);
           loadingScreen.hide();
           onDismissed();
         },
