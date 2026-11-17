@@ -83,12 +83,31 @@ class MessagesApplication : Controller(), ImageLoaderFactory {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        android.os.Handler(android.os.Looper.getMainLooper()).post { initFlutterEngine() }
+        // The engine is NOT created here any more: its blocking init must run on the main thread
+        // and used to cause skipped frames while the (Flutter-free) splash was showing. It is warmed
+        // by warmFlutterEngineWhenIdle() when SplashActivity hands off, with
+        // ensureFlutterEngineReady() as the safety net for early consumers.
         // Loads the install source saved on an earlier launch; the first-launch check runs from SplashActivity.
         app.messages.attribution.InstallSourceManager.init(this)
     }
 
     @Volatile private var flutterEngineWarmed = false
+    private var flutterWarmupScheduled = false
+
+    /**
+     * Warms the Flutter engine once the splash has handed off: waits a moment so the next screen
+     * draws its first frame, then runs on the next idle main-looper slot. Safe to call repeatedly.
+     */
+    fun warmFlutterEngineWhenIdle() {
+        if (flutterEngineWarmed || flutterWarmupScheduled) return
+        flutterWarmupScheduled = true
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            android.os.Looper.myQueue().addIdleHandler {
+                initFlutterEngine()
+                false // run once
+            }
+        }, 500)
+    }
 
     private fun initFlutterEngine() {
         if (flutterEngineWarmed) return
@@ -101,8 +120,9 @@ class MessagesApplication : Controller(), ImageLoaderFactory {
             flutterEngine.dartExecutor.executeDartEntrypoint(
                 DartExecutor.DartEntrypoint.createDefault()
             )
-            VideoDownloaderEngineHelper.initEngine(this, flutterEngine)
+            // Cache first: initEngine's config sync looks the engine up by id.
             FlutterEngineCache.getInstance().put(VideoDownloaderEngineHelper.ENGINE_ID, flutterEngine)
+            VideoDownloaderEngineHelper.initEngine(this, flutterEngine)
             flutterEngineWarmed = true
         } catch (e: Exception) {
             e.printStackTrace()

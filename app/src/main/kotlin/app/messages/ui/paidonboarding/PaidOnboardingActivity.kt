@@ -171,6 +171,9 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         }
         lastShownPosition = position
         cancelNativeShift()
+        // The fragment may have been created (and its prepare deferred or wiped) before it became
+        // current — re-arm the shift for the now-selected page.
+        (supportFragmentManager.findFragmentByTag("f$position") as? PaidPageFragment<*>)?.rePrepareShift()
         val page = pages[position]
         binding.btnNext.setText(page.buttonRes)
         FlowAAdBinder.onPageSelected(position + 1)
@@ -269,13 +272,21 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         binding.btnNext.translationY = 0f
     }
 
-    fun prepareNativeShift(stepTag: String, nativeContainer: FrameLayout) {
+    fun prepareNativeShift(stepTag: String, nativeContainer: FrameLayout, position: Int) {
         val isEnabled = AdsConfigManager.isFlowANativeShiftEnabledForStep(stepTag)
         Log.d(TAG, "🎯 [FlowA-Shift] prepareNativeShift($stepTag): isEnabled=$isEnabled")
         Log.d("FlowAAds", "🎯 [FlowA-Shift] prepareNativeShift($stepTag): isEnabled=$isEnabled")
 
         if (!isEnabled) {
             nativeContainer.alpha = 1f
+            return
+        }
+
+        // ViewPager2 creates the NEXT page's fragment ahead of time. Only the selected page may own the
+        // single shared shift slot; a neighbour must not cancel/steal it. It is prepared later from
+        // onPageShown() when it becomes current.
+        if (position != binding.pager.currentItem) {
+            Log.d("FlowAAds", "⏭️ [FlowA-Shift] $stepTag is not the current page — deferring shift")
             return
         }
 

@@ -12,10 +12,13 @@ import kotlinx.coroutines.launch
 
 class BillingHelper private constructor(private val context: Context) : PurchasesUpdatedListener {
 
-    private val billingClient: BillingClient = BillingClient.newBuilder(context)
-        .setListener(this)
-        .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
-        .build()
+    // Lazy so that when billing is disabled the client is never even built.
+    private val billingClient: BillingClient by lazy {
+        BillingClient.newBuilder(context)
+            .setListener(this)
+            .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
+            .build()
+    }
 
     private var productDetails: ProductDetails? = null
     private var isConnected = false
@@ -33,13 +36,20 @@ class BillingHelper private constructor(private val context: Context) : Purchase
 
 
     init {
-        startConnection()
+        if (Constants.BILLING_ENABLED) {
+            startConnection()
+        } else {
+            // Premium isn't on sale: make sure no stale premium flag survives, and skip Play entirely.
+            PreferenceHelper.getInstance(context).setIsPremium(false)
+            Log.d(TAG, "Billing disabled (Constants.BILLING_ENABLED=false) – isPremium=false")
+        }
     }
 
 
     // ─────────────────────────────── Connection ───────────────────────────────
 
     private fun startConnection() {
+        if (!Constants.BILLING_ENABLED) return
         billingClient.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(billingResult: BillingResult) {
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
@@ -113,6 +123,7 @@ class BillingHelper private constructor(private val context: Context) : Purchase
      * Automatically reconnects if billing is not yet connected.
      */
     fun queryPurchases() {
+        if (!Constants.BILLING_ENABLED) return
         if (!isConnected) {
             startConnection()
             return
@@ -237,6 +248,10 @@ class BillingHelper private constructor(private val context: Context) : Purchase
     // ───────────────────────── Launch billing flow ────────────────────────────
 
     fun launchBillingFlow(activity: Activity) {
+        if (!Constants.BILLING_ENABLED) {
+            Log.w(TAG, "launchBillingFlow ignored – billing disabled")
+            return
+        }
         if (!isConnected) {
             Log.e(TAG, "Billing not connected – reconnecting…")
             startConnection()

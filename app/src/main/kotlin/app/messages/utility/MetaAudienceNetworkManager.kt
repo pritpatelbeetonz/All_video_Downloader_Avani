@@ -60,7 +60,8 @@ object MetaAudienceNetworkManager {
 
             // 3. Initialize Facebook SDK
             FacebookSdk.sdkInitialize(appContext) {
-                }
+                Log.d(TAG, "Facebook SDK initialized")
+            }
 
             // 4. Initialize Meta Audience Network SDK
             if (!AudienceNetworkAds.isInitialized(appContext)) {
@@ -70,8 +71,10 @@ object MetaAudienceNetworkManager {
                         if (initResult.isSuccess) {
                             currentAppId = trimmedAppId
                             currentClientToken = trimmedClientToken
-                            } else {
-                            }
+                            Log.d(TAG, "Audience Network initialized")
+                        } else {
+                            Log.w(TAG, "Audience Network init failed: ${initResult.message}")
+                        }
                         onComplete?.invoke(initResult.isSuccess)
                     }
                     .initialize()
@@ -82,6 +85,7 @@ object MetaAudienceNetworkManager {
                 onComplete?.invoke(true)
             }
         } catch (e: Exception) {
+            Log.w(TAG, "Meta init threw: ${e.message}")
             onComplete?.invoke(false)
         }
     }

@@ -51,6 +51,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private const val RETRY_MS  = 80L     // the decompiled app's ENFORCE_RETRY_MS
     private const val WEB_GUARD_MS = 300L // how often we re-check the Custom Tab is still in front
     private const val CHROME_BLOCK_MS = 80L // chromeBlock loop cadence (reference adSettingsBlock ~16ms; 80ms is lighter)
+    private const val AD_CLICK_WINDOW_MS = 120_000L // after an ad click, stand down this long (user may browse the Play Store a while); cleared on return
 
     // The main-thread message queue — where we post the repeating loop.
     private val handler = Handler(Looper.getMainLooper())
@@ -65,6 +66,14 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // The deadline for the current burst, and whether the loop is running.
     private var runUntil = 0L
     private var running = false
+    // When true, the own-screen enforce loop does NOT give up when the 1.5s burst window passes — it
+    // keeps hammering until the user is actually back (focus regained) or a stand-down condition hits,
+    // exactly like the persistent Custom-Tab chromeBlock loop. This closes the "wait out the 1.5s and
+    // Home wins" gap on devices where a single moveTaskToFront loses the race repeatedly. Flip to false
+    // to restore the old time-limited burst.
+    private const val PERSIST_OWN_SCREEN_HOLD = true
+    private var derivedEscLogged = false   // loop-derived settings/shade/notif attempt logged once per leave
+    private var escSucLogged = false  // esc_suc logged once per arm (at the old 1.5s mark), even when we keep holding
 
     // ========================================================================
     //  REAL OEM TECHNIQUES — ported from the decompiled FunnelGuard for STUDY.
@@ -127,6 +136,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private var chromeSessionAt = 0L   // when the current Custom Tab opened — grace before the re-cover branch acts
     @Volatile private var adShowing = false   // our own full-screen App Open ad is up — guard must NOT touch it
     @Volatile private var systemPickerOpen = false   // the system role/default picker is up — don't yank over it
+    @Volatile private var adClickUntil = 0L   // an AdMob ad was clicked → it's leaving to Play Store/browser, NOT the user escaping
     private var selfReorderAt = 0L
     private var webGuardRunning = false
     private var chromeBlockRunning = false  // the persistent shade-block loop is running for the open Custom Tab
@@ -197,7 +207,13 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // ========================================================================
 
     override fun onActivityResumed(activity: Activity) {
+        // BACKSTOP for ad clicks we didn't catch via the ad listeners: an AdMob/Meta ad (or its
+        // click overlay) came to front IN OUR PROCESS. Treat it as a click-out and stand down so the
+        // Play Store / browser can open, rather than pulling our task back over it.
+        if (isAdActivity(activity)) { noteAdClickNavigation(); stop(); return }
         if (!isOnboardingScreen(activity)) return   // ← ONLY onboarding screens; ignore launcher/etc.
+        // A real funnel screen is back in front → the user returned from any ad click; window is over.
+        adClickUntil = 0L
         // Remember which of our screens is in front; a resume also means the
         // user is back in our app, so any running burst can stop.
         current = WeakReference(activity)
@@ -220,6 +236,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
 
         // --- EXCEPTIONS: situations where we must STAND DOWN ---
         if (adShowing) { log("   ↳ stand down: our App Open ad is on screen (don't close/fight it)"); return }
+        if (adClickActive()) { log("   ↳ stand down: an ad was clicked — it's leaving to Play Store/browser"); return }
         if (isOwnNavigation()) { log("   ↳ stand down: our own screen transition in progress (not the user leaving)"); return }
         if (systemPickerOpen) { log("   ↳ stand down: the system default/role picker is open (our own request)"); return }
         if (chromeSessionOpen) { log("   ↳ stand down: our Chrome Custom Tab session is open (our own web flow)"); return }
@@ -248,6 +265,8 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // which is exactly why Settings escaped only in the "set as default" flow. Counting funnel screens
     // only makes "count == 0" mean "no funnel screen is visible", which is the real leave signal.
     override fun onActivityStarted(activity: Activity) {
+        // An AdMob/Meta ad activity starting in our process = a click is leaving the app; stand down.
+        if (isAdActivity(activity)) { noteAdClickNavigation(); return }
         if (!ENABLE_BACKGROUND_LEAVE_GUARD || !isOnboardingScreen(activity)) return
         startedCount++
         handler.removeCallbacks(leaveCheck)   // an activity is visible again → we're back; cancel any pending leave-enforce
@@ -269,6 +288,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private val leaveCheck = Runnable {
         val activity = current?.get() ?: return@Runnable            // nothing of ours to guard
         if (adShowing) return@Runnable                               // our own App Open ad is up — not a leave
+        if (adClickActive()) return@Runnable                         // an ad was clicked — leaving to Play Store/browser, not a leave
         if (isOwnNavigation()) return@Runnable                       // our own transition in progress — not a leave
         if (systemPickerOpen) return@Runnable                        // system role picker is up — not a leave
         if (chromeSessionOpen) return@Runnable                       // our own Custom Tab is up — not a leave
@@ -284,8 +304,11 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // ========================================================================
     private fun startEnforcing() {
         if (adShowing) { log("   ↳ not enforcing: our App Open ad is on screen"); return }  // never fight our own ad
+        if (adClickActive()) { log("   ↳ not enforcing: an ad was clicked (leaving to Play Store/browser)"); return }
         if (systemPickerOpen) { log("   ↳ not enforcing: system default/role picker is open"); return }  // let the user grant it
         runUntil = SystemClock.uptimeMillis() + WINDOW_MS   // deadline = now + 1.5s
+        escSucLogged = false                                 // new arm → allow one esc_suc at the 1.5s mark
+        if (!running) derivedEscLogged = false               // a NEW leave (not a re-arm of a running hold) may log once
         if (running) return                                  // already going
         running = true
         handler.removeCallbacks(loop)
@@ -298,15 +321,25 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // ========================================================================
     private val loop = object : Runnable {
         override fun run() {
-            // STOP CONDITION 1 — deadline passed.
+            // STOP CONDITION 1 — the 1.5s burst window passed.
             if (SystemClock.uptimeMillis() >= runUntil) {
-                log("⏱️ burst ended (1.5s up)")
-                // Escape SUCCEEDED: the 1.5s burst ran out and our screen never regained focus, so the
-                // user got away. Tag the last attempted escape as esc_suc (once per install).
                 val away = current?.get()?.hasWindowFocus() == false
-                if (away) app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeSucceeded()
-                stop()
-                return
+                // Analytics: this is the point where the OLD burst would have given up, i.e. where the
+                // user WOULD have escaped — tag esc_suc once per arm so the funnel still measures it.
+                if (away && !escSucLogged) {
+                    escSucLogged = true
+                    app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeSucceeded()
+                }
+                if (!PERSIST_OWN_SCREEN_HOLD) {
+                    log("⏱️ burst ended (1.5s up)")
+                    stop()
+                    return
+                }
+                // PERSISTENT HOLD (parity with the Custom-Tab chromeBlock loop): do NOT give up at 1.5s.
+                // Keep hammering until the user is actually back (STOP CONDITION 3, focus regained) or a
+                // stand-down hits (no screen / Custom Tab open / screen off / in call / browser in front).
+                // This is what makes Home un-outlastable on our own onboarding screens, the same way it
+                // already is on the tab. (Fall through to the checks below.)
             }
 
             // STOP CONDITION 2 — nothing to guard.
@@ -320,6 +353,14 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             // STOP CONDITION 2b — our own Custom Tab opened mid-burst: don't fight our web flow.
             if (chromeSessionOpen) {
                 log("   ↳ stand down: Custom Tab session opened — leaving our web flow alone")
+                stop()
+                return
+            }
+
+            // STOP CONDITION 2b′ — an ad was clicked mid-burst: it's leaving to the Play Store / a
+            // browser (its own startActivity). Don't yank it back — that would block the ad click.
+            if (adClickActive()) {
+                log("   ↳ stand down: ad click in progress — leaving to Play Store/browser")
                 stop()
                 return
             }
@@ -349,6 +390,16 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             if (isBrowserForeground()) {
                 log("   ↳ stand down: browser / Custom Tab in front " +
                     "(${foregroundPackage()}) — our own web page, not the user leaving")
+                stop()
+                return
+            }
+
+            // EXCEPTION — the Play Store / download manager is in front: a tapped ad is opening its
+            // store listing, not the user escaping. Stand down (backstop to the ad-click listeners,
+            // for cases where only the foreground read — not a listener — caught the click).
+            if (isAdStoreForeground()) {
+                log("   ↳ stand down: Play Store in front (${foregroundPackage()}) — ad click, not the user leaving")
+                noteAdClickNavigation()   // keep standing down until the user returns to a funnel screen
                 stop()
                 return
             }
@@ -411,6 +462,19 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         "com.brave.browser", "org.mozilla.firefox", "com.microsoft.emmx",
         "com.opera.browser", "com.sec.android.app.sbrowser",
     )
+
+    /**
+     * App stores an ad click legitimately lands on — a tapped ad opens the Play Store product page.
+     * When one of these is the foreground package we stand down (same idea as [isBrowserForeground]):
+     * the user didn't escape, an ad they clicked is just opening its store listing. This is the
+     * Usage-Access/reflection-based backstop to the [noteAdClickNavigation] listener signal.
+     */
+    private val AD_STORE_PACKAGES = setOf(
+        "com.android.vending",                 // Google Play Store
+        "com.google.android.finsky",           // Play Store internal
+        "com.android.providers.downloads",     // download manager an ad may hand off to
+    )
+    private fun isAdStoreForeground(): Boolean = foregroundPackage() in AD_STORE_PACKAGES
 
     /**
      * Read-only: which package is in the foreground right now, via UsageStats.
@@ -680,6 +744,20 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private fun pullBack3_reorderToFront(activity: Activity): Boolean = recoverTask(activity)
 
     /** CHAIN 3 — close the escape route based on WHERE the user went. DEPICTED. */
+    /**
+     * This chain runs on EVERY 80ms pass of the enforcement loop (and the hold is persistent), so
+     * logging inside it flooded Firebase with the same settings/shade/notif attempt ~19x per leave.
+     * Log a loop-derived attempt at most once per leave, and not at all when a specific escape
+     * (home/recent) was already logged for this same leave.
+     */
+    private fun logDerivedEscapeOnce(activity: Activity, method: String) {
+        if (derivedEscLogged) return
+        derivedEscLogged = true
+        val logger = app.messages.ui.paidonboarding.FlowAEscapeLogger
+        if (SystemClock.elapsedRealtime() - logger.lastAttemptAtMs < 3000L) return  // home/recent already covers it
+        logger.onEscapeAttempt(activity, method)
+    }
+
     private fun depictChain3_closeEscape(activity: Activity, fg: String?) {
         // Ref app's close-escape methods per destination. The shade branch now REALLY
         // runs collapseShade()/setShadeLocked() when their toggles are on (else logs only).
@@ -687,17 +765,17 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             fg == null             -> log("   [chain 3] foreground unknown (no Usage access) → retry")
             fg in BROWSER_PACKAGES -> log("   [chain 3] browser/Custom Tab → stand down (our own web page)")
             isSettingsPackage(fg)  -> {
-                app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(activity, "settings")
+                logDerivedEscapeOnce(activity, "settings")
                 log("   [chain 3] Settings → pull back + showBlockedToast() [toast omitted]")
             }
             isShadePackage(fg)     -> {
-                app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(activity, "shade")
+                logDerivedEscapeOnce(activity, "shade")
                 log("   [chain 3] shade → collapseShade() + setShadeLocked() [hidden API]")
                 collapseShade(activity, closeDialogs = true)
                 setShadeLocked(activity, locked = true)
             }
             else                   -> {
-                app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(activity, "notif")
+                logDerivedEscapeOnce(activity, "notif")
                 log("   [chain 3] other app ($fg) → coverOnce(host, taskId)")
             }
         }
@@ -880,7 +958,33 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private fun isOwnNavigation(): Boolean = SystemClock.uptimeMillis() < ownNavUntil
 
     /** True while one of OUR OWN flows owns the screen — never treat these as the user escaping. */
-    private fun ownFlowActive(): Boolean = adShowing || systemPickerOpen || chromeSessionOpen || isOwnNavigation()
+    fun isOwnFlowActive(): Boolean = ownFlowActive()
+
+    private fun ownFlowActive(): Boolean =
+        adShowing || systemPickerOpen || chromeSessionOpen || isOwnNavigation() || adClickActive()
+
+    // ── Ad-click navigation (the Play-Store / browser escape fix) ───────────────────────────────
+    // When a REAL AdMob ad (native / banner / interstitial) is clicked, AdMob opens an AdActivity
+    // and then an external app (Play Store `com.android.vending` or a browser) via its own
+    // startActivity — it never tells us. Our host then loses window focus + backgrounds, and the
+    // guard mistook that for a Home/Recents escape and yanked the task back, BLOCKING the ad click.
+    // The ad listeners call [noteAdClickNavigation] on click/open so the guard stands down for a
+    // window; it's cleared the moment a funnel screen resumes (the user came back). This is the
+    // permission-free analogue of [setAdShowing] for the *click-out* case.
+    fun noteAdClickNavigation(windowMs: Long = AD_CLICK_WINDOW_MS) {
+        if (!registered) return
+        adClickUntil = SystemClock.uptimeMillis() + windowMs
+        log("🧲 ad click → leaving to Play Store/browser — guard stands down (${windowMs}ms)")
+        stop()   // cancel any burst in progress so nothing races the outgoing ad click
+    }
+
+    private fun adClickActive(): Boolean = SystemClock.uptimeMillis() < adClickUntil
+
+    /** AdMob/Meta ad activities run inside OUR process; a native/interstitial click surfaces one. */
+    private fun isAdActivity(activity: Activity): Boolean {
+        val n = activity.javaClass.name
+        return n.startsWith("com.google.android.gms.ads.") || n.startsWith("com.facebook.ads.")
+    }
 
     /**
      * HOME on a funnel screen → mirrors the reference's onIntroInterrupted: pull the SAME task back

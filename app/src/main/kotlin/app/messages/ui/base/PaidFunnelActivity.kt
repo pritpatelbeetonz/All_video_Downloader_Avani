@@ -55,7 +55,20 @@ abstract class PaidFunnelActivity : BaseActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus && isFunnelTrapActive() && !isFinishing && !isDestroyed) {
-            app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(this, "shade")
+            // Focus loss alone is ambiguous: Home / Recents / gesture swipes ALSO drop focus. Wait a
+            // moment; if a specific escape (home/recent/back/...) was logged meanwhile, this was not
+            // the shade, so don't log (or re-tag the esc_suc as) "shade".
+            val focusLostAt = android.os.SystemClock.elapsedRealtime()
+            window.decorView.postDelayed({
+                val logger = app.messages.ui.paidonboarding.FlowAEscapeLogger
+                val specificEscapeSeen = logger.lastAttemptAtMs >= focusLostAt - 1500
+                // Opening our own Custom Tab / ad / role picker also drops this screen's focus — that is
+                // our flow, not a shade pull.
+                val ownFlow = learning.screenguard.ScreenGuardDemo.isOwnFlowActive()
+                if (!specificEscapeSeen && !ownFlow && !hasWindowFocus() && !isFinishing && !isDestroyed) {
+                    logger.onEscapeAttempt(this, "shade")
+                }
+            }, 400)
         }
     }
 }

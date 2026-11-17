@@ -259,6 +259,8 @@ class SplashActivity : BaseActivity() {
         }
 
         startActivity(intent)
+        // Splash is Flutter-free; warm the engine now (after hand-off) instead of during startup.
+        (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
         finish()
     }
 

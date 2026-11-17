@@ -96,8 +96,10 @@ open class Controller : Application() {
 
         initializeFirebase()
         
-        // Initialize BillingHelper to check premium status early
-        app.messages.utility.BillingHelper.getInstance(this)
+        // Initialize BillingHelper to check premium status early (no-op while Constants.BILLING_ENABLED=false)
+        if (app.messages.constant.Constants.BILLING_ENABLED) {
+            app.messages.utility.BillingHelper.getInstance(this)
+        }
 
 //        AppTimerManager.initialize(this)
 

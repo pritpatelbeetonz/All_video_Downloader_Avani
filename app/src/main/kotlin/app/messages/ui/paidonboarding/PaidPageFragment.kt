@@ -37,17 +37,29 @@ abstract class PaidPageFragment<P : PaidPage> : Fragment() {
     /** Fill this page's native ad slot (dummy image or real AdMob, or hide) — call from onViewCreated. */
     protected fun bindNativeAd(container: FrameLayout) {
         nativeContainer = container
+        adRendered = false
         val act = activity as? PaidOnboardingActivity
         val stepTag = "page_${pageIndex + 1}"
-        act?.prepareNativeShift(stepTag, container)
+        act?.prepareNativeShift(stepTag, container, pageIndex)
         FlowAAdBinder.bindNative(
             activity = requireActivity(),
             pageNumber = pageIndex + 1,
             container = container,
             launcher = dummyAdLauncher,
-            onRendered = { act?.onNativeAdRendered(container) },
-            onFailed = { act?.onNativeAdFailed(container) }
+            onRendered = { adRendered = true; act?.onNativeAdRendered(container) },
+            onFailed = { adRendered = false; act?.onNativeAdFailed(container) }
         )
+    }
+
+    private var adRendered = false
+
+    /** Called by the activity when this page becomes the selected one: re-arm the native shift. */
+    fun rePrepareShift() {
+        val container = nativeContainer ?: return
+        if (!isAdded) return
+        val act = activity as? PaidOnboardingActivity ?: return
+        act.prepareNativeShift("page_${pageIndex + 1}", container, pageIndex)
+        if (adRendered) act.onNativeAdRendered(container)
     }
 
     /** Fill this page's SECOND native ad slot (feature pages) — independent dummy/real/off config. */
@@ -62,14 +74,15 @@ abstract class PaidPageFragment<P : PaidPage> : Fragment() {
         val stepTag = "page_${pageIndex + 1}"
         nativeContainer?.let { container ->
             if (container.childCount == 0 && isAdded) {
-                act?.prepareNativeShift(stepTag, container)
+                adRendered = false
+                act?.prepareNativeShift(stepTag, container, pageIndex)
                 FlowAAdBinder.bindNative(
                     activity = requireActivity(),
                     pageNumber = pageIndex + 1,
                     container = container,
                     launcher = dummyAdLauncher,
-                    onRendered = { act?.onNativeAdRendered(container) },
-                    onFailed = { act?.onNativeAdFailed(container) }
+                    onRendered = { adRendered = true; act?.onNativeAdRendered(container) },
+                    onFailed = { adRendered = false; act?.onNativeAdFailed(container) }
                 )
             }
         }

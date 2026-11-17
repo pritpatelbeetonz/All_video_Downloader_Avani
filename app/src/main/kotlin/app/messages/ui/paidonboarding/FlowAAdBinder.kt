@@ -3,6 +3,7 @@ package app.messages.ui.paidonboarding
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.os.Build
 import android.util.Log
 import android.view.Gravity
@@ -21,6 +22,7 @@ import app.messages.preferences.PreferenceHelper
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
 import com.bumptech.glide.load.resource.bitmap.DownsampleStrategy
+import com.google.android.material.card.MaterialCardView
 import com.google.android.gms.ads.AdLoader
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
@@ -177,6 +179,8 @@ object FlowAAdBinder {
         onRendered: (() -> Unit)? = null,
     ) {
         container.removeAllViews()
+        val density = activity.resources.displayMetrics.density
+
         val iv = ImageView(activity).apply {
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -184,22 +188,44 @@ object FlowAAdBinder {
             adjustViewBounds = true   // scale to full width, height from the image ratio
             scaleType = ImageView.ScaleType.FIT_CENTER
             contentDescription = null
+            setBackgroundColor(Color.WHITE)
             setOnClickListener { openDummyWeb(activity, launcher, if (isBanner) "banner_$pageNumber" else "native_$pageNumber") }
         }
-        container.addView(iv)
+
+        val adContentView: View = if (!isBanner) {
+            MaterialCardView(activity).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                radius = 16f * density
+                strokeWidth = (1f * density).toInt().coerceAtLeast(1)
+                strokeColor = ContextCompat.getColor(activity, R.color.divider_line)
+                setCardBackgroundColor(Color.WHITE)
+                cardElevation = 0f
+                maxCardElevation = 0f
+                preventCornerOverlap = false
+                useCompatPadding = false
+                clipToOutline = true
+                addView(iv)
+            }
+        } else {
+            iv
+        }
+
+        container.addView(adContentView)
         container.visibility = View.VISIBLE
         // The ImageView is MATCH_PARENT x WRAP_CONTENT with adjustViewBounds, so its height is
         // unbounded when Glide sizes the request → Glide would decode the server image at
         // SIZE_ORIGINAL. A large (or mistakenly huge) server PNG then becomes a bitmap too big for
         // the hardware canvas → "Canvas: trying to draw too large bitmap" crash on draw. Cap the
-        // decode to the screen box (AT_MOST, never upscaled past the source) and use RGB_565 so the
-        // dummy image can never blow past a safe size regardless of what the CDN serves.
+        // decode to the screen box (AT_MOST, never upscaled past the source). We use ARGB_8888 so
+        // transparent PNG corners are preserved in pure white, avoiding black edge artifacts.
         val dm = activity.resources.displayMetrics
         val maxW = dm.widthPixels.coerceAtLeast(1)
         val maxH = (dm.heightPixels * 2).coerceAtLeast(1)   // generous but bounded (tall native card)
         Glide.with(activity)
             .load(url)
-            .format(DecodeFormat.PREFER_RGB_565)
+            .format(DecodeFormat.PREFER_ARGB_8888)
             .downsample(DownsampleStrategy.AT_MOST)
             .override(maxW, maxH)
             .fitCenter()
@@ -344,6 +370,10 @@ object FlowAAdBinder {
                     slot.pendingPage = -1
                     onFailed?.invoke()
                 }
+                // The user tapped the ad → AdMob is about to open the Play Store / a browser. Tell the
+                // funnel guard so it stands down instead of yanking the task back and blocking the click.
+                override fun onAdClicked() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
+                override fun onAdOpened() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
             })
             .build()
             .loadAd(AdRequest.Builder().build())
@@ -429,6 +459,9 @@ object FlowAAdBinder {
                 pendingBannerPage = -1
                 pendingBannerContainer = null
             }
+            // Banner tapped → leaving to Play Store / browser; stand the funnel guard down.
+            override fun onAdClicked() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
+            override fun onAdOpened() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
         }
         adView.loadAd(AdRequest.Builder().build())
     }

@@ -29,7 +29,7 @@ object AdsConfigManager {
      * - SplashActivity (initial load)
      * ====================================================================================
      */
-    const val KEY_ADS_CONFIG = "app_john_all_video_downloader_com_v5"//"app_john_all_video_downloader_com_v5///"app_john_all_video_downloader_com_v4"//"app_john_all_video_downloader_com_v3"//"app_john_all_video_downloader_com_v1"
+    const val KEY_ADS_CONFIG = "video_downlader_launcher_v2"//"app_john_all_video_downloader_com_v5"//"app_john_all_video_downloader_com_v5///"app_john_all_video_downloader_com_v4"//"app_john_all_video_downloader_com_v3"//"app_john_all_video_downloader_com_v1"
 
     private const val KEY_BANNER_SPLASH = "banner_ad_id_splash"
     private const val KEY_BANNER_CONTACT_HOME = "banner_ad_id_contact_home"
@@ -179,7 +179,8 @@ object AdsConfigManager {
         }
         val remoteConfig = FirebaseRemoteConfig.getInstance()
         val settings = FirebaseRemoteConfigSettings.Builder()
-            .setMinimumFetchIntervalInSeconds(0L)
+            // 0 only for debug builds; release uses 1h so resumes don't hit the network every time.
+            .setMinimumFetchIntervalInSeconds(if (isDebuggable(context)) 0L else 3600L)
             .build()
         remoteConfig.setConfigSettingsAsync(settings)
         remoteConfig.setDefaultsAsync(mapOf(KEY_ADS_CONFIG to gson.toJson(AdsConfig.DEFAULT)))
@@ -201,29 +202,8 @@ object AdsConfigManager {
             }
         })
 
-        val application = context.applicationContext as android.app.Application
-        application.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
-            override fun onActivityResumed(activity: android.app.Activity) {
-                refresh()
-            }
-            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {
-                if (activity is androidx.appcompat.app.AppCompatActivity) {
-                    activity.supportFragmentManager.registerFragmentLifecycleCallbacks(
-                        object : androidx.fragment.app.FragmentManager.FragmentLifecycleCallbacks() {
-                            override fun onFragmentResumed(fm: androidx.fragment.app.FragmentManager, f: androidx.fragment.app.Fragment) {
-                                refresh()
-                            }
-                        }, true
-                    )
-                }
-            }
-            override fun onActivityStarted(activity: android.app.Activity) {}
-            override fun onActivityPaused(activity: android.app.Activity) {}
-            override fun onActivityStopped(activity: android.app.Activity) {}
-            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) {}
-            override fun onActivityDestroyed(activity: android.app.Activity) {}
-        })
-
+        // Per-activity / per-fragment resume refreshes removed: app-foreground (above) plus the
+        // real-time config listener (below) already cover updates; the rest only caused re-applies.
 
 
         // Add real-time listener for instant updates exactly when changed in Firebase console
@@ -275,7 +255,19 @@ object AdsConfigManager {
         }
     }
 
+    private fun isDebuggable(context: Context): Boolean =
+        (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+
+    /** Signature of the last applied Remote Config values; identical re-applies are skipped. */
+    private var lastAppliedSignature: Int? = null
+
     private fun applyFrom(remoteConfig: FirebaseRemoteConfig) {
+        val signature = remoteConfig.all.mapValues { it.value.asString() }.hashCode()
+        if (signature == lastAppliedSignature) {
+            Log.d(TAG, "Remote Config unchanged — skipping re-apply")
+            return
+        }
+        lastAppliedSignature = signature
         val newConfig = parse(remoteConfig)
         val interIdChanged = (config.interAdId != newConfig.interAdId)
         val setAsDefaultInterIdChanged = (config.interAdIdSetAsDefault != newConfig.interAdIdSetAsDefault)
@@ -288,9 +280,11 @@ object AdsConfigManager {
         _configFlow.value = config
 
         Log.d(TAG, "==================== FIREBASE CONFIG RECEIVED ====================")
-        Log.d(TAG, "Parsed AdsConfig JSON:\n${gson.toJson(newConfig)}")
+        // Debug builds only: these dumps contain API keys, tokens and test credentials.
+        val debugLogs = isDebuggable(app.messages.Controller.getInstance())
+        if (debugLogs) Log.d(TAG, "Parsed AdsConfig JSON:\n${gson.toJson(newConfig)}")
         val allEntries = remoteConfig.all
-        if (allEntries.isNotEmpty()) {
+        if (debugLogs && allEntries.isNotEmpty()) {
             Log.d(TAG, "Raw Firebase Map Entries (${allEntries.size}):")
             allEntries.forEach { (key, value) ->
                 Log.d(TAG, "  • $key = ${value.asString()}")
@@ -1195,6 +1189,10 @@ object AdsConfigManager {
                     Log.e(TAG, "[RemoteConfig] loadNativeAd: Failed to load on-demand native ad for unit $targetAdUnitId: ${error.message}")
                     onFailed()
                 }
+                // Native ad tapped (e.g. Language screen) → AdMob opens the Play Store / a browser.
+                // Tell the funnel guard so it stands down instead of blocking the click.
+                override fun onAdClicked() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
+                override fun onAdOpened() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
             })
             .build()
         adLoader.loadAd(com.google.android.gms.ads.AdRequest.Builder().build())

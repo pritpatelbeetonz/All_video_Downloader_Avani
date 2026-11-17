@@ -50,20 +50,20 @@ object PaidChromeTabManager {
     }
 
     /**
-     * Checks whether the current install is attributed to Google Ads (paid Google user).
+     * Checks whether the current install is attributed to a paid ad campaign (Google, Facebook, Unity).
      */
-    fun isGooglePaidUser(): Boolean {
-        val isAd = InstallSourceManager.isAdInstall()
-        val source = InstallSourceManager.currentSource()
-        return isAd && source == InstallSourceManager.GOOGLE
+    fun isPaidUser(): Boolean {
+        return InstallSourceManager.isAdInstall()
     }
+
+    fun isGooglePaidUser(): Boolean = isPaidUser()
 
     /**
      * Returns true if Chrome Custom Tab should be shown after the Language screen.
      */
     fun shouldShowAfterLanguage(context: Context): Boolean {
-        if (!isGooglePaidUser()) {
-            Log.d(TAG, "Install is not a Google paid install (source=${InstallSourceManager.currentSource()}) -> skip Chrome")
+        if (!isPaidUser()) {
+            Log.d(TAG, "Install is not a paid install (source=${InstallSourceManager.currentSource()}) -> skip Chrome")
             return false
         }
         if (!AdsConfigManager.isChromeTabEnabled()) {
@@ -86,7 +86,7 @@ object PaidChromeTabManager {
      * Returns true if Chrome Custom Tab should be shown when clicking Next between onboarding pages.
      */
     fun shouldShowBetweenPages(context: Context, currentPosition: Int): Boolean {
-        if (!isGooglePaidUser()) return false
+        if (!isPaidUser()) return false
         if (!AdsConfigManager.isChromeTabEnabled()) return false
         if (!AdsConfigManager.config.chromeTabBetweenPages) return false
 

@@ -26,14 +26,14 @@ import java.lang.ref.WeakReference
  *      (a user can revisit/retry these): ${prefix}_user_lang_*, ${prefix}_onb_${N}_*, ${prefix}_onb_done.
  *  2. ESCAPE ([onEscapeAttempt] / [onEscapeSucceeded]) — logged EVERY attempt (a user tries to escape
  *     many times): "${prefix}_${status}_${defState}_${screen}_${method}",
- *     e.g. google_esc_try_nodef_onb_2_home, fac_esc_suc_def_lang_recent.
+ *     e.g. gads_esc_try_nodef_onb_2_home, fac_esc_suc_def_lang_recent.
  *       - status:  esc_try (guard pull-back triggered) / esc_suc (1.5s burst ended, focus not regained)
  *       - defState: def (app IS the default home launcher) / nodef (it is NOT)
  *       - screen:  set_def / lang / onb_1..onb_11
  *       - method:  home / recent / back / shade / settings / notif
  *
  * Every event also carries is_default_launcher (Boolean) in its Bundle for easy filtering.
- * prefix: facebook -> "fac", google -> "google", unity -> "unity"; any other source -> no event.
+ * prefix: facebook -> "fac", google -> "gads" ("google_" is reserved by Firebase), unity -> "unity"; any other source -> no event.
  *
  * Logcat: tag:Analytics (the logOnce lines) — see also tag:ScreenGuard for the escape triggers.
  */
@@ -43,9 +43,11 @@ object FlowAEscapeLogger {
 
     /** Remembered from the last [onEscapeAttempt] so [onEscapeSucceeded] can re-tag the same escape. */
     @Volatile var lastEscapeMethod: String = "unknown"
+    /** elapsedRealtime of the last [onEscapeAttempt]; lets the generic focus-loss guess stand down. */
+    @Volatile var lastAttemptAtMs: Long = 0L
     @Volatile var lastEscapeActivity: WeakReference<Activity>? = null
 
-    /** facebook -> "fac", google -> "google", unity -> "unity"; null for regular / undecided. */
+    /** facebook -> "fac", google -> "gads", unity -> "unity"; null for regular / undecided. */
     fun adPrefix(context: Context? = null): String? {
         val inMemory = InstallSourceManager.currentSource()
         val source = if (inMemory in setOf(InstallSourceManager.GOOGLE, InstallSourceManager.FACEBOOK, InstallSourceManager.UNITY)) {
@@ -55,7 +57,8 @@ object FlowAEscapeLogger {
         }
         return when (source) {
             InstallSourceManager.FACEBOOK -> "fac"
-            InstallSourceManager.GOOGLE -> "google"
+            // NOT "google": Firebase reserves the google_ / firebase_ / ga_ prefixes and drops such events.
+            InstallSourceManager.GOOGLE -> "gads"
             InstallSourceManager.UNITY -> "unity"
             else -> null
         }
@@ -142,6 +145,7 @@ object FlowAEscapeLogger {
 
     /** The guard's pull-back fired: the user tried to escape via [method] (home/recent/back/shade/settings/notif). */
     fun onEscapeAttempt(activity: Activity, method: String) {
+        lastAttemptAtMs = android.os.SystemClock.elapsedRealtime()
         lastEscapeMethod = method
         lastEscapeActivity = WeakReference(activity)
         logEscape(activity, method, "esc_try")

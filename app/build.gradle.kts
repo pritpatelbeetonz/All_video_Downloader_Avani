@@ -27,8 +27,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
-
         // Tenor (Google) GIF search key. Set via `-PTENOR_API_KEY=...` or in
+
         // gradle.properties. When blank, TenorClient falls back to the public
         // v1 demo key so search still works out of the box for testing.
         buildConfigField(

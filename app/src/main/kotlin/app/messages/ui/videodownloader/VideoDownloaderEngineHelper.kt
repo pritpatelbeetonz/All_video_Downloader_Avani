@@ -116,6 +116,26 @@ object VideoDownloaderEngineHelper {
                         } catch (_: Exception) {}
                         result.success(true)
                     }
+                    "saveToDownloads" -> {
+                        val sourcePath = call.argument<String>("sourcePath") ?: ""
+                        val fileName = call.argument<String>("fileName")
+                            ?: "download_${System.currentTimeMillis()}"
+                        val mime = call.argument<String>("mime") ?: "video/mp4"
+                        val subDir = call.argument<String>("subDir") ?: ""
+                        val appContext = context.applicationContext
+                        Thread {
+                            val saved: String? = try {
+                                saveFileToDownloads(appContext, sourcePath, fileName, mime, subDir)
+                            } catch (e: Exception) {
+                                android.util.Log.e("MEDIASTORE_SAVE", "Failed: ${e.message}", e)
+                                null
+                            }
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                if (saved != null) result.success(saved)
+                                else result.error("SAVE_FAILED", "Could not save to Downloads", null)
+                            }
+                        }.start()
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -150,6 +170,81 @@ object VideoDownloaderEngineHelper {
         } catch (e: Exception) {
             android.util.Log.e("WAKELOCK", "Failed to release wake lock: ${e.message}")
         }
+    }
+
+    /**
+     * Copies a finished temp file into the public Download/<subDir> folder so the
+     * user sees it directly in Files -> Downloads (and video galleries).
+     * Android 10+ (API 29): MediaStore.Downloads — no storage permission needed.
+     * Android 9 and below: legacy public-dir write + media scan.
+     * Returns the saved path/relative-path on success, null on failure.
+     */
+    private fun saveFileToDownloads(
+        context: Context,
+        sourcePath: String,
+        fileName: String,
+        mime: String,
+        subDir: String
+    ): String? {
+        val source = java.io.File(sourcePath)
+        if (!source.exists()) {
+            android.util.Log.e("MEDIASTORE_SAVE", "Source temp file missing: $sourcePath")
+            return null
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val relativePath = if (subDir.isBlank()) {
+                android.os.Environment.DIRECTORY_DOWNLOADS
+            } else {
+                "${android.os.Environment.DIRECTORY_DOWNLOADS}/$subDir"
+            }
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(android.provider.MediaStore.Downloads.MIME_TYPE, mime)
+                put(android.provider.MediaStore.Downloads.RELATIVE_PATH, relativePath)
+                put(android.provider.MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val collection = android.provider.MediaStore.Downloads.getContentUri(
+                android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY
+            )
+            val uri = resolver.insert(collection, values) ?: run {
+                android.util.Log.e("MEDIASTORE_SAVE", "resolver.insert returned null")
+                return null
+            }
+            try {
+                resolver.openOutputStream(uri)?.use { out ->
+                    source.inputStream().use { input -> input.copyTo(out, 64 * 1024) }
+                } ?: run {
+                    android.util.Log.e("MEDIASTORE_SAVE", "openOutputStream null")
+                    resolver.delete(uri, null, null)
+                    return null
+                }
+                values.clear()
+                values.put(android.provider.MediaStore.Downloads.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+                android.util.Log.d("MEDIASTORE_SAVE", "Saved via MediaStore: $relativePath/$fileName")
+                return "$relativePath/$fileName"
+            } catch (e: Exception) {
+                resolver.delete(uri, null, null)
+                throw e
+            }
+        }
+
+        // Android 9 and below: legacy public Download write.
+        @Suppress("DEPRECATION")
+        val downloads = android.os.Environment.getExternalStoragePublicDirectory(
+            android.os.Environment.DIRECTORY_DOWNLOADS
+        )
+        val dir = if (subDir.isBlank()) downloads else java.io.File(downloads, subDir)
+        if (!dir.exists()) dir.mkdirs()
+        val dest = java.io.File(dir, fileName)
+        source.copyTo(dest, overwrite = true)
+        android.media.MediaScannerConnection.scanFile(
+            context, arrayOf(dest.absolutePath), arrayOf(mime), null
+        )
+        android.util.Log.d("MEDIASTORE_SAVE", "Saved legacy: ${dest.absolutePath}")
+        return dest.absolutePath
     }
 
     fun syncAdsConfigToFlutter(rawJson: String? = null) {
