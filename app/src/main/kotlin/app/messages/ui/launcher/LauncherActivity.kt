@@ -83,7 +83,7 @@ class LauncherActivity : AppCompatActivity() {
         if (!prefs.isLanguageSelected()) {
             android.util.Log.d("SetDefaultFlow", "[LauncherActivity] Android launched LauncherActivity after granting HOME role. isLanguageSelected=false -> Preloading language native ad & Triggering showSetAsDefaultInterstitial")
             app.messages.config.AdsConfigManager.preloadLanguageNativeAd(this)
-            app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this) {
+            app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this, path = "launcher") {
                 android.util.Log.d("SetDefaultFlow", "[LauncherActivity] showSetAsDefaultInterstitial completed -> Forwarding to LanguageSelectionActivity")
                 startActivity(
                     Intent(this, app.messages.ui.activity.LanguageSelectionActivity::class.java).apply {

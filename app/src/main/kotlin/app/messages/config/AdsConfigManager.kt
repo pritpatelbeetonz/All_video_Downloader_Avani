@@ -1451,7 +1451,40 @@ object AdsConfigManager {
         lifecycleOwner.lifecycle.addObserver(observer)
     }
 
-    private var pendingSetAsDefaultShow: ((com.google.android.gms.ads.interstitial.InterstitialAd?) -> Unit)? = null
+    /** Invoked with (ad, loadErrorCode). ad == null means the in-flight load failed. */
+    private var pendingSetAsDefaultShow: ((com.google.android.gms.ads.interstitial.InterstitialAd?, Int?) -> Unit)? = null
+    /** Loader wait on an in-flight set-as-default preload (all paths). On failure the flow moves on. */
+    const val SET_DEFAULT_IN_FLIGHT_WAIT_MS = 8000L
+
+    /** True once a show flow moved on without an ad; a preload landing after that is wasted. */
+    @Volatile
+    private var setAsDefaultFlowGaveUp = false
+
+    const val EVENT_SET_DEFAULT_INTER_NOT_SHOWN = "set_default_inter_not_shown"
+    const val EVENT_SET_DEFAULT_INTER_WASTED = "set_default_inter_wasted"
+
+    /**
+     * The set-as-default interstitial was due but did not show.
+     * reason: timeout | no_fill | load_failed | show_failed | activity_not_resumed | backgrounded | invalid_ad_id
+     * path:   goToNext | launcher | escape
+     */
+    private fun logSetDefaultInterNotShown(reason: String, path: String, errorCode: Int? = null) {
+        Log.w("SetDefaultFlow", "📉 [AdsConfigManager] SetAsDefault inter NOT shown -> reason=$reason path=$path code=$errorCode")
+        val params = mutableMapOf<String, Any?>("reason" to reason, "path" to path)
+        if (errorCode != null) params["error_code"] = errorCode
+        app.messages.analytics.AnalyticsHelper.logEvent(EVENT_SET_DEFAULT_INTER_NOT_SHOWN, params)
+    }
+
+    /** A loaded set-as-default interstitial was thrown away unshown. reason: loaded_after_skip */
+    private fun logSetDefaultInterWasted(reason: String, path: String? = null) {
+        Log.w("SetDefaultFlow", "🗑️ [AdsConfigManager] SetAsDefault inter WASTED -> reason=$reason path=$path")
+        val params = mutableMapOf<String, Any?>("reason" to reason)
+        if (path != null) params["path"] = path
+        app.messages.analytics.AnalyticsHelper.logEvent(EVENT_SET_DEFAULT_INTER_WASTED, params)
+    }
+
+    private fun loadFailReason(errorCode: Int?): String =
+        if (errorCode == com.google.android.gms.ads.AdRequest.ERROR_CODE_NO_FILL) "no_fill" else "load_failed"
 
     fun preloadSetAsDefaultInterstitial(context: Context) {
         Log.d("SetDefaultFlow", "🚀 [AdsConfigManager] preloadSetAsDefaultInterstitial() called. canShowSetAsDefaultInter=${config.canShowSetAsDefaultInter}, setAsDefaultInterAdPreload=${config.setAsDefaultInterAdPreload}, unitId='${config.interAdIdSetAsDefault}'")
@@ -1476,6 +1509,7 @@ object AdsConfigManager {
             }
 
         Log.d("SetDefaultFlow", "🌐 [AdsConfigManager] Preloading SetAsDefault interstitial with unitId: $targetAdUnitId")
+        setAsDefaultFlowGaveUp = false
         isSetAsDefaultInterLoading = true
         val adRequest = com.google.android.gms.ads.AdRequest.Builder().build()
         com.google.android.gms.ads.interstitial.InterstitialAd.load(
@@ -1492,7 +1526,11 @@ object AdsConfigManager {
                         Log.d("SetDefaultFlow", "⚡ [AdsConfigManager] Invoking pending show callback for SetAsDefault interstitial")
                         pendingSetAsDefaultShow = null
                         setAsDefaultInterstitialAd = null
-                        pending.invoke(ad)
+                        pending.invoke(ad, null)
+                    } else if (setAsDefaultFlowGaveUp) {
+                        // The screen already moved on without it (wait timed out) - it will never be shown.
+                        setAsDefaultInterstitialAd = null
+                        logSetDefaultInterWasted("loaded_after_skip")
                     } else {
                         setAsDefaultInterstitialAd = ad
                     }
@@ -1505,7 +1543,7 @@ object AdsConfigManager {
                     if (pending != null) {
                         Log.d("SetDefaultFlow", "⚠️ [AdsConfigManager] Invoking pending show callback with null ad after failure")
                         pendingSetAsDefaultShow = null
-                        pending.invoke(null)
+                        pending.invoke(null, error.code)
                     }
                 }
             }
@@ -1515,15 +1553,32 @@ object AdsConfigManager {
     /** True when the set-as-default interstitial is already in RAM (showing it will not make the user wait). */
     fun isSetAsDefaultInterstitialReady(): Boolean = setAsDefaultInterstitialAd != null
 
-    fun showSetAsDefaultInterstitial(activity: android.app.Activity, onComplete: () -> Unit) {
+    /** True while a set-as-default preload request is in flight. */
+    fun isSetAsDefaultInterstitialLoading(): Boolean = isSetAsDefaultInterLoading
+
+    /**
+     * @param inFlightTimeoutMs max loader wait on a preload that is already in flight (no 2nd request).
+     * @param onDemandTimeoutMs max loader wait on an on-the-spot request (only when [allowOnDemand]).
+     * @param allowOnDemand     false -> if nothing is cached or in flight, move on at once (no request).
+     * @param path              which caller (goToNext | launcher | escape), for the not-shown event.
+     */
+    fun showSetAsDefaultInterstitial(
+        activity: android.app.Activity,
+        inFlightTimeoutMs: Long = SET_DEFAULT_IN_FLIGHT_WAIT_MS,
+        onDemandTimeoutMs: Long = 7000L,
+        allowOnDemand: Boolean = true,
+        path: String = "launcher",
+        onComplete: () -> Unit
+    ) {
         val isPremium = app.messages.preferences.PreferenceHelper.getInstance(activity).isPremium()
-        Log.d("SetDefaultFlow", "👉 [AdsConfigManager] showSetAsDefaultInterstitial() called. isPremium=$isPremium, canShowSetAsDefaultInter=${config.canShowSetAsDefaultInter}, setAsDefaultInterOn=${config.setAsDefaultInterOn}, interAdIdSetAsDefault='${config.interAdIdSetAsDefault}'")
+        Log.d("SetDefaultFlow", "👉 [AdsConfigManager] showSetAsDefaultInterstitial($path, inFlight=${inFlightTimeoutMs}ms, onDemand=${if (allowOnDemand) "${onDemandTimeoutMs}ms" else "off"}) called. isPremium=$isPremium, canShowSetAsDefaultInter=${config.canShowSetAsDefaultInter}, setAsDefaultInterOn=${config.setAsDefaultInterOn}, interAdIdSetAsDefault='${config.interAdIdSetAsDefault}'")
         if (isPremium || !config.canShowSetAsDefaultInter) {
             Log.d("SetDefaultFlow", "⏭️ [AdsConfigManager] showSetAsDefaultInterstitial() skipped (isPremium=$isPremium, canShowSetAsDefaultInter=${config.canShowSetAsDefaultInter}) -> calling onComplete immediately")
             onComplete()
             return
         }
 
+        setAsDefaultFlowGaveUp = false
         val isAdFinished = java.util.concurrent.atomic.AtomicBoolean(false)
         fun completeOnce() {
             if (isAdFinished.compareAndSet(false, true)) {
@@ -1549,6 +1604,7 @@ object AdsConfigManager {
                 override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
                     Log.e("SetDefaultFlow", "❌ [AdsConfigManager] SetAsDefault Interstitial Ad failed to show: ${error.message} (code=${error.code})")
                     setAsDefaultInterstitialAd = null
+                    logSetDefaultInterNotShown("show_failed", path, error.code)
                     completeOnce()
                 }
                 override fun onAdShowedFullScreenContent() {
@@ -1563,6 +1619,7 @@ object AdsConfigManager {
             activity = activity,
             onTimeoutOrFailed = {
                 Log.w("SetDefaultFlow", "⚠️ [AdsConfigManager] Activity not resumed in time -> completing without ad")
+                logSetDefaultInterNotShown("activity_not_resumed", path)
                 completeOnce()
             }
         ) {
@@ -1577,14 +1634,28 @@ object AdsConfigManager {
 
             Log.d("SetDefaultFlow", "⏳ [AdsConfigManager] No preloaded ad in RAM. isSetAsDefaultInterLoading=$isSetAsDefaultInterLoading")
 
+            // Nothing cached, nothing in flight, and this path must not request on the spot -> move on.
+            if (!isSetAsDefaultInterLoading && !allowOnDemand) {
+                Log.d("SetDefaultFlow", "➡️ [AdsConfigManager] Nothing in flight and on-demand disabled ($path) -> proceeding without ad")
+                logSetDefaultInterNotShown("not_loaded", path)
+                completeOnce()
+                return@runWhenActivityResumed
+            }
+            val timeoutMs = if (isSetAsDefaultInterLoading) inFlightTimeoutMs else onDemandTimeoutMs
+
             val originalCompleteOnce = ::completeOnce
             val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            var loader: android.app.Dialog? = null
             val timeoutRunnable = Runnable {
-                Log.d("SetDefaultFlow", "⏰ [AdsConfigManager] SetAsDefault loader 7s timeout reached -> dismissing loader and proceeding")
+                if (isAdFinished.get()) return@Runnable
+                Log.d("SetDefaultFlow", "⏰ [AdsConfigManager] SetAsDefault loader ${timeoutMs}ms timeout reached -> dismissing loader and proceeding")
                 pendingSetAsDefaultShow = null
+                setAsDefaultFlowGaveUp = true
+                try { loader?.dismiss() } catch (e: Exception) {}
+                logSetDefaultInterNotShown("timeout", path)
                 originalCompleteOnce()
             }
-            timeoutHandler.postDelayed(timeoutRunnable, 7000L)
+            timeoutHandler.postDelayed(timeoutRunnable, timeoutMs)
 
             fun cancelTimeoutAndComplete() {
                 timeoutHandler.removeCallbacks(timeoutRunnable)
@@ -1592,20 +1663,22 @@ object AdsConfigManager {
             }
 
             // 2. Show non-blocking loader dialog while waiting/fetching
-            val loader = showLoadingDialog(activity, onInterrupted = {
+            loader = showLoadingDialog(activity, onInterrupted = {
                 pendingSetAsDefaultShow = null
+                logSetDefaultInterNotShown("backgrounded", path)
                 cancelTimeoutAndComplete()
             })
 
             // 3. If a preload request is currently in-flight, attach listener to show it as soon as it finishes!
             if (isSetAsDefaultInterLoading) {
-                Log.d("SetDefaultFlow", "🔄 [AdsConfigManager] SetAsDefault Interstitial is currently in-flight loading -> attaching callback")
-                pendingSetAsDefaultShow = { ad ->
+                Log.d("SetDefaultFlow", "🔄 [AdsConfigManager] SetAsDefault Interstitial is currently in-flight loading -> attaching callback (no 2nd request)")
+                pendingSetAsDefaultShow = { ad, errorCode ->
                     timeoutHandler.removeCallbacks(timeoutRunnable)
                     try { loader?.dismiss() } catch (e: Exception) {}
                     if (ad != null) {
                         showAd(ad)
                     } else {
+                        logSetDefaultInterNotShown(loadFailReason(errorCode), path, errorCode)
                         cancelTimeoutAndComplete()
                     }
                 }
@@ -1617,6 +1690,8 @@ object AdsConfigManager {
                 ?: config.interAdId.takeIf { it.isNotBlank() && it != "11" }
                 ?: run {
                     Log.w("SetDefaultFlow", "⚠️ [AdsConfigManager] SetAsDefault unit ID is blank or '11' (interAdIdSetAsDefault='${config.interAdIdSetAsDefault}', interAdId='${config.interAdId}') -> skipping show")
+                    try { loader?.dismiss() } catch (e: Exception) {}
+                    logSetDefaultInterNotShown("invalid_ad_id", path)
                     cancelTimeoutAndComplete()
                     return@runWhenActivityResumed
                 }
@@ -1629,6 +1704,11 @@ object AdsConfigManager {
                 object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
                     override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
+                        if (isAdFinished.get()) {
+                            // Flow already moved on (timeout): never pop an ad over the next screen.
+                            logSetDefaultInterWasted("loaded_after_skip", path)
+                            return
+                        }
                         Log.d("SetDefaultFlow", "📥 [AdsConfigManager] On-demand SetAsDefault Interstitial loaded successfully!")
                         ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_set_default", adValue) }
                         try { loader?.dismiss() } catch (e: Exception) {}
@@ -1638,6 +1718,9 @@ object AdsConfigManager {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         Log.e("SetDefaultFlow", "❌ [AdsConfigManager] On-demand SetAsDefault Interstitial failed to load: ${error.message} (code=${error.code})")
                         try { loader?.dismiss() } catch (e: Exception) {}
+                        if (!isAdFinished.get()) {
+                            logSetDefaultInterNotShown(loadFailReason(error.code), path, error.code)
+                        }
                         cancelTimeoutAndComplete()
                     }
                 }

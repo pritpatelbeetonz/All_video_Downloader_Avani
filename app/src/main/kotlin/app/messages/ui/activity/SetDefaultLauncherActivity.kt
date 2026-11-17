@@ -244,7 +244,7 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         learning.screenguard.ScreenGuardDemo.noteOwnNavigation(3000L)
         android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] 🚧 escape ($reason) -> SetAsDefault interstitial -> Language (reference force-advance)")
         app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
-        app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this) {
+        app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this, path = "escape") {
             // Ad dismissed (or none to show): cover the SetDefault → Language handoff with a fresh own-nav
             // window, THEN clear the ad flag (order matters), then move.
             learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
@@ -300,10 +300,12 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         // LauncherActivity, which is the only other place this preloaded interstitial is shown. Show it
         // now so the request is not wasted. The guard must stand down: the ad takes window focus, which
         // the funnel guard would otherwise read as an escape (same handling as forceAdvanceToLanguage).
-        // Only when it is already loaded: otherwise showSetAsDefaultInterstitial would hold the user on a
-        // loader for up to 10s, which this path never did before.
-        if (!app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialReady()) {
-            android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] goToNext() -> interstitial not ready, going straight to next screen")
+        // Loaded -> show it. Still loading -> loader, wait up to 8s (SET_DEFAULT_IN_FLIGHT_WAIT_MS) on that
+        // same request; if it fails, move on. Neither -> move on straight away (no on-demand request).
+        val ready = app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialReady()
+        val inFlight = app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialLoading()
+        if (!ready && !inFlight) {
+            android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] goToNext() -> interstitial not ready or loading, going straight to next screen")
             warmFlutterAfterSetDefault()
             startActivity(intent)
             finish()
@@ -311,8 +313,12 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         }
         learning.screenguard.ScreenGuardDemo.setAdShowing(true)
         learning.screenguard.ScreenGuardDemo.noteOwnNavigation(3000L)
-        android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] goToNext() -> SetAsDefault interstitial -> next screen")
-        app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this) {
+        android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] goToNext() -> SetAsDefault interstitial (ready=$ready, inFlight=$inFlight) -> next screen")
+        app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(
+            this,
+            allowOnDemand = false,   // in flight -> wait (8s); failed / nothing -> forward, never a new request
+            path = "goToNext"
+        ) {
             learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
             learning.screenguard.ScreenGuardDemo.setAdShowing(false)
             warmFlutterAfterSetDefault()
