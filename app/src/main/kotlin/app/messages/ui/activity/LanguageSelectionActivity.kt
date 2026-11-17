@@ -41,6 +41,11 @@ import kotlinx.coroutines.launch
 
 class LanguageSelectionActivity : PaidFunnelActivity() {
 
+    private companion object {
+        /** Extra 8s waits on a still-in-flight language native (2 -> up to ~24s total while on screen). */
+        const val MAX_LANGUAGE_AD_EXTRA_WAITS = 2
+    }
+
     private lateinit var binding: ActivityLanguageSelectionBinding
     private lateinit var adapter: LanguageAdapter
     var prefs: PreferenceHelper? = null
@@ -121,8 +126,12 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
         }
     }
 
-    private fun loadBigNativeAd() {
-        Log.d("ADS_LANGUAGE", "🚀 [LANGUAGE_UI_REQUEST] LanguageSelectionActivity requested Big Native Ad for screen")
+    /** How many times the 8s single-flight wait was re-attached because the request was still in flight. */
+    private var languageAdExtraWaits = 0
+
+    private fun loadBigNativeAd(isExtraWait: Boolean = false) {
+        if (!isExtraWait) languageAdExtraWaits = 0
+        Log.d("ADS_LANGUAGE", "🚀 [LANGUAGE_UI_REQUEST] LanguageSelectionActivity requested Big Native Ad for screen (extraWait=$isExtraWait)")
         binding.nativeAdCardView.visibility = View.VISIBLE
         binding.nativeAdShimmerFrameLayout.visibility = View.VISIBLE
         binding.nativeAdFrameLayout.visibility = View.GONE
@@ -148,10 +157,21 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
                 Log.d("ADS_LANGUAGE", "🎉 [LANGUAGE_UI_RENDERED] Big Native Ad inflated & DISPLAYED on screen!")
             },
             onFailed = {
-                Log.e("ADS_LANGUAGE", "❌ [LANGUAGE_UI_FAILED] Big Native Ad failed to load / render")
-                if (!isDestroyed && !isFinishing) {
-                    binding.nativeAdCardView.visibility = View.GONE
+                if (isDestroyed || isFinishing) return@loadNativeAd
+                val langId = app.messages.config.AdsConfigManager.config.nativeAdIdLanguage
+                // The 8s single-flight wait gave up but the request is still in flight: keep the shimmer
+                // and wait on the SAME request again (no new request), so a slow ad still shows here
+                // instead of landing in the cache unseen.
+                if (app.messages.config.AdsConfigManager.isNativeLoading(langId) &&
+                    languageAdExtraWaits < MAX_LANGUAGE_AD_EXTRA_WAITS
+                ) {
+                    languageAdExtraWaits++
+                    Log.d("ADS_LANGUAGE", "⏳ [LANGUAGE_UI_WAIT] Wait timed out but request still in flight -> waiting again ($languageAdExtraWaits/$MAX_LANGUAGE_AD_EXTRA_WAITS)")
+                    loadBigNativeAd(isExtraWait = true)
+                    return@loadNativeAd
                 }
+                Log.e("ADS_LANGUAGE", "❌ [LANGUAGE_UI_FAILED] Big Native Ad failed to load / render")
+                binding.nativeAdCardView.visibility = View.GONE
             }
         )
     }

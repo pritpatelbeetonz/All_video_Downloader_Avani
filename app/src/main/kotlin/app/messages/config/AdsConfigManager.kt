@@ -1077,96 +1077,117 @@ object AdsConfigManager {
         return takeCachedNative(adUnitId)
     }
 
-    // ---- Native impression / age tracking + drawer waste measurement ----
+    // ---- Native impression / age tracking + waste measurement (drawer + language units) ----
 
     const val EVENT_DRAWER_NATIVE_WASTED = "drawer_native_wasted"
-    private const val PREFS_DRAWER_NATIVE = "drawer_native_tracking"
-    private const val KEY_DRAWER_UNSEEN_CACHED_AT = "unseen_cached_loaded_at"
+    const val EVENT_LANGUAGE_NATIVE_WASTED = "language_native_wasted"
+    const val EVENT_LANGUAGE_NATIVE_RECYCLED = "language_native_recycled"
+    private const val PREFS_NATIVE_TRACKING = "drawer_native_tracking"
     /** Google advises showing a native ad within ~1h of load; older ones may not count an impression. */
     private const val NATIVE_STALE_MS = 60 * 60 * 1000L
+    /** An orphaned language ad is only recycled into the Dashboard while younger than this. */
+    private const val ORPHAN_RECYCLE_MAX_AGE_MS = 55 * 60 * 1000L
 
     private val nativeLoadedAt: MutableMap<com.google.android.gms.ads.nativead.NativeAd, Long> =
         java.util.Collections.synchronizedMap(java.util.WeakHashMap())
     private val impressedNativeAds: MutableSet<com.google.android.gms.ads.nativead.NativeAd> =
         java.util.Collections.synchronizedSet(java.util.Collections.newSetFromMap(java.util.WeakHashMap()))
     @Volatile
-    private var drawerLeftoverChecked = false
+    private var nativeLeftoverChecked = false
 
     /** True once AdMob recorded an impression for this native ad. */
     fun hasNativeImpression(ad: com.google.android.gms.ads.nativead.NativeAd): Boolean = impressedNativeAds.contains(ad)
 
+    /** True while a native request for [adUnitId] is in flight (single-flight loader). */
+    fun isNativeLoading(adUnitId: String): Boolean = loadingNativeAds[adUnitId] == true
+
     private fun nativeAgeMs(ad: com.google.android.gms.ads.nativead.NativeAd): Long? =
         nativeLoadedAt[ad]?.let { System.currentTimeMillis() - it }
 
-    private fun isDrawerUnit(id: String): Boolean =
-        id.isNotBlank() && id != "11" && id == config.nativeAdIdAppDrawer
-
-    /**
-     * reason: process_ended | cache_overwritten | replaced_unseen | view_destroyed_unseen | stale_served
-     * (stale_served = shown, but loaded > 1h earlier, so the impression may not count)
-     */
-    private fun logDrawerNativeWasted(reason: String, ageMs: Long? = null) {
-        Log.w("ADS_DRAWER", "🗑️ [DRAWER_WASTE] reason=$reason ageMin=${ageMs?.div(60_000)}")
-        val params = mutableMapOf<String, Any?>("reason" to reason)
-        if (ageMs != null && ageMs >= 0) params["age_min"] = ageMs / 60_000
-        app.messages.analytics.AnalyticsHelper.logEvent(EVENT_DRAWER_NATIVE_WASTED, params)
+    /** The waste event for units we measure (drawer, language), or null for untracked units. */
+    private fun wasteEventFor(id: String): String? = when {
+        id.isBlank() || id == "11" -> null
+        id == config.nativeAdIdAppDrawer -> EVENT_DRAWER_NATIVE_WASTED
+        id == config.nativeAdIdLanguage -> EVENT_LANGUAGE_NATIVE_WASTED
+        else -> null
     }
 
-    private fun drawerPrefs() =
-        app.messages.Controller.getInstance().getSharedPreferences(PREFS_DRAWER_NATIVE, Context.MODE_PRIVATE)
+    /** Pref key holding "an unseen ad of this unit is sitting in the RAM cache" (load time). */
+    private fun unseenCachedKey(event: String): String =
+        if (event == EVENT_DRAWER_NATIVE_WASTED) "unseen_cached_loaded_at" else "unseen_cached_loaded_at_$event"
 
     /**
-     * Once per process: if the previous process died while holding an unseen cached drawer ad,
-     * that ad was never shown -> log it as process_ended.
+     * reason: process_ended | cache_overwritten | replaced_unseen | view_destroyed_unseen |
+     *         stale_served | stale_discarded
+     * (stale_served = shown, but loaded > 1h earlier, so the impression may not count)
      */
-    private fun ensureDrawerLeftoverChecked() {
-        if (drawerLeftoverChecked) return
-        drawerLeftoverChecked = true
+    private fun logNativeWasted(event: String, reason: String, ageMs: Long? = null) {
+        Log.w("ADS_NATIVE_WASTE", "🗑️ [$event] reason=$reason ageMin=${ageMs?.div(60_000)}")
+        val params = mutableMapOf<String, Any?>("reason" to reason)
+        if (ageMs != null && ageMs >= 0) params["age_min"] = ageMs / 60_000
+        app.messages.analytics.AnalyticsHelper.logEvent(event, params)
+    }
+
+    private fun nativeTrackingPrefs() =
+        app.messages.Controller.getInstance().getSharedPreferences(PREFS_NATIVE_TRACKING, Context.MODE_PRIVATE)
+
+    /**
+     * Once per process: if the previous process died while holding an unseen cached drawer/language
+     * ad, that ad was never shown -> log it as process_ended.
+     */
+    private fun ensureNativeLeftoverChecked() {
+        if (nativeLeftoverChecked) return
+        nativeLeftoverChecked = true
         try {
-            val prefs = drawerPrefs()
-            val loadedAt = prefs.getLong(KEY_DRAWER_UNSEEN_CACHED_AT, 0L)
-            if (loadedAt > 0L) {
-                logDrawerNativeWasted("process_ended", System.currentTimeMillis() - loadedAt)
-                prefs.edit().remove(KEY_DRAWER_UNSEEN_CACHED_AT).apply()
+            val prefs = nativeTrackingPrefs()
+            for (event in listOf(EVENT_DRAWER_NATIVE_WASTED, EVENT_LANGUAGE_NATIVE_WASTED)) {
+                val key = unseenCachedKey(event)
+                val loadedAt = prefs.getLong(key, 0L)
+                if (loadedAt > 0L) {
+                    logNativeWasted(event, "process_ended", System.currentTimeMillis() - loadedAt)
+                    prefs.edit().remove(key).apply()
+                }
             }
         } catch (e: Exception) {
-            Log.e("ADS_DRAWER", "Drawer leftover check failed", e)
+            Log.e("ADS_NATIVE_WASTE", "Native leftover check failed", e)
         }
     }
 
-    private fun markDrawerCached(ad: com.google.android.gms.ads.nativead.NativeAd) {
-        ensureDrawerLeftoverChecked()
+    private fun markNativeCached(event: String, ad: com.google.android.gms.ads.nativead.NativeAd) {
+        ensureNativeLeftoverChecked()
         try {
-            drawerPrefs().edit()
-                .putLong(KEY_DRAWER_UNSEEN_CACHED_AT, nativeLoadedAt[ad] ?: System.currentTimeMillis())
+            nativeTrackingPrefs().edit()
+                .putLong(unseenCachedKey(event), nativeLoadedAt[ad] ?: System.currentTimeMillis())
                 .apply()
         } catch (_: Exception) { }
     }
 
-    private fun markDrawerConsumed() {
-        ensureDrawerLeftoverChecked()
+    private fun markNativeConsumed(event: String) {
+        ensureNativeLeftoverChecked()
         try {
-            drawerPrefs().edit().remove(KEY_DRAWER_UNSEEN_CACHED_AT).apply()
+            nativeTrackingPrefs().edit().remove(unseenCachedKey(event)).apply()
         } catch (_: Exception) { }
     }
 
     /** The only place a native ad enters the RAM cache. Destroys + logs an unseen ad it displaces. */
     private fun putCachedNative(id: String, ad: com.google.android.gms.ads.nativead.NativeAd) {
+        val event = wasteEventFor(id)
         val old = preloadedNativeAds.put(id, ad)
         if (old != null && old !== ad) {
-            if (isDrawerUnit(id)) logDrawerNativeWasted("cache_overwritten", nativeAgeMs(old))
+            if (event != null) logNativeWasted(event, "cache_overwritten", nativeAgeMs(old))
             old.destroy()
         }
-        if (isDrawerUnit(id)) markDrawerCached(ad)
+        if (event != null) markNativeCached(event, ad)
     }
 
     /** The only place a native ad leaves the RAM cache to be shown. */
     private fun takeCachedNative(id: String): com.google.android.gms.ads.nativead.NativeAd? {
         val ad = preloadedNativeAds.remove(id) ?: return null
-        if (isDrawerUnit(id)) {
-            markDrawerConsumed()
+        val event = wasteEventFor(id)
+        if (event != null) {
+            markNativeConsumed(event)
             val age = nativeAgeMs(ad)
-            if (age != null && age > NATIVE_STALE_MS) logDrawerNativeWasted("stale_served", age)
+            if (age != null && age > NATIVE_STALE_MS) logNativeWasted(event, "stale_served", age)
         }
         return ad
     }
@@ -1182,12 +1203,43 @@ object AdsConfigManager {
             return
         }
         if (!preloadedNativeAds.containsKey(adUnitId)) {
-            Log.d("ADS_DRAWER", "♻️ [DRAWER_RECYCLE] Unseen native ad ($reason) returned to RAM cache | unit=$adUnitId")
+            Log.d("ADS_NATIVE_WASTE", "♻️ [RECYCLE] Unseen native ad ($reason) returned to RAM cache | unit=$adUnitId")
             putCachedNative(adUnitId, ad)
         } else {
-            if (isDrawerUnit(adUnitId)) logDrawerNativeWasted(reason, nativeAgeMs(ad))
+            wasteEventFor(adUnitId)?.let { logNativeWasted(it, reason, nativeAgeMs(ad)) }
             ad.destroy()
         }
+    }
+
+    /**
+     * Dashboard fallback: hands over an orphaned Language native ad (one that landed after the language
+     * screen was gone) when the Dashboard has no ad of its own cached. Only once language selection is
+     * done (so the language screen never loses its ad), and only while fresh (< 55 min); a stale orphan
+     * is destroyed and logged. Impressions/revenue stay attributed to the language unit in AdMob.
+     */
+    fun takeOrphanLanguageNativeForDashboard(context: Context): com.google.android.gms.ads.nativead.NativeAd? {
+        val dashboardId = config.nativeAdIdDashboard
+        val languageId = config.nativeAdIdLanguage
+        // Dashboard switched off via Remote Config ("11"/blank) -> never sneak a recycled ad into it.
+        if (!config.canShowNative || dashboardId.isBlank() || dashboardId == "11") return null
+        if (languageId.isBlank() || languageId == "11" || languageId == dashboardId) return null
+        if (preloadedNativeAds.containsKey(dashboardId)) return null
+        if (!app.messages.preferences.PreferenceHelper.getInstance(context).isLanguageSelected()) return null
+        val orphan = preloadedNativeAds[languageId] ?: return null
+        val age = nativeAgeMs(orphan)
+        if (age != null && age > ORPHAN_RECYCLE_MAX_AGE_MS) {
+            preloadedNativeAds.remove(languageId)
+            markNativeConsumed(EVENT_LANGUAGE_NATIVE_WASTED)
+            logNativeWasted(EVENT_LANGUAGE_NATIVE_WASTED, "stale_discarded", age)
+            orphan.destroy()
+            return null
+        }
+        val ad = takeCachedNative(languageId) ?: return null
+        Log.d("ADS_DASHBOARD", "♻️ [DASHBOARD_FALLBACK] Using orphaned Language native ad (age ${age?.div(60_000)}m)")
+        val params = mutableMapOf<String, Any?>("to" to "dashboard")
+        if (age != null && age >= 0) params["age_min"] = age / 60_000
+        app.messages.analytics.AnalyticsHelper.logEvent(EVENT_LANGUAGE_NATIVE_RECYCLED, params)
+        return ad
     }
 
 

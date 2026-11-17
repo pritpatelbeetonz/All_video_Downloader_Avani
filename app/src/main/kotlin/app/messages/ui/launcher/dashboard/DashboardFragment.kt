@@ -171,6 +171,14 @@ class DashboardFragment : Fragment() {
             Log.d("ADS_DASHBOARD", "⏳ [DASHBOARD] loadNativeAd skipped: Ad request already in-flight")
             return
         }
+
+        // Fallback: no Dashboard ad cached, but an orphaned (fresh) Language native ad is sitting unused
+        // in RAM -> show it here instead of firing a new request. A Dashboard request already in flight
+        // keeps going and lands in the cache for the next visit.
+        AdsConfigManager.takeOrphanLanguageNativeForDashboard(requireContext())?.let { orphan ->
+            renderNativeAd(orphan)
+            return
+        }
         isLoadingNativeAd = true
 
         val adUnitId = config.nativeAdIdDashboard
@@ -200,22 +208,8 @@ class DashboardFragment : Fragment() {
                     Log.d("ADS_DASHBOARD", "💾 [DASHBOARD] User swiped away -> Cached in RAM for next visit")
                     return@loadNativeAd
                 }
-                
-                // Clean up previous native ad instance to prevent memory leaks
-                currentNativeAd?.destroy()
-                currentNativeAd = nativeAd
-                Log.d("ADS_DASHBOARD", "♻️ [DASHBOARD_CLEANUP] Cleaned up previous ad instance")
 
-                binding.nativeAdCardView.visibility = View.VISIBLE
-                binding.nativeAdShimmerFrameLayout.visibility = View.GONE
-                binding.nativeAdFrameLayout.visibility = View.VISIBLE
-                binding.nativeAdFrameLayout.removeAllViews()
-                
-                val adView = layoutInflater.inflate(R.layout.ads_native_dashboard, null, false) as com.google.android.gms.ads.nativead.NativeAdView
-                AdsConfigManager.populateNativeAdView(nativeAd, adView)
-                
-                binding.nativeAdFrameLayout.addView(adView)
-                Log.d("ADS_DASHBOARD", "✨ [DASHBOARD_SHOWN] Native Dashboard Ad inflated, populated, and DISPLAYED ON SCREEN successfully! 🎉")
+                renderNativeAd(nativeAd)
             },
             onFailed = {
                 isLoadingNativeAd = false
@@ -225,6 +219,25 @@ class DashboardFragment : Fragment() {
                 }
             }
         )
+    }
+
+    /** Inflates the dashboard native template with [nativeAd] (own Dashboard ad or recycled Language orphan). */
+    private fun renderNativeAd(nativeAd: com.google.android.gms.ads.nativead.NativeAd) {
+        // Clean up previous native ad instance to prevent memory leaks
+        currentNativeAd?.takeIf { it !== nativeAd }?.destroy()
+        currentNativeAd = nativeAd
+        Log.d("ADS_DASHBOARD", "♻️ [DASHBOARD_CLEANUP] Cleaned up previous ad instance")
+
+        binding.nativeAdCardView.visibility = View.VISIBLE
+        binding.nativeAdShimmerFrameLayout.visibility = View.GONE
+        binding.nativeAdFrameLayout.visibility = View.VISIBLE
+        binding.nativeAdFrameLayout.removeAllViews()
+
+        val adView = layoutInflater.inflate(R.layout.ads_native_dashboard, null, false) as com.google.android.gms.ads.nativead.NativeAdView
+        AdsConfigManager.populateNativeAdView(nativeAd, adView)
+
+        binding.nativeAdFrameLayout.addView(adView)
+        Log.d("ADS_DASHBOARD", "✨ [DASHBOARD_SHOWN] Native Dashboard Ad inflated, populated, and DISPLAYED ON SCREEN successfully! 🎉")
     }
 
     override fun onDestroyView() {
