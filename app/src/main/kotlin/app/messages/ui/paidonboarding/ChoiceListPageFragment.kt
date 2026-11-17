@@ -34,8 +34,9 @@ class ChoiceListPageFragment : PaidPageFragment<PaidPage.Choice>() {
             row.root.setOnClickListener { select(option.id) }
             rows += option to row
         }
-        // Unselected by default; only restore a previously picked answer.
-        PaidOnboardingPrefs.answer(requireContext(), page.key)?.let { select(it) }
+        // First option preselected by default so Next works at once; a previously picked answer wins.
+        (PaidOnboardingPrefs.answer(requireContext(), page.key) ?: page.options.firstOrNull()?.id)
+            ?.let { select(it) }
     }
 
     override fun isAnswered(): Boolean =

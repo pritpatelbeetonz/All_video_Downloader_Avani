@@ -20,8 +20,8 @@ class GenderPageFragment : PaidPageFragment<PaidPage.Gender>() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        // Unselected by default; only restore a previously picked answer.
-        PaidOnboardingPrefs.answer(requireContext(), page.key)?.let { select(it) }
+        // Male preselected by default so Next works at once; a previously picked answer wins.
+        select(PaidOnboardingPrefs.answer(requireContext(), page.key) ?: MALE)
         binding.llFemale.setOnClickListener { select(FEMALE) }
         binding.llMale.setOnClickListener { select(MALE) }
         bindNativeAd(binding.adNativeContainer)

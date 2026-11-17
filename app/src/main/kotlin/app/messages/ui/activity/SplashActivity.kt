@@ -263,7 +263,11 @@ class SplashActivity : BaseActivity() {
         // Exception: the Set-as-Default screen. Booting the engine there froze the main thread for ~9s
         // and starved the set-default interstitial's load callback, so SetDefaultLauncherActivity warms
         // it itself once its ad flow is done (ensureFlutterEngineReady() remains the safety net).
-        if (intent.component?.className != SetDefaultLauncherActivity::class.java.name) {
+        // Same for the Language screen (Flow A restart): the engine boot froze it ~8s and starved its
+        // native ad; LanguageSelectionActivity warms it itself once the user taps Done.
+        val cls = intent.component?.className
+        if (cls != SetDefaultLauncherActivity::class.java.name &&
+            cls != LanguageSelectionActivity::class.java.name) {
             (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
         }
         finish()

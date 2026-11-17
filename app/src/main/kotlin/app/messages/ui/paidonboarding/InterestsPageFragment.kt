@@ -36,6 +36,11 @@ class InterestsPageFragment : PaidPageFragment<PaidPage.Interests>() {
         val checked = intArrayOf(android.R.attr.state_checked)
         val unchecked = intArrayOf()
         val selected = PaidOnboardingPrefs.interests(context).toMutableSet()
+        // First interest preselected by default so Next works at once.
+        if (selected.isEmpty()) {
+            page.options.firstOrNull()?.let { selected += it.id }
+            PaidOnboardingPrefs.setInterests(context, selected)
+        }
 
         page.options.forEach { option ->
             val chip = Chip(context).apply {

@@ -100,6 +100,9 @@ class MessagesApplication : Controller(), ImageLoaderFactory {
      */
     fun warmFlutterEngineWhenIdle() {
         if (flutterEngineWarmed || flutterWarmupScheduled) return
+        // Flow A (paid onboarding) never needs Flutter, and the engine + Dart boot runs on the main
+        // thread (~8s) which starves ads / Chrome tab guard. Warm after Flow A finishes instead.
+        if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) return
         flutterWarmupScheduled = true
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             android.os.Looper.myQueue().addIdleHandler {

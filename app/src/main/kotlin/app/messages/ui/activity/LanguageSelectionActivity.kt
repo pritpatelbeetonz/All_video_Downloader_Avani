@@ -263,6 +263,8 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
      * inside the interstitial callback. The branching itself is unchanged.
      */
     private fun navigateAfterLanguageDone() {
+        // Splash skips the Flutter warm-up for this screen; start it now that the user is leaving.
+        (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
         if (isFromSettings) {
             // If user opened from Settings, just return back
             finish()
@@ -321,19 +323,6 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             // Opened from Settings: keep previously selected language selected and Done button visible
             val selectedCode = prefs.getSelectedLanguageCode().ifBlank { "en" }
             countries.forEach { it.isSelected = it.code == selectedCode }
-            binding.btnDone.visibility = View.VISIBLE
-            val selectedIndex = countries.indexOfFirst { it.isSelected }
-            if (selectedIndex >= 0) {
-                binding.recyclerView.scrollToPosition(selectedIndex)
-            }
-        } else if (isPaidOnboarding) {
-            // Flow A: pre-select a language (device language if supported, else English) so the user
-            // can tap Done straight away and move through the funnel faster.
-            val deviceLang = java.util.Locale.getDefault().language
-            val defaultCode = countries.firstOrNull { it.code.substringBefore('-').equals(deviceLang, true) }?.code
-                ?: countries.firstOrNull { it.code == "en" }?.code
-                ?: countries.firstOrNull()?.code
-            countries.forEach { it.isSelected = it.code == defaultCode }
             binding.btnDone.visibility = View.VISIBLE
             val selectedIndex = countries.indexOfFirst { it.isSelected }
             if (selectedIndex >= 0) {

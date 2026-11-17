@@ -266,6 +266,8 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         if (!isLeaving.compareAndSet(false, true)) return
         Log.d(TAG, "✅ Flow A done -> Launcher")
         PaidOnboardingPrefs.setDone(this)
+        // Flow A is over: now it is safe to boot the Flutter engine (deferred for the whole funnel).
+        (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
         // Flow A attribution funnel: ${prefix}_onb_done (completion).
         FlowAEscapeLogger.logFunnelEvery(this, "onb_done")
         startActivity(
