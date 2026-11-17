@@ -281,6 +281,7 @@ open class Controller : Application() {
             putInt("precision_type", precision)
         }
         analytics.logEvent(FirebaseAnalytics.Event.AD_IMPRESSION, bundle)
+        Log.d("AdRevenue", "ad_impression SENT to Firebase [$placement] format=${adFormatOf(placement)} unit=$adUnitId value=$revenue ${currency ?: "USD"}")
     }
 
     /** Maps a placement key like "inter_splash" or "app_click_open" to its ad format. */

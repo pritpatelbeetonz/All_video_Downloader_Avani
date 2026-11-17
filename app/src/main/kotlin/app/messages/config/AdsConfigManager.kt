@@ -942,19 +942,64 @@ object AdsConfigManager {
         }
 
         Log.d("ADS_LANGUAGE", "⚡ [LANGUAGE_PRELOAD] Starting background preload for Language Native Ad | UnitId: $id")
+        startNativeLoad(context, id, "ADS_LANGUAGE", "language")
+    }
+
+    // ---- Single-flight native loader (one request per unit id; late callers wait for it) ----
+
+    private class NativeWaiter(
+        val onLoaded: (com.google.android.gms.ads.nativead.NativeAd) -> Unit,
+        val onFailed: () -> Unit
+    ) {
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
+    }
+
+    private val nativeWaiters =
+        java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.CopyOnWriteArrayList<NativeWaiter>>()
+    private const val NATIVE_WAIT_TIMEOUT_MS = 8000L
+
+    /** Queue a screen's callbacks for [id]; gives up (onFailed) if the in-flight request never answers. */
+    private fun addNativeWaiter(id: String, waiter: NativeWaiter) {
+        nativeWaiters.getOrPut(id) { java.util.concurrent.CopyOnWriteArrayList() }.add(waiter)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            if (waiter.done.compareAndSet(false, true)) {
+                nativeWaiters[id]?.remove(waiter)
+                Log.w(TAG, "[SingleFlight] wait for native $id timed out -> onFailed")
+                waiter.onFailed()
+            }
+        }, NATIVE_WAIT_TIMEOUT_MS)
+    }
+
+    /**
+     * The ONE place a native ad is requested. On success the ad goes to the first waiting screen (a
+     * NativeAd can only be shown once); extra waiters re-request; with no waiter it is cached for
+     * the next screen. Always attaches the revenue listener and the click-through guard hook.
+     */
+    private fun startNativeLoad(context: Context, id: String, logTag: String, place: String) {
         loadingNativeAds[id] = true
         com.google.android.gms.ads.AdLoader.Builder(context.applicationContext, id)
             .forNativeAd { nativeAd ->
-                Log.d("ADS_LANGUAGE", "✅ [LANGUAGE_PRELOAD] Language Native Ad loaded successfully and stored in RAM cache! (UnitId: $id)")
-                nativeAd.setOnPaidEventListener { }
-                preloadedNativeAds[id] = nativeAd
+                nativeAd.setOnPaidEventListener { adValue -> sendRevenue(id, "native_$place", adValue) }
                 loadingNativeAds[id] = false
+                val waiters = nativeWaiters.remove(id).orEmpty().filter { it.done.compareAndSet(false, true) }
+                if (waiters.isEmpty()) {
+                    Log.d(logTag, "[SingleFlight] $place loaded, no screen waiting -> cached in RAM (unit $id)")
+                    preloadedNativeAds[id] = nativeAd
+                } else {
+                    Log.d(logTag, "[SingleFlight] $place loaded -> handed to waiting screen (unit $id)")
+                    waiters.first().onLoaded(nativeAd)
+                    waiters.drop(1).forEach { w -> loadNativeAd(context.applicationContext, id, w.onLoaded, w.onFailed) }
+                }
             }
             .withAdListener(object : com.google.android.gms.ads.AdListener() {
                 override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
-                    Log.e("ADS_LANGUAGE", "❌ [LANGUAGE_PRELOAD] Failed to preload Language Native Ad: ${error.message} (code=${error.code})")
+                    Log.e(logTag, "[SingleFlight] $place failed: ${error.message} (code=${error.code}) unit $id")
                     loadingNativeAds[id] = false
+                    nativeWaiters.remove(id)?.forEach { if (it.done.compareAndSet(false, true)) it.onFailed() }
                 }
+                // Tapping the ad opens Play Store/browser: tell the funnel guard to stand down.
+                override fun onAdClicked() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
+                override fun onAdOpened() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
             })
             .build()
             .loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
@@ -974,22 +1019,7 @@ object AdsConfigManager {
         }
 
         Log.d("ADS_DASHBOARD", "⚡ [DASHBOARD_PRELOAD] Starting background preload for Dashboard Native Ad | UnitId: $id")
-        loadingNativeAds[id] = true
-        com.google.android.gms.ads.AdLoader.Builder(context.applicationContext, id)
-            .forNativeAd { nativeAd ->
-                Log.d("ADS_DASHBOARD", "✅ [DASHBOARD_PRELOAD] Background preload SUCCEEDED and cached in RAM! (UnitId: $id)")
-                nativeAd.setOnPaidEventListener { adValue -> sendRevenue(id, "native_dashboard", adValue) }
-                preloadedNativeAds[id] = nativeAd
-                loadingNativeAds[id] = false
-            }
-            .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
-                    Log.e("ADS_DASHBOARD", "❌ [DASHBOARD_PRELOAD] Failed to preload dashboard native ad: ${error.message} (code=${error.code})")
-                    loadingNativeAds[id] = false
-                }
-            })
-            .build()
-            .loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
+        startNativeLoad(context, id, "ADS_DASHBOARD", "dashboard")
     }
 
     /**
@@ -1006,22 +1036,7 @@ object AdsConfigManager {
         }
 
         Log.d("ADS_GOOGLE_SEARCH", "⚡ [SEARCH_PRELOAD] Starting background preload for Google Search Native Ad | UnitId: $id")
-        loadingNativeAds[id] = true
-        com.google.android.gms.ads.AdLoader.Builder(context.applicationContext, id)
-            .forNativeAd { nativeAd ->
-                Log.d("ADS_GOOGLE_SEARCH", "✅ [SEARCH_PRELOAD] Background preload SUCCEEDED and cached in RAM! (UnitId: $id)")
-                nativeAd.setOnPaidEventListener { adValue -> sendRevenue(id, "native_google_search", adValue) }
-                preloadedNativeAds[id] = nativeAd
-                loadingNativeAds[id] = false
-            }
-            .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
-                    Log.e("ADS_GOOGLE_SEARCH", "❌ [SEARCH_PRELOAD] Failed to preload Google search native ad: ${error.message} (code=${error.code})")
-                    loadingNativeAds[id] = false
-                }
-            })
-            .build()
-            .loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
+        startNativeLoad(context, id, "ADS_GOOGLE_SEARCH", "google_search")
     }
 
     /**
@@ -1037,22 +1052,7 @@ object AdsConfigManager {
         }
 
         Log.d("ADS_DRAWER", "⚡ [DRAWER_PRELOAD] Starting background preload for Drawer Native Ad | UnitId: $id")
-        loadingNativeAds[id] = true
-        com.google.android.gms.ads.AdLoader.Builder(context.applicationContext, id)
-            .forNativeAd { nativeAd ->
-                Log.d("ADS_DRAWER", "✅ [DRAWER_PRELOAD] Background preload SUCCEEDED and cached in RAM! (UnitId: $id)")
-                nativeAd.setOnPaidEventListener { adValue -> sendRevenue(id, "native_drawer", adValue) }
-                preloadedNativeAds[id] = nativeAd
-                loadingNativeAds[id] = false
-            }
-            .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
-                    Log.e("ADS_DRAWER", "❌ [DRAWER_PRELOAD] Failed to preload drawer native ad: ${error.message} (code=${error.code})")
-                    loadingNativeAds[id] = false
-                }
-            })
-            .build()
-            .loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
+        startNativeLoad(context, id, "ADS_DRAWER", "drawer")
     }
 
     /**
@@ -1090,16 +1090,19 @@ object AdsConfigManager {
             }
 
             loadingBannerAds[id] = true
+            Log.d("ADS_BANNER", "[BANNER_PRELOAD] request dispatched | unit=$id")
             val adView = com.google.android.gms.ads.AdView(context)
             adView.setAdSize(com.google.android.gms.ads.AdSize.BANNER)
             adView.adUnitId = id
             adView.setOnPaidEventListener { adValue -> sendRevenue(adView.adUnitId, "banner_splash", adValue) }
             adView.adListener = object : com.google.android.gms.ads.AdListener() {
                 override fun onAdLoaded() {
+                    Log.d("ADS_BANNER", "[BANNER_PRELOAD] loaded, cached in RAM | unit=$id")
                     preloadedBannerAds[id] = adView
                     loadingBannerAds[id] = false
                 }
                 override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                    Log.e("ADS_BANNER", "[BANNER_PRELOAD] failed: ${error.message} (code=${error.code}) | unit=$id")
                     loadingBannerAds[id] = false
                 }
             }
@@ -1159,43 +1162,24 @@ object AdsConfigManager {
             onLoaded(cachedAd)
             return
         }
-        if (targetAdUnitId == config.nativeAdIdDashboard) {
-            Log.d("ADS_DASHBOARD", "🌐 [DASHBOARD_NETWORK_FETCH] Fetching fresh native ad on-demand from AdMob for unit $targetAdUnitId")
-        } else if (targetAdUnitId == config.nativeAdIdGoogleSearch) {
-            Log.d("ADS_GOOGLE_SEARCH", "🌐 [SEARCH_NETWORK_FETCH] Fetching fresh native ad on-demand from AdMob for unit $targetAdUnitId")
-        } else if (targetAdUnitId == config.nativeAdIdLanguage) {
-            Log.d("ADS_LANGUAGE", "🌐 [LANGUAGE_NETWORK_FETCH] Fetching fresh Language Native Ad on-demand from AdMob for unit $targetAdUnitId")
+        val place = when (targetAdUnitId) {
+            config.nativeAdIdDashboard -> "dashboard"
+            config.nativeAdIdGoogleSearch -> "google_search"
+            config.nativeAdIdAppDrawer -> "drawer"
+            config.nativeAdIdLanguage -> "language"
+            config.nativeAdIdSettingScreen, config.nativeAdIdLauncherScreen -> "launcher_setting"
+            else -> "drawer"
         }
-        Log.d(TAG, "[RemoteConfig] loadNativeAd: Fetching fresh native ad on-demand for unit $targetAdUnitId")
-        val adLoader = com.google.android.gms.ads.AdLoader.Builder(context, targetAdUnitId)
-            .forNativeAd { nativeAd ->
-                if (targetAdUnitId == config.nativeAdIdLanguage) {
-                    Log.d("ADS_LANGUAGE", "📥 [LANGUAGE_NETWORK_SUCCESS] Language Native Ad fetched on-demand successfully! (UnitId: $targetAdUnitId)")
-                }
-                Log.d(TAG, "[RemoteConfig] loadNativeAd: On-demand native ad successfully loaded for unit $targetAdUnitId")
-                val place = when (targetAdUnitId) {
-                    config.nativeAdIdDashboard -> "Dashboard"
-                    config.nativeAdIdGoogleSearch -> "Google_Search"
-                    config.nativeAdIdAppDrawer -> "Drawer"
-                    config.nativeAdIdLanguage -> "Language"
-                    config.nativeAdIdSettingScreen, config.nativeAdIdLauncherScreen -> "Launcher_Setting"
-                    else -> "Drawer"
-                }
-                nativeAd.setOnPaidEventListener { adValue -> sendRevenue(targetAdUnitId, "native_${place.lowercase()}", adValue) }
-                onLoaded(nativeAd)
-            }
-            .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
-                    Log.e(TAG, "[RemoteConfig] loadNativeAd: Failed to load on-demand native ad for unit $targetAdUnitId: ${error.message}")
-                    onFailed()
-                }
-                // Native ad tapped (e.g. Language screen) → AdMob opens the Play Store / a browser.
-                // Tell the funnel guard so it stands down instead of blocking the click.
-                override fun onAdClicked() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
-                override fun onAdOpened() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
-            })
-            .build()
-        adLoader.loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
+        // Single-flight: ONE AdMob request per unit id at a time. If a preload (or another screen) is
+        // already fetching this unit, wait for that result instead of sending a duplicate request.
+        val alreadyInFlight = loadingNativeAds[targetAdUnitId] == true
+        addNativeWaiter(targetAdUnitId, NativeWaiter(onLoaded, onFailed))
+        if (alreadyInFlight) {
+            Log.d(TAG, "[SingleFlight] loadNativeAd: $place ($targetAdUnitId) already loading -> waiting for it (no 2nd request)")
+            return
+        }
+        Log.d(TAG, "[SingleFlight] loadNativeAd: cache empty & nothing loading -> fetching $place ($targetAdUnitId)")
+        startNativeLoad(context, targetAdUnitId, TAG, place)
     }
 
     fun loadRectangleBannerAd(
@@ -1406,6 +1390,9 @@ object AdsConfigManager {
             }
         )
     }
+
+    /** True when the set-as-default interstitial is already in RAM (showing it will not make the user wait). */
+    fun isSetAsDefaultInterstitialReady(): Boolean = setAsDefaultInterstitialAd != null
 
     fun showSetAsDefaultInterstitial(activity: android.app.Activity, onComplete: () -> Unit) {
         val isPremium = app.messages.preferences.PreferenceHelper.getInstance(activity).isPremium()

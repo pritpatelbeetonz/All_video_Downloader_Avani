@@ -295,8 +295,27 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
                 putExtra("open_chats_first", true)
             }
         }
-        startActivity(intent)
-        finish()
+        // The role dialog returned here (Samsung / Xiaomi / older Android) instead of going through
+        // LauncherActivity, which is the only other place this preloaded interstitial is shown. Show it
+        // now so the request is not wasted. The guard must stand down: the ad takes window focus, which
+        // the funnel guard would otherwise read as an escape (same handling as forceAdvanceToLanguage).
+        // Only when it is already loaded: otherwise showSetAsDefaultInterstitial would hold the user on a
+        // loader for up to 10s, which this path never did before.
+        if (!app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialReady()) {
+            android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] goToNext() -> interstitial not ready, going straight to next screen")
+            startActivity(intent)
+            finish()
+            return
+        }
+        learning.screenguard.ScreenGuardDemo.setAdShowing(true)
+        learning.screenguard.ScreenGuardDemo.noteOwnNavigation(3000L)
+        android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] goToNext() -> SetAsDefault interstitial -> next screen")
+        app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this) {
+            learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
+            learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+            startActivity(intent)
+            finish()
+        }
     }
 }
 

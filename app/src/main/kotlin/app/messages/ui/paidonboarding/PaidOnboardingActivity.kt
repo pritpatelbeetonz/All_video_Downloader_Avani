@@ -162,6 +162,23 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         }
     }
 
+    private var launcherAdsPreloaded = false
+
+    /**
+     * The launcher's Dashboard / Search / Drawer native ads are no longer warmed on the Language screen
+     * for Flow A (the user still has the whole onboarding ahead and may leave). Warm them once the user
+     * is on the last two pages, so they are ready when the launcher opens but are not requested for
+     * users who drop off early. Single-flight in AdsConfigManager makes repeat calls harmless.
+     */
+    private fun preloadLauncherAdsNearEnd(position: Int) {
+        if (launcherAdsPreloaded || position < pages.lastIndex - 1) return
+        launcherAdsPreloaded = true
+        Log.d(TAG, "🚀 Page ${position + 1}/${pages.size}: near the end -> preloading launcher native ads (dashboard/search/drawer)")
+        app.messages.config.AdsConfigManager.preloadDashboardNativeAd(this)
+        app.messages.config.AdsConfigManager.preloadGoogleSearchNativeAd(this)
+        app.messages.config.AdsConfigManager.preloadDrawerNativeAd(this)
+    }
+
     private var lastShownPosition = -1
 
     private fun onPageShown(position: Int) {
@@ -182,6 +199,7 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         FlowAAdBinder.bindBanner(this, position + 1, binding.adBannerContainer, bannerAdLauncher)
         FlowAAdBinder.preloadForPage(this, position + 2)
         FlowAAdManager.preloadForStep(this, "page_${position + 1}")
+        preloadLauncherAdsNearEnd(position)
         if (page is PaidPage.Feature) {
             binding.tvCaption.setText(page.captionRes)
             binding.tvCaption.visibility = View.VISIBLE

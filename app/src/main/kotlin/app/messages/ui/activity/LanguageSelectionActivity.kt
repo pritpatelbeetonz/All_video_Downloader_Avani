@@ -132,7 +132,13 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             adUnitId = app.messages.config.AdsConfigManager.config.nativeAdIdLanguage,
             onLoaded = { nativeAd ->
                 Log.d("ADS_LANGUAGE", "✨ [LANGUAGE_UI_SUCCESS] Native Ad delivered to UI! (Headline: \"${nativeAd.headline}\")")
-                if (isDestroyed || isFinishing) return@loadNativeAd
+                if (isDestroyed || isFinishing) {
+                    // Screen is gone before the ad arrived: keep the ad for the next time instead of wasting it.
+                    app.messages.config.AdsConfigManager.cacheNativeAd(
+                        app.messages.config.AdsConfigManager.config.nativeAdIdLanguage, nativeAd
+                    )
+                    return@loadNativeAd
+                }
                 val adView = layoutInflater.inflate(R.layout.ads_native_big, null) as com.google.android.gms.ads.nativead.NativeAdView
                 app.messages.config.AdsConfigManager.populateNativeAdView(nativeAd, adView)
                 binding.nativeAdShimmerFrameLayout.visibility = View.GONE
@@ -224,7 +230,11 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
 
         // Only preload launcher session ads if user is onboarding for the first time
         val isFirstLaunchOnboarding = !isFromSettings
-        if (isFirstLaunchOnboarding) {
+        // Flow A (paid) still has the whole onboarding ahead, so the launcher ads would sit unused (and
+        // count as unshown requests) if the user leaves. PaidOnboardingActivity preloads them near the
+        // last pages instead.
+        val isFlowA = !isFromSettings && app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)
+        if (isFirstLaunchOnboarding && !isFlowA) {
             Log.d("ADS_DASHBOARD", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading Native Dashboard Ad...")
             Log.d("ADS_GOOGLE_SEARCH", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading Google Search Native Ad...")
             Log.d("ADS_DRAWER", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading App Drawer Native Ad...")
@@ -236,7 +246,6 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
         // NEW UPDATE (2026-11-02): Flow A (paid onboarding) SKIPS the language
         // interstitial and goes straight to Flow A. Flow B (regular install) and
         // the from-Settings path still show the interstitial, as before.
-        val isFlowA = !isFromSettings && app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)
         if (isFlowA) {
             Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Flow A -> SKIP language interstitial, go straight to Flow A")
             navigateAfterLanguageDone()
