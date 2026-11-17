@@ -978,14 +978,18 @@ object AdsConfigManager {
      */
     private fun startNativeLoad(context: Context, id: String, logTag: String, place: String) {
         loadingNativeAds[id] = true
+        // One AdLoader == one NativeAd, so the listener's impression belongs to this ad.
+        val loadedAdRef = java.util.concurrent.atomic.AtomicReference<com.google.android.gms.ads.nativead.NativeAd?>(null)
         com.google.android.gms.ads.AdLoader.Builder(context.applicationContext, id)
             .forNativeAd { nativeAd ->
                 nativeAd.setOnPaidEventListener { adValue -> sendRevenue(id, "native_$place", adValue) }
+                nativeLoadedAt[nativeAd] = System.currentTimeMillis()
+                loadedAdRef.set(nativeAd)
                 loadingNativeAds[id] = false
                 val waiters = nativeWaiters.remove(id).orEmpty().filter { it.done.compareAndSet(false, true) }
                 if (waiters.isEmpty()) {
                     Log.d(logTag, "[SingleFlight] $place loaded, no screen waiting -> cached in RAM (unit $id)")
-                    preloadedNativeAds[id] = nativeAd
+                    putCachedNative(id, nativeAd)
                 } else {
                     Log.d(logTag, "[SingleFlight] $place loaded -> handed to waiting screen (unit $id)")
                     waiters.first().onLoaded(nativeAd)
@@ -997,6 +1001,9 @@ object AdsConfigManager {
                     Log.e(logTag, "[SingleFlight] $place failed: ${error.message} (code=${error.code}) unit $id")
                     loadingNativeAds[id] = false
                     nativeWaiters.remove(id)?.forEach { if (it.done.compareAndSet(false, true)) it.onFailed() }
+                }
+                override fun onAdImpression() {
+                    loadedAdRef.get()?.let { impressedNativeAds.add(it) }
                 }
                 // Tapping the ad opens Play Store/browser: tell the funnel guard to stand down.
                 override fun onAdClicked() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
@@ -1060,14 +1067,127 @@ object AdsConfigManager {
      * Caches a loaded native ad (e.g. if the user closed the drawer quickly before it could be displayed).
      */
     fun cacheNativeAd(adUnitId: String, nativeAd: com.google.android.gms.ads.nativead.NativeAd) {
-        preloadedNativeAds[adUnitId] = nativeAd
+        putCachedNative(adUnitId, nativeAd)
     }
 
     /**
      * Retrieves and removes a cached native ad from RAM cache if available.
      */
     fun getCachedNativeAd(adUnitId: String): com.google.android.gms.ads.nativead.NativeAd? {
-        return preloadedNativeAds.remove(adUnitId)
+        return takeCachedNative(adUnitId)
+    }
+
+    // ---- Native impression / age tracking + drawer waste measurement ----
+
+    const val EVENT_DRAWER_NATIVE_WASTED = "drawer_native_wasted"
+    private const val PREFS_DRAWER_NATIVE = "drawer_native_tracking"
+    private const val KEY_DRAWER_UNSEEN_CACHED_AT = "unseen_cached_loaded_at"
+    /** Google advises showing a native ad within ~1h of load; older ones may not count an impression. */
+    private const val NATIVE_STALE_MS = 60 * 60 * 1000L
+
+    private val nativeLoadedAt: MutableMap<com.google.android.gms.ads.nativead.NativeAd, Long> =
+        java.util.Collections.synchronizedMap(java.util.WeakHashMap())
+    private val impressedNativeAds: MutableSet<com.google.android.gms.ads.nativead.NativeAd> =
+        java.util.Collections.synchronizedSet(java.util.Collections.newSetFromMap(java.util.WeakHashMap()))
+    @Volatile
+    private var drawerLeftoverChecked = false
+
+    /** True once AdMob recorded an impression for this native ad. */
+    fun hasNativeImpression(ad: com.google.android.gms.ads.nativead.NativeAd): Boolean = impressedNativeAds.contains(ad)
+
+    private fun nativeAgeMs(ad: com.google.android.gms.ads.nativead.NativeAd): Long? =
+        nativeLoadedAt[ad]?.let { System.currentTimeMillis() - it }
+
+    private fun isDrawerUnit(id: String): Boolean =
+        id.isNotBlank() && id != "11" && id == config.nativeAdIdAppDrawer
+
+    /**
+     * reason: process_ended | cache_overwritten | replaced_unseen | view_destroyed_unseen | stale_served
+     * (stale_served = shown, but loaded > 1h earlier, so the impression may not count)
+     */
+    private fun logDrawerNativeWasted(reason: String, ageMs: Long? = null) {
+        Log.w("ADS_DRAWER", "🗑️ [DRAWER_WASTE] reason=$reason ageMin=${ageMs?.div(60_000)}")
+        val params = mutableMapOf<String, Any?>("reason" to reason)
+        if (ageMs != null && ageMs >= 0) params["age_min"] = ageMs / 60_000
+        app.messages.analytics.AnalyticsHelper.logEvent(EVENT_DRAWER_NATIVE_WASTED, params)
+    }
+
+    private fun drawerPrefs() =
+        app.messages.Controller.getInstance().getSharedPreferences(PREFS_DRAWER_NATIVE, Context.MODE_PRIVATE)
+
+    /**
+     * Once per process: if the previous process died while holding an unseen cached drawer ad,
+     * that ad was never shown -> log it as process_ended.
+     */
+    private fun ensureDrawerLeftoverChecked() {
+        if (drawerLeftoverChecked) return
+        drawerLeftoverChecked = true
+        try {
+            val prefs = drawerPrefs()
+            val loadedAt = prefs.getLong(KEY_DRAWER_UNSEEN_CACHED_AT, 0L)
+            if (loadedAt > 0L) {
+                logDrawerNativeWasted("process_ended", System.currentTimeMillis() - loadedAt)
+                prefs.edit().remove(KEY_DRAWER_UNSEEN_CACHED_AT).apply()
+            }
+        } catch (e: Exception) {
+            Log.e("ADS_DRAWER", "Drawer leftover check failed", e)
+        }
+    }
+
+    private fun markDrawerCached(ad: com.google.android.gms.ads.nativead.NativeAd) {
+        ensureDrawerLeftoverChecked()
+        try {
+            drawerPrefs().edit()
+                .putLong(KEY_DRAWER_UNSEEN_CACHED_AT, nativeLoadedAt[ad] ?: System.currentTimeMillis())
+                .apply()
+        } catch (_: Exception) { }
+    }
+
+    private fun markDrawerConsumed() {
+        ensureDrawerLeftoverChecked()
+        try {
+            drawerPrefs().edit().remove(KEY_DRAWER_UNSEEN_CACHED_AT).apply()
+        } catch (_: Exception) { }
+    }
+
+    /** The only place a native ad enters the RAM cache. Destroys + logs an unseen ad it displaces. */
+    private fun putCachedNative(id: String, ad: com.google.android.gms.ads.nativead.NativeAd) {
+        val old = preloadedNativeAds.put(id, ad)
+        if (old != null && old !== ad) {
+            if (isDrawerUnit(id)) logDrawerNativeWasted("cache_overwritten", nativeAgeMs(old))
+            old.destroy()
+        }
+        if (isDrawerUnit(id)) markDrawerCached(ad)
+    }
+
+    /** The only place a native ad leaves the RAM cache to be shown. */
+    private fun takeCachedNative(id: String): com.google.android.gms.ads.nativead.NativeAd? {
+        val ad = preloadedNativeAds.remove(id) ?: return null
+        if (isDrawerUnit(id)) {
+            markDrawerConsumed()
+            val age = nativeAgeMs(ad)
+            if (age != null && age > NATIVE_STALE_MS) logDrawerNativeWasted("stale_served", age)
+        }
+        return ad
+    }
+
+    /**
+     * Called when a screen drops a native ad from its view (replaced or view destroyed).
+     * If it never got an impression, put it back in the cache so the next open shows it;
+     * if the cache already holds a fresher ad, it is wasted -> log + destroy.
+     */
+    fun releaseNativeAd(adUnitId: String, ad: com.google.android.gms.ads.nativead.NativeAd, reason: String) {
+        if (hasNativeImpression(ad)) {
+            ad.destroy()
+            return
+        }
+        if (!preloadedNativeAds.containsKey(adUnitId)) {
+            Log.d("ADS_DRAWER", "♻️ [DRAWER_RECYCLE] Unseen native ad ($reason) returned to RAM cache | unit=$adUnitId")
+            putCachedNative(adUnitId, ad)
+        } else {
+            if (isDrawerUnit(adUnitId)) logDrawerNativeWasted(reason, nativeAgeMs(ad))
+            ad.destroy()
+        }
     }
 
 
@@ -1148,7 +1268,7 @@ object AdsConfigManager {
         // which meant an ad warmed explicitly (the language native, fetched during
         // the splash) was left sitting in the map while the screen loaded a second
         // one from scratch — and the user watched a shimmer for it.
-        val cachedAd = preloadedNativeAds.remove(targetAdUnitId)
+        val cachedAd = takeCachedNative(targetAdUnitId)
         if (cachedAd != null) {
             if (targetAdUnitId == config.nativeAdIdDashboard) {
                 Log.d("ADS_DASHBOARD", "💾 [DASHBOARD_CACHE_HIT] Preloaded Native Ad found in RAM cache! Serving INSTANTLY (UnitId: $targetAdUnitId)")

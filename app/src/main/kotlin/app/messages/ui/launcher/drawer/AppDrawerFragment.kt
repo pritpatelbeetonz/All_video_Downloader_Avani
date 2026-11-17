@@ -269,8 +269,11 @@ class AppDrawerFragment : Fragment() {
                     return@loadNativeAd
                 }
 
-                // Clean up old ad instance before attaching new one
-                currentNativeAd?.destroy()
+                // Release the old ad before attaching the new one: destroyed if it was seen,
+                // otherwise recycled into the RAM cache for the next drawer open.
+                currentNativeAd?.takeIf { it !== nativeAd }?.let {
+                    app.messages.config.AdsConfigManager.releaseNativeAd(config.nativeAdIdAppDrawer, it, "replaced_unseen")
+                }
                 currentNativeAd = nativeAd
 
                 binding.nativeAdShimmer.root.visibility = View.GONE
@@ -714,8 +717,15 @@ class AppDrawerFragment : Fragment() {
     override fun onDestroyView() {
         contextPopup?.dismiss()
         contextPopup = null
-        currentNativeAd?.destroy()
+        // If the drawer ad was never actually seen (e.g. view recreated on a theme/config change),
+        // put it back in the RAM cache instead of destroying it.
+        currentNativeAd?.let {
+            app.messages.config.AdsConfigManager.releaseNativeAd(
+                app.messages.config.AdsConfigManager.config.nativeAdIdAppDrawer, it, "view_destroyed_unseen"
+            )
+        }
         currentNativeAd = null
+        _binding?.nativeAdView?.removeAllViews()
         super.onDestroyView()
         _binding = null
     }
