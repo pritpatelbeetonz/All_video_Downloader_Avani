@@ -260,7 +260,12 @@ class SplashActivity : BaseActivity() {
 
         startActivity(intent)
         // Splash is Flutter-free; warm the engine now (after hand-off) instead of during startup.
-        (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
+        // Exception: the Set-as-Default screen. Booting the engine there froze the main thread for ~9s
+        // and starved the set-default interstitial's load callback, so SetDefaultLauncherActivity warms
+        // it itself once its ad flow is done (ensureFlutterEngineReady() remains the safety net).
+        if (intent.component?.className != SetDefaultLauncherActivity::class.java.name) {
+            (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
+        }
         finish()
     }
 

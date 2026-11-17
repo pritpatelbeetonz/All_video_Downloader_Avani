@@ -1459,11 +1459,11 @@ object AdsConfigManager {
             val originalCompleteOnce = ::completeOnce
             val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
             val timeoutRunnable = Runnable {
-                Log.d("SetDefaultFlow", "⏰ [AdsConfigManager] SetAsDefault loader 10s timeout reached -> dismissing loader and proceeding")
+                Log.d("SetDefaultFlow", "⏰ [AdsConfigManager] SetAsDefault loader 7s timeout reached -> dismissing loader and proceeding")
                 pendingSetAsDefaultShow = null
                 originalCompleteOnce()
             }
-            timeoutHandler.postDelayed(timeoutRunnable, 10000L)
+            timeoutHandler.postDelayed(timeoutRunnable, 7000L)
 
             fun cancelTimeoutAndComplete() {
                 timeoutHandler.removeCallbacks(timeoutRunnable)

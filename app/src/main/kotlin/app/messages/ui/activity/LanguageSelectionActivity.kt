@@ -236,10 +236,9 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
         val isFlowA = !isFromSettings && app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)
         if (isFirstLaunchOnboarding && !isFlowA) {
             Log.d("ADS_DASHBOARD", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading Native Dashboard Ad...")
-            Log.d("ADS_GOOGLE_SEARCH", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading Google Search Native Ad...")
             Log.d("ADS_DRAWER", "⚡ [LANGUAGE_DONE] User clicked Done on onboarding -> Preloading App Drawer Native Ad...")
             app.messages.config.AdsConfigManager.preloadDashboardNativeAd(this)
-            app.messages.config.AdsConfigManager.preloadGoogleSearchNativeAd(this)
+            // Google Search native is intentionally NOT preloaded (low show rate): it loads on demand when search opens.
             app.messages.config.AdsConfigManager.preloadDrawerNativeAd(this)
         }
 

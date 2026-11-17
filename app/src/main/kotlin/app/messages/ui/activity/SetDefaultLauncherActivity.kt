@@ -249,6 +249,7 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             // window, THEN clear the ad flag (order matters), then move.
             learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
             learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+            warmFlutterAfterSetDefault()
             startActivity(
                 app.messages.ui.paidonboarding.PaidOnboardingActivity.restartFromLanguage(this).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
@@ -303,6 +304,7 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         // loader for up to 10s, which this path never did before.
         if (!app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialReady()) {
             android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] goToNext() -> interstitial not ready, going straight to next screen")
+            warmFlutterAfterSetDefault()
             startActivity(intent)
             finish()
             return
@@ -313,9 +315,15 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this) {
             learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
             learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+            warmFlutterAfterSetDefault()
             startActivity(intent)
             finish()
         }
+    }
+
+    /** Splash skips the Flutter warm-up for this screen; start it now that the set-default ad flow is over. */
+    private fun warmFlutterAfterSetDefault() {
+        (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
     }
 }
 

@@ -165,17 +165,17 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
     private var launcherAdsPreloaded = false
 
     /**
-     * The launcher's Dashboard / Search / Drawer native ads are no longer warmed on the Language screen
-     * for Flow A (the user still has the whole onboarding ahead and may leave). Warm them once the user
-     * is on the last two pages, so they are ready when the launcher opens but are not requested for
-     * users who drop off early. Single-flight in AdsConfigManager makes repeat calls harmless.
+     * The launcher's Dashboard / Drawer native ads are no longer warmed on the Language screen for
+     * Flow A (the user still has the whole onboarding ahead and may leave). Warm them once the user is
+     * on the last two pages, so they are ready when the launcher opens but are not requested for users
+     * who drop off early. The Google Search native is deliberately NOT preloaded here (low show rate:
+     * most users never open search). Single-flight in AdsConfigManager makes repeat calls harmless.
      */
     private fun preloadLauncherAdsNearEnd(position: Int) {
         if (launcherAdsPreloaded || position < pages.lastIndex - 1) return
         launcherAdsPreloaded = true
-        Log.d(TAG, "🚀 Page ${position + 1}/${pages.size}: near the end -> preloading launcher native ads (dashboard/search/drawer)")
+        Log.d(TAG, "🚀 Page ${position + 1}/${pages.size}: near the end -> preloading launcher native ads (dashboard/drawer)")
         app.messages.config.AdsConfigManager.preloadDashboardNativeAd(this)
-        app.messages.config.AdsConfigManager.preloadGoogleSearchNativeAd(this)
         app.messages.config.AdsConfigManager.preloadDrawerNativeAd(this)
     }
 
