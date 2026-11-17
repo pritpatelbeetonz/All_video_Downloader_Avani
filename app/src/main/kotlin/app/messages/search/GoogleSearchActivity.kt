@@ -53,6 +53,11 @@ class GoogleSearchActivity : AppCompatActivity() {
                 feedAdapter.onScrollChanged(binding.scrollContent)
             }
         )
+        // Ad slots now request only when really on screen, so also re-check whenever the layout shifts
+        // without a scroll: first layout, keyboard open/close, recent/suggestion cards showing/hiding.
+        binding.scrollContent.viewTreeObserver.addOnGlobalLayoutListener {
+            if (::feedAdapter.isInitialized) feedAdapter.onScrollChanged(binding.scrollContent)
+        }
 
         binding.etSearch.doAfterTextChanged { editable ->
             viewModel.onQueryChanged(editable?.toString().orEmpty())
@@ -256,6 +261,8 @@ class GoogleSearchActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.refreshRecent()
+        // Back from a Chrome tab / voice search: slots visible now may load (they were skipped while hidden).
+        binding.scrollContent.post { feedAdapter.onScrollChanged(binding.scrollContent) }
     }
 
     override fun onDestroy() {

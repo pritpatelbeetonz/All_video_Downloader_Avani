@@ -1082,6 +1082,7 @@ object AdsConfigManager {
     const val EVENT_DRAWER_NATIVE_WASTED = "drawer_native_wasted"
     const val EVENT_LANGUAGE_NATIVE_WASTED = "language_native_wasted"
     const val EVENT_LANGUAGE_NATIVE_RECYCLED = "language_native_recycled"
+    const val EVENT_GOOGLE_SEARCH_NATIVE_WASTED = "google_search_native_wasted"
     private const val PREFS_NATIVE_TRACKING = "drawer_native_tracking"
     /** Google advises showing a native ad within ~1h of load; older ones may not count an impression. */
     private const val NATIVE_STALE_MS = 60 * 60 * 1000L
@@ -1109,6 +1110,7 @@ object AdsConfigManager {
         id.isBlank() || id == "11" -> null
         id == config.nativeAdIdAppDrawer -> EVENT_DRAWER_NATIVE_WASTED
         id == config.nativeAdIdLanguage -> EVENT_LANGUAGE_NATIVE_WASTED
+        id == config.nativeAdIdGoogleSearch -> EVENT_GOOGLE_SEARCH_NATIVE_WASTED
         else -> null
     }
 
@@ -1140,7 +1142,7 @@ object AdsConfigManager {
         nativeLeftoverChecked = true
         try {
             val prefs = nativeTrackingPrefs()
-            for (event in listOf(EVENT_DRAWER_NATIVE_WASTED, EVENT_LANGUAGE_NATIVE_WASTED)) {
+            for (event in listOf(EVENT_DRAWER_NATIVE_WASTED, EVENT_LANGUAGE_NATIVE_WASTED, EVENT_GOOGLE_SEARCH_NATIVE_WASTED)) {
                 val key = unseenCachedKey(event)
                 val loadedAt = prefs.getLong(key, 0L)
                 if (loadedAt > 0L) {

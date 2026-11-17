@@ -23,11 +23,14 @@ class GoogleSearchFeedAdapter(
     private val activeAdHolders = mutableSetOf<AdVH>()
 
     fun clearAds() {
-        loadedAds.values.forEach { it.destroy() }
+        // Seen ads are destroyed; an ad that never got an impression goes back to the RAM cache so the
+        // next search session shows it instead of firing a new request (wasted only if the cache is full).
+        val unitId = AdsConfigManager.config.nativeAdIdGoogleSearch
+        loadedAds.values.forEach { AdsConfigManager.releaseNativeAd(unitId, it, "view_destroyed_unseen") }
         loadedAds.clear()
         loadingAds.clear()
         activeAdHolders.clear()
-        Log.d("ADS_GOOGLE_SEARCH", "♻️ [SEARCH_CLEANUP] Destroyed all cached search native ads")
+        Log.d("ADS_GOOGLE_SEARCH", "♻️ [SEARCH_CLEANUP] Released all search native ads (seen -> destroyed, unseen -> recycled)")
     }
 
     fun onScrollChanged(scrollView: NestedScrollView) {
@@ -138,18 +141,39 @@ class GoogleSearchFeedAdapter(
                 return
             }
 
-            // Slot #0 is at top -> load immediately
-            if (placeholderId == 0) {
-                requestAd(placeholderId, loadedAds, loadingAds)
-            } else {
-                // Keep shimmer frame visible with layout bounds so its position in scrollview is measurable
-                binding.nativeAdShimmerFrameLayout.visibility = android.view.View.VISIBLE
-                binding.nativeAdFrameLayout.visibility = android.view.View.GONE
-            }
+            // Every slot (including #0) waits until it is really on screen before requesting: requesting
+            // #0 on open loaded ads behind the keyboard / suggestions / Chrome tab that were never seen.
+            // Keep the shimmer frame laid out so its on-screen position is measurable.
+            binding.nativeAdShimmerFrameLayout.visibility = android.view.View.VISIBLE
+            binding.nativeAdFrameLayout.visibility = android.view.View.GONE
         }
 
         private var scrollDebounceRunnable: Runnable? = null
         private val debounceHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+        /**
+         * True when at least half of this slot is on screen ABOVE the keyboard (window visible frame,
+         * not raw screen height) and the screen is in the foreground (not behind a Chrome tab).
+         */
+        private fun isMostlyOnScreen(): Boolean {
+            val root = binding.root
+            if (!root.isShown || root.height <= 0) return false
+            val context = root.context
+            val activity = (context as? android.app.Activity)
+                ?: ((context as? android.content.ContextWrapper)?.baseContext as? android.app.Activity)
+            val lifecycleOwner = activity as? androidx.lifecycle.LifecycleOwner
+            if (lifecycleOwner != null &&
+                !lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+            ) return false
+
+            val rect = android.graphics.Rect()
+            if (!root.getGlobalVisibleRect(rect)) return false
+            val frame = android.graphics.Rect()
+            root.getWindowVisibleDisplayFrame(frame) // excludes the keyboard area
+            val visibleTop = maxOf(rect.top, frame.top)
+            val visibleBottom = minOf(rect.bottom, frame.bottom)
+            return visibleBottom - visibleTop >= root.height / 2
+        }
 
         fun checkVisibilityAndLoad(
             scrollView: NestedScrollView,
@@ -161,18 +185,12 @@ class GoogleSearchFeedAdapter(
 
             scrollDebounceRunnable?.let { debounceHandler.removeCallbacks(it) }
 
-            val rect = android.graphics.Rect()
-            val isVisible = binding.root.getGlobalVisibleRect(rect)
-            val screenHeight = binding.root.resources.displayMetrics.heightPixels
-
-            // Check if slot has scrolled into or near viewport
-            if (isVisible && rect.top < screenHeight + 250 && rect.bottom > -100) {
-                // Debounce by 250ms: Only trigger if user actually stops/pauses on this item!
+            if (isMostlyOnScreen()) {
+                // Debounce by 250ms: only request if the slot STAYS on screen (user paused on it).
+                val slotId = currentPlaceholderId
                 scrollDebounceRunnable = Runnable {
-                    val recheckRect = android.graphics.Rect()
-                    val stillVisible = binding.root.getGlobalVisibleRect(recheckRect)
-                    if (stillVisible && recheckRect.top < screenHeight + 250 && recheckRect.bottom > -100) {
-                        requestAd(currentPlaceholderId, loadedAds, loadingAds)
+                    if (currentPlaceholderId == slotId && isMostlyOnScreen()) {
+                        requestAd(slotId, loadedAds, loadingAds)
                     }
                 }
                 debounceHandler.postDelayed(scrollDebounceRunnable!!, 250L)
