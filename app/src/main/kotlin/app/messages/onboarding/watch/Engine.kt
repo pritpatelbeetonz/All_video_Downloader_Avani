@@ -52,6 +52,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private const val WEB_GUARD_MS = 300L // how often we re-check the Custom Tab is still in front
     private const val CHROME_BLOCK_MS = 80L // chromeBlock loop cadence (reference adSettingsBlock ~16ms; 80ms is lighter)
     private const val AD_CLICK_WINDOW_MS = 120_000L // after an ad click, stand down this long (user may browse the Play Store a while); cleared on return
+    private const val AD_CLOSE_RECHECK_DELAY_MS = 120L // after a managed full-screen ad closes, settle this long then re-check the foreground / re-arm
 
     // The main-thread message queue — where we post the repeating loop.
     private val handler = Handler(Looper.getMainLooper())
@@ -173,6 +174,12 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             if (!ENABLE_FUNNEL_TRAP || !registered) return
             val reason = intent.getStringExtra("reason") ?: return
             if (reason !in RECENTS_REASONS) return        // ignore "homekey" (3-button Home) & everything else
+            if (chromeSessionOpen) {
+                val host = current?.get()
+                logChromeEscapeAttempt(host, "recent")
+                recoverChrome("recents_gesture")
+                return
+            }
             if (ownFlowActive()) return                   // our own ad / picker / web / nav — not the user leaving
             val now = SystemClock.uptimeMillis()
             if (now - lastSystemLeaveAt < 300L) return    // dedupe vs the dispatchKeyEvent path / repeats
@@ -210,7 +217,13 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         // BACKSTOP for ad clicks we didn't catch via the ad listeners: an AdMob/Meta ad (or its
         // click overlay) came to front IN OUR PROCESS. Treat it as a click-out and stand down so the
         // Play Store / browser can open, rather than pulling our task back over it.
-        if (isAdActivity(activity)) { noteAdClickNavigation(); stop(); return }
+        if (isAdActivity(activity)) {
+            // Don't pre-declare a click-out for OUR OWN managed full-screen ad (adShowing) when the
+            // escape guard is on — a genuine click is reported by onAdClicked; treating the ad's own
+            // AdActivity as a click would keep us standing down after the ad and let a Home-press escape.
+            if (!(app.messages.config.AdsConfigManager.config.adEscapeGuardEnabled && adShowing)) noteAdClickNavigation()
+            stop(); return
+        }
         if (!isOnboardingScreen(activity)) return   // ← ONLY onboarding screens; ignore launcher/etc.
         // A real funnel screen is back in front → the user returned from any ad click; window is over.
         adClickUntil = 0L
@@ -266,7 +279,12 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // only makes "count == 0" mean "no funnel screen is visible", which is the real leave signal.
     override fun onActivityStarted(activity: Activity) {
         // An AdMob/Meta ad activity starting in our process = a click is leaving the app; stand down.
-        if (isAdActivity(activity)) { noteAdClickNavigation(); return }
+        // Exception: our OWN managed full-screen ad (adShowing) with the escape guard on — don't open the
+        // click window; a real click comes via onAdClicked, and the post-close re-check handles the rest.
+        if (isAdActivity(activity)) {
+            if (!(app.messages.config.AdsConfigManager.config.adEscapeGuardEnabled && adShowing)) noteAdClickNavigation()
+            return
+        }
         if (!ENABLE_BACKGROUND_LEAVE_GUARD || !isOnboardingScreen(activity)) return
         startedCount++
         handler.removeCallbacks(leaveCheck)   // an activity is visible again → we're back; cancel any pending leave-enforce
@@ -983,7 +1001,9 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     /** AdMob/Meta ad activities run inside OUR process; a native/interstitial click surfaces one. */
     private fun isAdActivity(activity: Activity): Boolean {
         val n = activity.javaClass.name
-        return n.startsWith("com.google.android.gms.ads.") || n.startsWith("com.facebook.ads.")
+        return n.startsWith("com.google.android.gms.ads.") ||
+            n.startsWith("com.google.android.libraries.ads.mobile.sdk.") || // Next-Gen SDK AdActivity
+            n.startsWith("com.facebook.ads.")
     }
 
     /**
@@ -1052,11 +1072,31 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         return true
     }
 
+    @Volatile private var lastChromeEscapeAt = 0L
+    @Volatile private var chromeEscSucLogged = false
+
+    fun isChromeSessionOpen(): Boolean = chromeSessionOpen
+    fun currentHostActivity(): Activity? = current?.get()
+
+    private fun logChromeEscapeAttempt(host: Activity?, method: String) {
+        val activity = host ?: current?.get() ?: return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastChromeEscapeAt < 3000L) return
+        // One escape = one esc_try. A Home press is already logged by LauncherActivity (with customweb), and
+        // the tabHidden / webGuard / chromeBlock re-pulls that follow it must not log it a second time.
+        if (now - app.messages.ui.paidonboarding.FlowAEscapeLogger.lastAttemptAtMs < 3000L) return
+        lastChromeEscapeAt = now
+        chromeEscSucLogged = false
+        app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(activity, method, screenOverride = "customweb")
+    }
+
     /** Call when WE open the Custom Tab — the guard stands down (this isn't the user leaving). */
     fun onChromeSessionOpen() {
         if (!registered) return
         chromeSessionOpen = true
         chromeSessionAt = SystemClock.uptimeMillis()
+        lastChromeEscapeAt = 0L
+        chromeEscSucLogged = false
         log("🌐 chrome session OPEN — host enforcement stands down for the Custom Tab")
         stop()             // cancel any host pull-back burst in progress
         startWebGuard()    // watch the tab itself (foreground poll; blind without Usage Access)
@@ -1081,6 +1121,27 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     }
 
     /**
+     * A managed full-screen ad (App Open / Interstitial) just closed. If the user pressed Home WHILE the
+     * ad was up, the funnel is now backgrounded and nothing re-grabbed it (the guard stood down for the
+     * ad). Re-arm the enforce loop after a short settle delay; the loop itself reads the foreground and
+     * stands down on a browser / Play Store (a real click-out) or pulls the funnel screen back otherwise.
+     * No-op unless the Remote Config escape guard is on. Call AFTER setAdShowing(false).
+     */
+    fun onFullScreenAdClosed() {
+        if (!app.messages.config.AdsConfigManager.config.adEscapeGuardEnabled) return
+        if (!registered) return
+        handler.postDelayed({
+            if (adShowing || adClickActive()) return@postDelayed          // another ad up / a real click-out — let go
+            val a = current?.get() ?: return@postDelayed                  // no funnel screen tracked
+            if (a.isFinishing || a.isDestroyed) return@postDelayed
+            if (a.hasWindowFocus()) return@postDelayed                    // funnel already back in front — user returned on their own
+            if (!userIsPresent() || inCall()) return@postDelayed          // screen off / locked / in a call
+            log("🎬 full-screen ad closed & funnel not in front → re-check foreground / enforce")
+            startEnforcing()   // the existing loop decides browser/Play-Store (stand down) vs pull-back
+        }, AD_CLOSE_RECHECK_DELAY_MS)
+    }
+
+    /**
      * Call around the SYSTEM default/role picker (ROLE_HOME / ROLE_SMS request, or the legacy
      * Settings home-picker). While true the guard stands down, so it never yanks our task back over
      * the system dialog the user is supposed to interact with. Mirrors the reference's
@@ -1101,6 +1162,8 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     fun onChromeSessionClosed() {
         if (!registered) return
         chromeSessionOpen = false
+        chromeEscSucLogged = false
+        lastChromeEscapeAt = 0L
         handler.removeCallbacks(tabHiddenCheck)
         log("🌐 chrome session CLOSED — normal enforcement resumes")
         stopWebGuard()
@@ -1138,10 +1201,21 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             if (!chromeSessionOpen) { log("   ↳ [tabHidden] session closed (legit close) — stop re-pull"); return }
             val host = current?.get()
             if (host != null && host.hasWindowFocus()) { log("   ↳ [tabHidden] user back in our app — stop re-pull"); return }
-            if (SystemClock.uptimeMillis() >= chromeRecoverUntil) { log("   ↳ [tabHidden] re-pull window ended — stop"); return }
+            if (SystemClock.uptimeMillis() >= chromeRecoverUntil) {
+                log("   ↳ [tabHidden] re-pull window ended — stop")
+                if (!chromeEscSucLogged && chromeSessionOpen) {
+                    val h = current?.get()
+                    if (h != null && !h.hasWindowFocus()) {
+                        chromeEscSucLogged = true
+                        app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeSucceeded()
+                    }
+                }
+                return
+            }
             // Mirror the reference's pullChromeBackOverSettings: collapse + lock the shade on every
             // re-pull, not just reorder the task (closes the shade→Settings race faster).
             host?.let { collapseShade(it, closeDialogs = true); setShadeLocked(it, locked = true) }
+            logChromeEscapeAttempt(host, "home")
             recoverChrome("tab_hidden")
             handler.postDelayed(this, CHROME_RECOVER_RETRY_MS)
         }
@@ -1164,6 +1238,13 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
                 appContext.packageName -> log("🌐 [webGuard] our app in front — ok")
                 else                   -> {
                     log("🌐 [webGuard] user left the tab → foreground=$fg → recoverChrome()")
+                    val host = current?.get()
+                    val method = when {
+                        isSettingsPackage(fg) -> "settings"
+                        isShadePackage(fg) -> "shade"
+                        else -> "home"
+                    }
+                    logChromeEscapeAttempt(host, method)
                     recoverChrome(fg)
                 }
             }
@@ -1239,6 +1320,14 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             val confirmedLeave = ourTaskCovered(host) || leftToBadApp
             if (hostLostFocus || confirmedLeave) {
                 log("🌐 [chromeBlock] re-cover (focus=${!hostLostFocus}, covered=${ourTaskCovered(host)}, fg=${fg ?: "unknown"})")
+                if (confirmedLeave) {
+                    val method = when {
+                        fg != null && isSettingsPackage(fg) -> "settings"
+                        fg != null && isShadePackage(fg) -> "shade"
+                        else -> "home"
+                    }
+                    logChromeEscapeAttempt(host, method)
+                }
                 recoverChrome(fg ?: "chrome_block")
                 if (confirmedLeave) showBlockedToast(host)
             }

@@ -1,16 +1,16 @@
 package app.messages.ui.paidonboarding
 
+import app.messages.ads.ng.*
 import android.app.Activity
 import android.content.Context
 import android.util.Log
 import app.messages.Controller
 import app.messages.config.AdsConfigManager
 import app.messages.preferences.PreferenceHelper
-import com.google.android.gms.ads.AdError
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.FullScreenContentCallback
-import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.appopen.AppOpenAd
+import com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError
+import app.messages.ads.ng.FullScreenContentCallback
+import com.google.android.libraries.ads.mobile.sdk.common.LoadAdError
+import com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd
 
 /**
  * Dedicated App Open ad for the paid onboarding funnel (Flow A web-steps).
@@ -50,11 +50,7 @@ object PaidOnboardingAppOpen {
         loading = true
         val unit = AdsConfigManager.paidAppOpenAdId()
         Log.d(TAG, "⏳ loading App Open ($unit)")
-        AppOpenAd.load(
-            Controller.getInstance(),
-            unit,
-            AdRequest.Builder().build(),
-            object : AppOpenAd.AppOpenAdLoadCallback() {
+        app.messages.ads.ng.NextGenAds.loadAppOpen(Controller.getInstance(), unit, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd>() {
                 override fun onAdLoaded(loaded: AppOpenAd) {
                     ad = loaded
                     loading = false
@@ -100,6 +96,7 @@ object PaidOnboardingAppOpen {
                 Log.d(TAG, "App Open $reason — guard resumes, continue")
                 ad = null
                 learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+                learning.screenguard.ScreenGuardDemo.onFullScreenAdClosed()   // re-grab if the user pressed Home during the ad
                 preload(activity)
                 onDone()
             }
@@ -108,9 +105,11 @@ object PaidOnboardingAppOpen {
                 Log.d(TAG, "👁️ App Open showed")
             }
 
+            override fun onAdClicked() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
+
             override fun onAdDismissedFullScreenContent() = finish("dismissed")
 
-            override fun onAdFailedToShowFullScreenContent(error: AdError) {
+            override fun onAdFailedToShowFullScreenContent(error: FullScreenContentError) {
                 Log.w(TAG, "❌ App Open failed to show: ${error.code} ${error.message}")
                 finish("show-failed")
             }

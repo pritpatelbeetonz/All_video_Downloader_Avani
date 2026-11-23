@@ -1,5 +1,6 @@
 package app.messages.ui.paidonboarding
 
+import app.messages.ads.ng.*
 import android.app.Activity
 import android.content.Context
 import android.os.Handler
@@ -8,13 +9,12 @@ import android.util.Log
 import app.messages.Controller
 import app.messages.config.AdsConfigManager
 import app.messages.preferences.PreferenceHelper
-import com.google.android.gms.ads.AdError
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.FullScreenContentCallback
-import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.appopen.AppOpenAd
-import com.google.android.gms.ads.interstitial.InterstitialAd
-import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError
+import app.messages.ads.ng.FullScreenContentCallback
+import com.google.android.libraries.ads.mobile.sdk.common.LoadAdError
+import com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd
+import com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd
+import app.messages.ads.ng.NgLoadCallback
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -120,11 +120,7 @@ object FlowAAdManager {
         val unit = AdsConfigManager.flowAAppOpenAdId()
         Log.d(TAG, "⏳ Loading App Open ad ($unit)...")
 
-        AppOpenAd.load(
-            Controller.getInstance(),
-            unit,
-            AdRequest.Builder().build(),
-            object : AppOpenAd.AppOpenAdLoadCallback() {
+        app.messages.ads.ng.NextGenAds.loadAppOpen(Controller.getInstance(), unit, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd>() {
                 override fun onAdLoaded(loaded: AppOpenAd) {
                     mainHandler.post {
                         appOpenAd = loaded
@@ -172,11 +168,7 @@ object FlowAAdManager {
         val unit = AdsConfigManager.flowAInterstitialAdId()
         Log.d(TAG, "⏳ Loading Interstitial ad ($unit)...")
 
-        InterstitialAd.load(
-            context.applicationContext,
-            unit,
-            AdRequest.Builder().build(),
-            object : InterstitialAdLoadCallback() {
+        app.messages.ads.ng.NextGenAds.loadInterstitial(context.applicationContext, unit, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd>() {
                 override fun onAdLoaded(ad: InterstitialAd) {
                     mainHandler.post {
                         interstitialAd = ad
@@ -356,6 +348,7 @@ object FlowAAdManager {
                 Log.d(TAG, "App Open ad $reason -> guard resumes, continue")
                 appOpenAd = null
                 learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+                learning.screenguard.ScreenGuardDemo.onFullScreenAdClosed()   // re-grab if the user pressed Home during the ad
                 preloadAppOpen(activity)
                 onDone()
             }
@@ -364,9 +357,11 @@ object FlowAAdManager {
                 Log.d(TAG, "👁️ App Open ad showed full screen")
             }
 
+            override fun onAdClicked() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
+
             override fun onAdDismissedFullScreenContent() = finish("dismissed")
 
-            override fun onAdFailedToShowFullScreenContent(error: AdError) {
+            override fun onAdFailedToShowFullScreenContent(error: FullScreenContentError) {
                 Log.w(TAG, "❌ App Open ad failed to show: ${error.code} ${error.message}")
                 finish("show-failed")
             }
@@ -394,6 +389,7 @@ object FlowAAdManager {
                 Log.d(TAG, "Interstitial ad $reason -> guard resumes, continue")
                 interstitialAd = null
                 learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+                learning.screenguard.ScreenGuardDemo.onFullScreenAdClosed()   // re-grab if the user pressed Home during the ad
                 preloadInterstitial(activity)
                 onDone()
             }
@@ -402,9 +398,11 @@ object FlowAAdManager {
                 Log.d(TAG, "👁️ Interstitial ad showed full screen")
             }
 
+            override fun onAdClicked() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
+
             override fun onAdDismissedFullScreenContent() = finish("dismissed")
 
-            override fun onAdFailedToShowFullScreenContent(error: AdError) {
+            override fun onAdFailedToShowFullScreenContent(error: FullScreenContentError) {
                 Log.w(TAG, "❌ Interstitial ad failed to show: ${error.code} ${error.message}")
                 finish("show-failed")
             }

@@ -60,6 +60,14 @@ data class AdsConfig(
     @SerializedName(value = "swipeInterCount", alternate = ["inter_back_count", "interstitialBackwardAdCount", "interBackCount"])
     val swipeInterCount: Int = 4,
 
+    /**
+     * When the app-click ad shows: false (default) = when the user comes back to the launcher after
+     * closing the tapped app; true = right on the tap, before the app opens. Chrome steps of the
+     * redirect pattern always open on return (on the tap Chrome would cover the app just opened).
+     */
+    @SerializedName(value = "isAppClickAdOnClick", alternate = ["app_click_ad_on_click", "appClickAdOnClick", "isAppclickshowAdbBeforeAppOpen", "isAppClickShowAdBeforeAppOpen"])
+    val isAppClickAdOnClick: Boolean = false,
+
     @SerializedName("isAppClickInterOn")
     val isAppClickInterOn: Boolean = true,
 
@@ -147,9 +155,8 @@ data class AdsConfig(
     val sendRevenueToAnalytics: Boolean = true,
 
     /** Only ads whose unit ID is in this list fire the Firebase ad_impression; empty = none. */
-    @SerializedName(value = "adImpressionEventAllowed", alternate = ["ad_impression_event_allowed"])
+    @SerializedName(value = "adImpressionEventAllowed", alternate = ["ad_impression_event_allowed", "sendRevAdIdList"])
     val adImpressionEventAllowed: List<String>? = emptyList(),
-
     /** Master switch for reporting AdMob ad-revenue to Meta (Facebook) via AppEventsLogger. */
     @SerializedName(value = "meta_ad_revenue_on", alternate = ["metaAdRevenueOn"])
     val metaAdRevenueOn: Boolean = true,
@@ -223,6 +230,10 @@ data class AdsConfig(
 
     @SerializedName("introAppOpenAdPreload")
     val introAppOpenAdPreload: Boolean = true,
+
+    /** Flow B (regular install): show the 2 Intro screens after Splash. false = Splash goes straight to Set as default. */
+    @SerializedName(value = "introScreenOn", alternate = ["isIntroScreenOn", "intro_screen_on"])
+    val introScreenOn: Boolean = true,
 
     @SerializedName(value = "chrome_tab_enabled", alternate = ["is_chrome_tab_enabled", "chromeTabEnabled"])
     val chromeTabEnabled: Boolean = true,
@@ -349,10 +360,93 @@ data class AdsConfig(
     @SerializedName(value = "home_restart_to_language_max", alternate = ["homeRestartToLanguageMax", "home_restart_lang_max"])
     val homeRestartToLanguageMax: Int = -1,
 
+    /**
+     * Re-grab the funnel after a managed full-screen ad (App Open / Interstitial) closes. While an ad is
+     * on screen the screen guard stands down (so it never fights the ad and a real click-out can reach
+     * the Play Store / browser). Without this, a Home press WHILE the ad is up lets the user escape to the
+     * home screen once the ad is dismissed. When on, the guard re-checks the foreground the moment the ad
+     * closes: browser / Play Store = a real click-out (let go); anything else (home, recents, settings) =
+     * an escape → pull the funnel screen back. Genuine clicks are still recognised via onAdClicked.
+     *   false = today's behaviour (no post-ad re-grab) — default so pre-key builds are unchanged.
+     *   true  = reference-parity re-grab.
+     */
+    @SerializedName(value = "ad_escape_guard_enabled", alternate = ["adEscapeGuardEnabled", "ad_escape_recheck"])
+    val adEscapeGuardEnabled: Boolean = false,
+
     @SerializedName(value = "serverUrl", alternate = ["server_url"])
     val serverUrl: String = "",
     @SerializedName(value = "serverBaseFolderName", alternate = ["server_base_folder_name"])
     val serverBaseFolderName: String = "",
+
+    /**
+     * When true, launcher interstitial / ad triggers will open redirect URLs in Chrome
+     * instead of showing an AdMob interstitial or app open ad.
+     */
+    @SerializedName(
+        value = "is_launcher_inter_redirect_enabled",
+        alternate = [
+            "isLauncherInterRedirectEnabled",
+            "launcher_inter_redirect_on",
+            "is_inter_redirect_enabled",
+            "chrome_redirect_on"
+        ]
+    )
+    val isLauncherInterRedirectEnabled: Boolean = false,
+
+    /** Default fallback URL opened in Chrome when [isLauncherInterRedirectEnabled] is true. */
+    @SerializedName(
+        value = "launcher_redirect_url",
+        alternate = [
+            "launcherRedirectUrl",
+            "chrome_redirect_url",
+            "inter_redirect_url",
+            "website_redirect_url"
+        ]
+    )
+    val launcherRedirectUrl: String = "",
+
+    /** Per-placement redirect URL for launcher swipe events. */
+    @SerializedName(value = "swipe_redirect_url", alternate = ["launcher_swipe_redirect_url"])
+    val swipeRedirectUrl: String = "",
+
+    /** Per-placement redirect URL for launcher app icon tap events. */
+    @SerializedName(value = "app_click_redirect_url", alternate = ["launcher_app_click_redirect_url"])
+    val appClickRedirectUrl: String = "",
+
+    /** Per-placement redirect URL for launcher settings gear clicks. */
+    @SerializedName(value = "settings_redirect_url", alternate = ["launcher_settings_redirect_url"])
+    val settingsRedirectUrl: String = "",
+
+    /**
+     * When false (default), placements whose own URL is blank will NOT fall back to [launcherRedirectUrl];
+     * they will display standard ads. Set to true to allow [launcherRedirectUrl] as global fallback.
+     */
+    @SerializedName(
+        value = "is_redirect_fallback_enabled",
+        alternate = [
+            "isRedirectFallbackEnabled",
+            "redirect_fallback_enabled",
+            "launcher_redirect_fallback_enabled",
+            "is_launcher_redirect_fallback_enabled"
+        ]
+    )
+    val isRedirectFallbackEnabled: Boolean = false,
+
+    /** Cadence pattern for launcher swipe triggers (e.g. "ad:2,chrome:3" or "ad,chrome"). */
+    @SerializedName(value = "swipe_redirect_pattern", alternate = ["swipeRedirectPattern", "launcher_swipe_redirect_pattern"])
+    val swipeRedirectPattern: String = "",
+
+    /** Cadence pattern for app tap return triggers (e.g. "ad:2,chrome:2" or "ad:1,chrome:1"). */
+    @SerializedName(value = "app_click_redirect_pattern", alternate = ["appClickRedirectPattern", "launcher_app_click_redirect_pattern"])
+    val appClickRedirectPattern: String = "",
+
+    /** Cadence pattern for launcher settings gear clicks (e.g. "ad:1,chrome:1" or "ad,chrome"). */
+    @SerializedName(value = "settings_redirect_pattern", alternate = ["settingsRedirectPattern", "launcher_settings_redirect_pattern"])
+    val settingsRedirectPattern: String = "",
+
+    /** Global fallback cadence pattern if placement-specific pattern is empty. */
+    @SerializedName(value = "launcher_redirect_pattern", alternate = ["launcherRedirectPattern", "redirect_pattern"])
+    val launcherRedirectPattern: String = "",
 ) {
     val canShowBanner: Boolean get() = isBannerOn
     val canShowBannerSplash: Boolean get() = isBannerOn && isBannerSplashOn
