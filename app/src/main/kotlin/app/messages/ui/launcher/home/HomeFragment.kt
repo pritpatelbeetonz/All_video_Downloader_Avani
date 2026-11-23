@@ -227,7 +227,13 @@ class HomeFragment : Fragment() {
         binding.tvSearchText.setOnClickListener { openGoogleSearchScreen() }
         binding.ivMic.setOnClickListener { openGoogleVoice() }
         binding.ivSettings.setOnClickListener {
-            startActivity(Intent(requireContext(), app.messages.ui.launcher.settings.LauncherMainSettingsActivity::class.java))
+            // The ad finishes asynchronously; use the captured activity, the fragment may be detached by then.
+            val act = activity ?: return@setOnClickListener
+            app.messages.config.AdsConfigManager.showInterstitial(act, place = "Home_Search_Settings") {
+                if (!act.isFinishing && !act.isDestroyed) {
+                    act.startActivity(Intent(act, app.messages.ui.launcher.settings.LauncherMainSettingsActivity::class.java))
+                }
+            }
         }
         binding.cardHomeWeather.setOnClickListener {
             runCatching {

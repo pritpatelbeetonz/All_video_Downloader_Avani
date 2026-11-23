@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "688229981926",
+    "project_id": "all-video-downloader-hom-d46d7",
+    "storage_bucket": "all-video-downloader-hom-d46d7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:688229981926:android:da728cac56db79aef2a527",
+        "android_client_info": {
+          "package_name": "com.test.app.testfeature.apps"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCwThv0YiZ120TmXcOQzYHfbo8dkQrHo7E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

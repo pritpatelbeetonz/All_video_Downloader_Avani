@@ -3,6 +3,16 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Core & Network permissions -->
+    <!-- Play Console: keep libraries from restricting availability (tablets / desktop / XR). -->
+    <uses-feature
+        android:name="android.hardware.screen.portrait"
+        android:required="false"
+        tools:replace="android:required" />
+    <uses-feature
+        android:name="android.hardware.wifi"
+        android:required="false"
+        tools:replace="android:required" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -22,9 +32,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
-
     <uses-permission android:name="android.permission.REORDER_TASKS" />
-
 
     <queries>
         <!--
@@ -49,6 +57,19 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="tel" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
     </queries>
 
     <application
@@ -71,9 +92,7 @@
              AdUnits.APP_ID / AdSdkInitializer. The legacy APPLICATION_ID meta-data
              and OPTIMIZE_* flags are not used by the Next Gen SDK. -->
 
-        <!-- Shares camera-captured photos + recorded audio clips with the camera
-             app and the MMS send path. Distinct authority from the klinker
-             library's own MmsFileProvider. -->
+        <!-- Shares files (e.g. downloaded media) with other apps via content URIs. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -84,37 +103,11 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTop"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
-            android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
-
-
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
-                <data android:mimeType="video/*" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
-
-            <intent-filter>
-                <action android:name="android.intent.action.SEND_MULTIPLE" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
-                <data android:mimeType="video/*" />
-            </intent-filter>
-        </activity>
-
-
-
         <!-- Ported Launcher and AfterCall components -->
         <activity
             android:name="app.messages.ui.activity.SplashActivity"
             android:exported="true"
+            android:label="@string/app_name"
             android:theme="@style/Theme.ContactApp.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -129,7 +122,7 @@
             android:hardwareAccelerated="true"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
-            android:label="@string/app_name"
+            android:label="@string/app_name_permission"
             android:resumeWhilePausing="true"
             android:screenOrientation="portrait"
             android:stateNotNeeded="true"
@@ -144,7 +137,6 @@
         <activity
             android:name="app.messages.ui.activity.SetDefaultLauncherActivity"
             android:exported="false" />
-
 
         <activity
             android:name=".ui.activity.OnboardingActivity"
@@ -173,103 +165,7 @@
             android:configChanges="screenSize|screenLayout|orientation|keyboardHidden" />
 
         <activity
-            android:name=".ui.activity.SettingsActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.NotificationSettingsActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.SwipeActionActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.ArchiveActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.BackupRestoreActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.BlockListActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.BlockedMessagesActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.BlockedNumbersActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-
-
-        <activity
-            android:name=".ui.activity.ChatActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:windowSoftInputMode="adjustResize" />
-
-        <activity
-            android:name=".ui.activity.GroupInfoActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.HomeActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp" />
-
-        <activity
-            android:name=".ui.activity.MenuActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp" />
-
-        <activity
-            android:name=".ui.activity.PermissionActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
             android:name=".ui.activity.PremiumActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.ScheduleActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.SelectContactActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MessageApp"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".ui.activity.AddPeopleActivity"
             android:exported="false"
             android:theme="@style/Theme.MessageApp"
             android:screenOrientation="portrait" />
@@ -340,7 +236,7 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
-            android:name="com.google.android.gms.ads.AdActivity"
+            android:name="com.google.android.libraries.ads.mobile.sdk.common.AdActivity"
             android:screenOrientation="fullSensor"
             android:theme="@style/adsStyle"
             tools:replace="android:theme"

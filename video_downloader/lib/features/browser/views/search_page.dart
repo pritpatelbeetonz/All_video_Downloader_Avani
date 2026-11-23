@@ -5,7 +5,7 @@ import 'package:video_downloader/import_all.dart';
 import 'package:video_downloader/for_ads/ads/ads_splash_utils.dart';
 import 'package:video_downloader/for_ads/ads/ads_load_util.dart';
 import 'package:video_downloader/for_ads/ads/ads_variable.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:video_downloader/for_ads/ng/ng_ads.dart';
 import '../providers/SearchToBrowser.dart';
 import '../providers/Browser_data_provider.dart';
 import '../widgets/tabs_bottom_sheet.dart';
@@ -55,8 +55,12 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
   }
 
   void _onDownloaderVisibilityChanged() {
-    if (mounted && AppBigNativeAdPool.downloaderVisible.value) {
+    if (!mounted) return;
+    if (AppBigNativeAdPool.downloaderVisible.value) {
       _refreshHomeBigNativeAd();
+    } else {
+      // Page hidden: detach so an in-flight ad is cached for the next visit, not rendered unseen.
+      AppBigNativeAdPool.detachScreen('SearchPage');
     }
   }
 
@@ -127,7 +131,9 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
     AppBigNativeAdPool.loadForScreen(
       screenTag: 'SearchPage',
       onLoaded: (newAd) {
-        if (!mounted || ref.read(bottomNavProvider) != 0) {
+        if (!mounted ||
+            ref.read(bottomNavProvider) != 0 ||
+            !AppBigNativeAdPool.downloaderVisible.value) {
           showLog("📦💾 [Home Native Ad] Screen unmounted or switched away -> Caching fresh ad into pool");
           AppBigNativeAdPool.cacheUnshownAd(newAd);
           return;
@@ -140,8 +146,9 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
           _isLoadingBigNativeAd = false;
         });
         if (oldAd != null && oldAd != newAd) {
+          // After the swap animation: seen -> disposed, never seen -> back into the pool.
           Future.delayed(const Duration(milliseconds: 600), () {
-            oldAd.dispose();
+            AppBigNativeAdPool.releaseAd(oldAd, reason: 'replaced_unseen');
           });
         }
       },
@@ -165,7 +172,7 @@ class SearchPageState extends ConsumerState<SearchPage> with RouteAware {
     _homeBigNativeAd = null;
     if (adToDispose != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        adToDispose.dispose();
+        AppBigNativeAdPool.releaseAd(adToDispose, reason: 'disposed_unseen');
       });
     }
     searchbarController.dispose();

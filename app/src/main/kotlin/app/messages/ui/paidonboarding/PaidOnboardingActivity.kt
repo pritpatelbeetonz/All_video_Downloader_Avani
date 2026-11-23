@@ -55,9 +55,32 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
     private var isShiftAdRendered = false
     private val shiftHandler = Handler(Looper.getMainLooper())
 
+    /** True while an ad-only step (Chrome off, close ad on) is showing, so taps can't start it twice. */
+    private var isAdOnlyStepRunning = false
+
+    /** Chrome off + close ad on: show the step's ad, then move to [target]. */
+    private fun runAdOnlyStep(stepTag: String, target: Int) {
+        if (isAdOnlyStepRunning) return
+        isAdOnlyStepRunning = true
+        PaidChromeTabManager.showAdOnlyStep(this, stepTag) {
+            isAdOnlyStepRunning = false
+            if (!isFinishing && !isDestroyed && target in 0 until pages.size) {
+                binding.pager.currentItem = target
+            }
+        }
+    }
+
+    /** Active Remote Config step sequence (Next), or null when the step uses the legacy flow. */
+    private var sequenceRunner: FlowASequenceRunner? = null
+
     private val chromeTabLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) {
+        sequenceRunner?.takeIf { it.awaitingChrome }?.let {
+            Log.d(TAG, "Chrome Custom Tab closed -> continue step sequence")
+            it.onChromeClosed()
+            return@registerForActivityResult
+        }
         val backPos = pendingBackPosition
         val nextPos = pendingNextPosition
         val tag = pendingStepTag ?: if (nextPos in 0 until pages.size) "page_${nextPos}" else "default"
@@ -153,6 +176,10 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
                     )
                     if (launched) return@addCallback
                     pendingStepTag = null
+                } else if (isFunnelTrapActive() && PaidChromeTabManager.shouldShowAdOnlyBetweenPages(prev)) {
+                    // Chrome off, close ad on: the ad is the back step, then land on the previous page.
+                    runAdOnlyStep("back_${current + 1}", prev)
+                    return@addCallback
                 }
                 binding.pager.currentItem = prev
             } else {
@@ -199,6 +226,10 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         FlowAAdBinder.bindBanner(this, position + 1, binding.adBannerContainer, bannerAdLauncher)
         FlowAAdBinder.preloadForPage(this, position + 2)
         FlowAAdManager.preloadForStep(this, "page_${position + 1}")
+        FlowASequenceRunner.preload(this, "page_${position + 1}")   // ads a Remote Config sequence will show
+        // Prefetch the NEXT web step's page so the Custom Tab is ready the instant the user taps Next
+        // (fresh, cache-busted URL — no stale cached page).
+        PaidChromeTabManager.prefetchStep(this, "page_${position + 1}")
         preloadLauncherAdsNearEnd(position)
         if (page is PaidPage.Feature) {
             binding.tvCaption.setText(page.captionRes)
@@ -228,6 +259,44 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         FlowAEscapeLogger.logFunnelEvery(this, "onb_${position + 1}_clicked")
         if (position < pages.lastIndex) {
             val nextPos = position + 1
+            // Remote Config sequence for this step (e.g. inter -> chrome -> app_open -> chrome).
+            if (sequenceRunner == null) {
+                val stepTag = "page_${position + 1}"
+                // Remember the destination so a process-death recovery (sequenceRunner is a transient
+                // field, not saved) can still advance via the chromeTabLauncher fallback instead of
+                // leaving the user stuck on this page. Cleared in onDone (and if forStep returns null).
+                pendingNextPosition = nextPos
+                pendingStepTag = stepTag
+                val runner = FlowASequenceRunner.forStep(
+                    activity = this,
+                    stepTag = stepTag,
+                    launchChrome = { onFallback ->
+                        PaidChromeTabManager.launch(
+                            activity = this,
+                            launcher = chromeTabLauncher,
+                            stepTag = stepTag,
+                            onFallback = onFallback
+                        )
+                    },
+                    onDone = {
+                        sequenceRunner = null
+                        pendingNextPosition = -1
+                        pendingStepTag = null
+                        if (!isFinishing && !isDestroyed) binding.pager.currentItem = nextPos
+                    }
+                )
+                if (runner != null) {
+                    sequenceRunner = runner
+                    runner.start()
+                    return
+                }
+                // No Remote Config sequence for this step -> fall through to the legacy web/ad step,
+                // which sets its own pending values; clear our guesses first.
+                pendingNextPosition = -1
+                pendingStepTag = null
+            } else {
+                return   // a sequence is already running; ignore extra taps
+            }
             if (PaidChromeTabManager.shouldShowBetweenPages(this, position)) {
                 pendingNextPosition = nextPos
                 pendingStepTag = "page_${position + 1}"
@@ -249,6 +318,10 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
                     return
                 }
                 pendingStepTag = null
+            } else if (PaidChromeTabManager.shouldShowAdOnlyBetweenPages(position)) {
+                // Chrome off, close ad on: the ad is the step between pages, then advance.
+                runAdOnlyStep("page_${position + 1}", nextPos)
+                return
             }
             binding.pager.currentItem = nextPos
         } else {
@@ -267,7 +340,7 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         Log.d(TAG, "✅ Flow A done -> Launcher")
         PaidOnboardingPrefs.setDone(this)
         // Flow A is over: now it is safe to boot the Flutter engine (deferred for the whole funnel).
-        (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
+        app.messages.feature.LauncherSlot.warmUp(applicationContext)
         // Flow A attribution funnel: ${prefix}_onb_done (completion).
         FlowAEscapeLogger.logFunnelEvery(this, "onb_done")
         startActivity(

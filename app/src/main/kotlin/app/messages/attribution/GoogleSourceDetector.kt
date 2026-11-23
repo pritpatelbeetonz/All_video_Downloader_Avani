@@ -28,13 +28,19 @@ internal object GoogleSourceDetector {
 
         // Stage 1: markers in the raw text
         if (config.isCheckGoogleUtmList) {
+            AttributionLog.d("🔵 [Google] Checking markers from Remote Config (googleAdUTMSourceCheckStringList): ${config.googleMarkers}")
             containsMarker(referrer.raw.orEmpty(), config.googleMarkers)?.let {
                 AttributionLog.d("🔵 [Google] ✅ Matched marker \"$it\"")
                 return "marker:$it"
+            } ?: run {
+                AttributionLog.d("🔵 [Google] ❌ No marker match from googleAdUTMSourceCheckStringList in referrer")
             }
+        } else {
+            AttributionLog.d("🔵 [Google] ⏭️ isCheckGoogleUtmList is false, skipping marker check")
         }
 
         // Stage 2: rules on the parsed parameters
+        AttributionLog.d("🔵 [Google] Checking rules from Remote Config (googleReferrerRules): ${config.googleReferrerRules}")
         config.googleReferrerRules.forEachIndexed { i, rule ->
             if (matchesRule(referrer.params, rule)) {
                 AttributionLog.d("🔵 [Google] ✅ Matched rule $i: $rule")

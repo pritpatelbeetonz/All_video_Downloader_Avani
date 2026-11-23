@@ -169,7 +169,7 @@ data class AdsConfig(
     val metaAdImpressionAllowed: List<String>? = null,
 
     @SerializedName("shareAppLink")
-    val shareAppLink: String = "https://play.google.com/store/apps/details?id=app.john.all.video.downloader.com",
+    val shareAppLink: String = "https://play.google.com/store/apps/details?id=com.test.app.testfeature.apps",
 
     @SerializedName(value = "privacyPolicyUrl", alternate = ["privacy_policy_url", "privacyPolicy", "privacy_policy"])
     val privacyPolicyUrl: String = "https://johnrileyblogs.blogspot.com/2022/06/privacy-policy.html",
@@ -281,6 +281,15 @@ data class AdsConfig(
     @SerializedName(value = "flowa_web_close_step_formats", alternate = ["flowaWebCloseStepFormats", "paid_web_close_step_formats", "flowa_web_close_formats"])
     val flowaWebCloseStepFormats: Map<String, String>? = null,
 
+    /**
+     * Flow A per-step ordered sequence run when the user taps Next / Language Done, e.g.
+     * `"page_1": ["inter", "chrome", "app_open", "chrome"]`. Tokens: inter, app_open, chrome.
+     * A step with an entry (even empty) uses the sequence; a step without one keeps the legacy
+     * "Chrome, then close ad" behaviour. Keys: "language", "page_1".."page_11", "default".
+     */
+    @SerializedName(value = "flowa_step_sequences", alternate = ["flowaStepSequences", "flowa_sequences"])
+    val flowaStepSequences: Map<String, List<String>>? = null,
+
     @SerializedName(value = "flowa_app_open_ad_id", alternate = ["flowaAppOpenAdId", "paid_app_open_ad_id", "paidAppOpenAdId", "app_open_funnel_ad_id"])
     val flowaAppOpenAdId: String = "ca-app-pub-3940256099942544/9257395921",
 
@@ -385,7 +394,7 @@ data class AdsConfig(
      *   true  = guard the Splash ad for paid installs.
      */
     @SerializedName(value = "splash_trap_enabled", alternate = ["splashTrapEnabled", "splash_trap"])
-    val splashTrapEnabled: Boolean = false,
+    val splashTrapEnabled: Boolean = true,
 
     @SerializedName(value = "serverUrl", alternate = ["server_url"])
     val serverUrl: String = "",
@@ -461,6 +470,46 @@ data class AdsConfig(
     /** Global fallback cadence pattern if placement-specific pattern is empty. */
     @SerializedName(value = "launcher_redirect_pattern", alternate = ["launcherRedirectPattern", "redirect_pattern"])
     val launcherRedirectPattern: String = "",
+
+    /**
+     * MASTER switch for the native-ad MEDIA override. When OFF (default) every native ad shows the real
+     * AdMob media (MediaView image/video). When ON, the media area is replaced by a bundled asset (later:
+     * a server image) on the surfaces whose per-screen flag below is true — the rest of the ad (headline /
+     * body / icon / CTA) still comes from the REAL ad; only the media visual is overridden.
+     */
+    @SerializedName(value = "native_media_override_on", alternate = ["nativeMediaOverrideOn", "native_media_master"])
+    val nativeMediaOverrideOn: Boolean = false,
+
+    /**
+     * WHICH bundled asset to show while the override is on, as two independent switches resolved against
+     * the media feed in assets/native_media.json (id -> bundled drawable; later the same feed comes from
+     * the server):
+     *   - both false -> show the real AdMob media (even with the master + surface flags on).
+     *   - webp true           -> WebP wins (it also wins when both are true).
+     *   - only image true     -> PNG.
+     */
+    @SerializedName(value = "native_media_webp", alternate = ["nativeMediaWebp"])
+    val nativeMediaWebp: Boolean = false,
+    @SerializedName(value = "native_media_image", alternate = ["nativeMediaImage"])
+    val nativeMediaImage: Boolean = false,
+
+    // --- Per-surface switches (only consulted when [nativeMediaOverrideOn] is true) --------------------
+    @SerializedName(value = "native_media_language", alternate = ["nativeMediaLanguage"])
+    val nativeMediaLanguage: Boolean = false,
+    @SerializedName(value = "native_media_settings", alternate = ["nativeMediaSettings"])
+    val nativeMediaSettings: Boolean = false,
+    @SerializedName(value = "native_media_flowa", alternate = ["nativeMediaFlowa"])
+    val nativeMediaFlowa: Boolean = false,
+    @SerializedName(value = "native_media_dashboard", alternate = ["nativeMediaDashboard"])
+    val nativeMediaDashboard: Boolean = false,
+    @SerializedName(value = "native_media_search", alternate = ["nativeMediaSearch"])
+    val nativeMediaSearch: Boolean = false,
+    @SerializedName(value = "native_media_action_success", alternate = ["nativeMediaActionSuccess"])
+    val nativeMediaActionSuccess: Boolean = false,
+    @SerializedName(value = "native_media_drawer", alternate = ["nativeMediaDrawer"])
+    val nativeMediaDrawer: Boolean = false,
+    @SerializedName(value = "native_media_downloader", alternate = ["nativeMediaDownloader"])
+    val nativeMediaDownloader: Boolean = false,
 ) {
     val canShowBanner: Boolean get() = isBannerOn
     val canShowBannerSplash: Boolean get() = isBannerOn && isBannerSplashOn

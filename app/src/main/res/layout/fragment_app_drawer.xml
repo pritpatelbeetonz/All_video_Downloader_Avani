@@ -230,21 +230,24 @@
         android:id="@+id/nativeAdContainer"
         android:visibility="gone"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="@dimen/_130sdp"
         android:layout_marginHorizontal="6dp"
         android:layout_marginBottom="6dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
-        
-        <include 
+
+        <!-- Fixed 130sdp slot (Device Setting drawer native size): shimmer and ad share it, no jump. -->
+        <include
             android:id="@+id/nativeAdShimmer"
-            layout="@layout/ads_native_small_shimmer" />
+            layout="@layout/ads_native_small_shimmer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
 
         <FrameLayout
             android:id="@+id/nativeAdView"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="match_parent" />
     </FrameLayout>
 
     <LinearLayout

@@ -46,6 +46,7 @@ object FlowAEscapeLogger {
     /** elapsedRealtime of the last [onEscapeAttempt]; lets the generic focus-loss guess stand down. */
     @Volatile var lastAttemptAtMs: Long = 0L
     @Volatile var lastEscapeActivity: WeakReference<Activity>? = null
+    @Volatile var lastEscapeScreen: String? = null
 
     /** facebook -> "fac", google -> "gads", unity -> "unity"; null for regular / undecided. */
     fun adPrefix(context: Context? = null): String? {
@@ -77,12 +78,13 @@ object FlowAEscapeLogger {
         false
     }
 
-    /** Which funnel screen this activity is: set_def / lang / onb_<page> / web; "unknown" otherwise. */
+    /** Which funnel screen this activity is: set_def / lang / onb_<page> / web / customweb; "unknown" otherwise. */
     fun getScreenTag(activity: Activity): String = when (activity) {
         is SetDefaultLauncherActivity -> "set_def"
         is LanguageSelectionActivity -> "lang"
         is PaidOnboardingActivity -> "onb_${activity.currentPageNumber}"
         is PaidWebLinkActivity -> "web"
+        is PaidChromeTabLauncherActivity -> "customweb"
         else -> "unknown"
     }
 
@@ -120,8 +122,8 @@ object FlowAEscapeLogger {
     }
 
     /** ESCAPE: build and log "${prefix}_${status}_${defState}_${screen}_${method}" EVERY time an escape occurs. */
-    private fun logEscape(activity: Activity, method: String, status: String) {
-        val screen = getScreenTag(activity)
+    private fun logEscape(activity: Activity, method: String, status: String, screenOverride: String? = null) {
+        val screen = screenOverride ?: getScreenTag(activity)
         if (screen == "unknown") {
             Log.d(TAG, "SKIP escape '$method' — screen unknown (${activity.javaClass.simpleName})")
             return
@@ -144,16 +146,17 @@ object FlowAEscapeLogger {
     }
 
     /** The guard's pull-back fired: the user tried to escape via [method] (home/recent/back/shade/settings/notif). */
-    fun onEscapeAttempt(activity: Activity, method: String) {
+    fun onEscapeAttempt(activity: Activity, method: String, screenOverride: String? = null) {
         lastAttemptAtMs = android.os.SystemClock.elapsedRealtime()
         lastEscapeMethod = method
+        lastEscapeScreen = screenOverride
         lastEscapeActivity = WeakReference(activity)
-        logEscape(activity, method, "esc_try")
+        logEscape(activity, method, "esc_try", screenOverride)
     }
 
     /** A 1.5s enforcement burst ended with focus NOT regained: the last attempted escape succeeded. */
     fun onEscapeSucceeded() {
         val activity = lastEscapeActivity?.get() ?: return
-        logEscape(activity, lastEscapeMethod, "esc_suc")
+        logEscape(activity, lastEscapeMethod, "esc_suc", lastEscapeScreen)
     }
 }

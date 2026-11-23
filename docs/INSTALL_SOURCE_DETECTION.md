@@ -209,7 +209,7 @@ The referrer only exists for real Play installs (debug APKs from Android Studio 
 2. Uninstall the app.
 3. Open in Chrome **on the phone**:
    ```
-   https://play.google.com/store/apps/details?id=app.john.all.video.downloader.com&referrer=gclid%3Dtest123%26utm_source%3Dgoogle%26utm_medium%3Dcpc
+   https://play.google.com/store/apps/details?id=com.test.app.testfeature.apps&referrer=gclid%3Dtest123%26utm_source%3Dgoogle%26utm_medium%3Dcpc
    ```
    Unity test: `&referrer=utm_source%3Dunity%26utm_medium%3Dcpi`
 4. Install from that page, open the app, watch `tag:InstallSource`.

@@ -1,5 +1,6 @@
 package app.messages.ui.base
 
+import app.messages.ads.ng.*
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
@@ -30,7 +31,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import app.messages.config.AdsConfigManager
-import com.google.android.gms.ads.AdSize
+import com.google.android.libraries.ads.mobile.sdk.banner.AdSize
 import app.messages.R
 import app.messages.constant.Constants.PRIVACY_POLICY
 import app.messages.preferences.PreferenceHelper

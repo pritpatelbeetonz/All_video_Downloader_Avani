@@ -13,6 +13,20 @@ import io.flutter.embedding.android.TransparencyMode
 
 class VideoDownloaderContainerFragment : Fragment() {
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // Restore after process death (launcher re-created by Home / the system): super.onCreate re-creates
+        // the saved FlutterFragment, which attaches to the cached engine right away. The engine is only
+        // warmed later (idle / deferred attach), so without this it crashed with "cached FlutterEngine did
+        // not exist" on every restart -> crash loop -> "failed to start several times". Must run BEFORE
+        // super.onCreate. Fresh creates (no saved state) keep the deferred, non-blocking path below.
+        // LauncherActivity now starts with super.onCreate(null), so this restore path should not run any
+        // more; kept as a safety net (e.g. if this fragment is ever hosted elsewhere).
+        if (savedInstanceState != null) {
+            (requireContext().applicationContext as? app.messages.MessagesApplication)?.ensureFlutterEngineReady()
+        }
+        super.onCreate(savedInstanceState)
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -24,21 +38,29 @@ class VideoDownloaderContainerFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val existing = childFragmentManager.findFragmentByTag(TAG_FLUTTER)
-        if (existing == null) {
-            // Safety: the engine is warmed just after Application.onCreate (deferred to avoid the
-            // startup ANR). If we somehow reach here before that ran, warm it now so withCachedEngine
-            // never fails with "cached FlutterEngine did not exist".
-            (requireContext().applicationContext as? app.messages.MessagesApplication)?.ensureFlutterEngineReady()
-            val flutterFragment = FlutterFragment.withCachedEngine(VideoDownloaderEngineHelper.ENGINE_ID)
-                .renderMode(RenderMode.texture)
-                .transparencyMode(TransparencyMode.opaque)
-                .build<FlutterFragment>()
-
-            childFragmentManager.beginTransaction()
-                .replace(R.id.flutter_container, flutterFragment, TAG_FLUTTER)
-                .commitNowAllowingStateLoss()
+        if (childFragmentManager.findFragmentByTag(TAG_FLUTTER) != null) return
+        val application = requireContext().applicationContext as? app.messages.MessagesApplication
+        if (application == null || application.isFlutterEngineWarmed) {
+            attachFlutter()
+        } else {
+            // Engine not warm yet: booting it here ran inside the layout pass and froze the main
+            // thread for seconds (ANR warning). Let the launcher draw its first frame, then boot.
+            view.postDelayed({ if (isAdded && view != null) attachFlutter() }, 400)
         }
+    }
+
+    private fun attachFlutter() {
+        if (childFragmentManager.findFragmentByTag(TAG_FLUTTER) != null) return
+        // Safety net so withCachedEngine never fails with "cached FlutterEngine did not exist".
+        (requireContext().applicationContext as? app.messages.MessagesApplication)?.ensureFlutterEngineReady()
+        val flutterFragment = FlutterFragment.withCachedEngine(VideoDownloaderEngineHelper.ENGINE_ID)
+            .renderMode(RenderMode.texture)
+            .transparencyMode(TransparencyMode.opaque)
+            .build<FlutterFragment>()
+
+        childFragmentManager.beginTransaction()
+            .replace(R.id.flutter_container, flutterFragment, TAG_FLUTTER)
+            .commitNowAllowingStateLoss()
     }
 
     private val markVisible = Runnable { VideoDownloaderEngineHelper.setDownloaderVisible(true) }
@@ -59,6 +81,9 @@ class VideoDownloaderContainerFragment : Fragment() {
 
     companion object {
         private const val TAG_FLUTTER = "tag_flutter_video_downloader"
-        private const val VISIBLE_DEBOUNCE_MS = 400L
+        // Also the ad dwell time: the downloader's big native (pr_appBigNative) is only requested once
+        // it is "visible", so a user swiping past this page must not trigger a request whose ad lands
+        // after they have left (that ad is never shown -> low show rate).
+        private const val VISIBLE_DEBOUNCE_MS = 1000L
     }
 }

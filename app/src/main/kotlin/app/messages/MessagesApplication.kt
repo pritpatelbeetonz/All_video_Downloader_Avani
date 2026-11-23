@@ -4,7 +4,6 @@ import android.app.Application
 import android.os.Build
 import app.messages.core.prefs.AppPrefs
 import app.messages.monitoring.CrashReporter
-import app.messages.notifications.NotificationChannels
 import app.messages.utility.ThemeUtils
 import coil.ImageLoader
 import coil.ImageLoaderFactory
@@ -68,9 +67,6 @@ class MessagesApplication : Controller(), ImageLoaderFactory {
             .crashReporter()
             .install()
         DynamicColors.applyToActivitiesIfAvailable(this)
-        // Create the notification channels up front so they're visible (and
-        // user-configurable) in system settings before the first message.
-        NotificationChannels.ensure(this)
         observeThemeMode()
         // Kick off Flutter's native loading asynchronously now (this returns fast — the heavy
         // asset extraction runs on Flutter's own background executor). The BLOCKING part
@@ -92,6 +88,7 @@ class MessagesApplication : Controller(), ImageLoaderFactory {
     }
 
     @Volatile private var flutterEngineWarmed = false
+    val isFlutterEngineWarmed: Boolean get() = flutterEngineWarmed
     private var flutterWarmupScheduled = false
 
     /**

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:video_downloader/for_ads/ng/ng_ads.dart';
 import 'package:lottie/lottie.dart';
 import 'package:video_downloader/for_ads/ads/ads_load_util.dart';
 import 'package:video_downloader/for_ads/ads/ads_variable.dart';
@@ -107,7 +107,7 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
     });
     if (oldAd != null && oldAd != newAd) {
       Future.delayed(const Duration(milliseconds: 600), () {
-        oldAd.dispose();
+        AppBigNativeAdPool.releaseAd(oldAd, reason: 'replaced_unseen');
       });
     }
   }
@@ -120,8 +120,10 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
     final adToDispose = _loadingNativeAd;
     _loadingNativeAd = null;
     if (adToDispose != null) {
+      // Loading screens often close right after the ad lands (fast downloads): an ad that never
+      // got an impression goes back into the pool for the next screen instead of being disposed.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        adToDispose.dispose();
+        AppBigNativeAdPool.releaseAd(adToDispose, reason: 'disposed_unseen');
       });
     }
     super.dispose();
@@ -178,10 +180,20 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
       body: PopScope(
         canPop: false,
         child: SafeArea(
-          child: SingleChildScrollView(
+          // Full-width + at least full-height column, so the loader/title are centered on screen
+          // (a bare Column in a scroll view shrank to its widest text and hugged the top-left).
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: constraints.maxWidth - 40,
+              minHeight: constraints.maxHeight - 24,
+            ),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // ═══════════════════════════════════════════════════════════
                 // UPSIDE: STATUS & LOADER
@@ -429,6 +441,8 @@ class _LoadingChartWidgetState extends ConsumerState<LoadingChartWidget> {
 
                 const SizedBox(height: 12),
               ],
+            ),
+            ),
             ),
           ),
         ),

@@ -558,6 +558,7 @@ object AdsConfigManager {
             isWebViewOn = fromJson.isWebViewOn,
             flowaWebCloseAdOn = fromJson.flowaWebCloseAdOn,
             flowaWebCloseStepFormats = fromJson.flowaWebCloseStepFormats,
+            flowaStepSequences = fromJson.flowaStepSequences,
             flowaAppOpenAdId = fromJson.flowaAppOpenAdId,
             flowaInterstitialAdId = fromJson.flowaInterstitialAdId,
             paidAppOpenCloseInterval = fromJson.paidAppOpenCloseInterval,
@@ -624,6 +625,16 @@ object AdsConfigManager {
     fun isFlowAWebCloseAdOn(): Boolean = config.flowaWebCloseAdOn
 
     fun getFlowAWebCloseStepFormats(): Map<String, String>? = config.flowaWebCloseStepFormats
+
+    /**
+     * Ordered Flow A sequence for [stepTag] ("language", "page_N"), or null when the step has none
+     * (then the legacy Chrome -> close-ad behaviour applies). An explicit empty list = no web/ad step.
+     */
+    fun getFlowAStepSequence(stepTag: String): List<String>? {
+        val map = config.flowaStepSequences
+        if (map.isNullOrEmpty()) return null
+        return map[stepTag] ?: map[stepTag.lowercase()] ?: map["default"]
+    }
 
     fun flowAAppOpenAdId(): String {
         val id = config.flowaAppOpenAdId.trim()
@@ -3611,10 +3622,13 @@ object AdsConfigManager {
 
     fun populateNativeAdView(
         nativeAd: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd,
-        adView: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
+        adView: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView,
+        surface: String = ""
     ) {
         val install = adView.findViewById<android.widget.TextView>(app.messages.R.id.ad_call_to_action)
-        val mediaView = adView.findViewById<com.google.android.libraries.ads.mobile.sdk.nativead.MediaView>(app.messages.R.id.ad_media)
+        // Media area: real AdMob MediaView, or the override image when Remote Config asks for it on this
+        // surface (returns null then, so no MediaView is registered). Rest of the ad stays real.
+        val mediaView = app.messages.ads.ng.NativeMediaOverride.resolveMediaView(adView, app.messages.R.id.ad_media, surface)
         adView.headlineView = adView.findViewById<android.view.View>(app.messages.R.id.ad_headline)
         adView.bodyView = adView.findViewById<android.view.View>(app.messages.R.id.ad_body)
         adView.callToActionView = install

@@ -1,5 +1,6 @@
 package app.messages.ui.launcher.dashboard
 
+import app.messages.ads.ng.*
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -37,7 +38,16 @@ class DashboardFragment : Fragment() {
     private lateinit var suggestedAdapter: CompactAppIconAdapter
     private lateinit var recentAdapter: CompactAppIconAdapter
     private var isLoadingNativeAd = false
-    private var currentNativeAd: com.google.android.gms.ads.nativead.NativeAd? = null
+    private var currentNativeAd: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd? = null
+    /** Unit the displayed ad belongs to (a recycled Language orphan keeps its own unit). */
+    private var currentNativeAdUnit: String = ""
+
+    /** Seen -> destroyed; never seen -> back to the RAM cache for the next visit (not wasted). */
+    private fun releaseCurrentNativeAd(reason: String) {
+        val ad = currentNativeAd ?: return
+        currentNativeAd = null
+        AdsConfigManager.releaseNativeAd(currentNativeAdUnit, ad, reason)
+    }
 
     private val callPermissionsLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
@@ -95,9 +105,15 @@ class DashboardFragment : Fragment() {
 
         // Opens Launcher Settings (wallpapers, home screen, app drawer, gestures...).
         binding.cardSettings.setOnClickListener {
-            startActivity(
-                android.content.Intent(requireContext(), app.messages.ui.launcher.settings.LauncherMainSettingsActivity::class.java)
-            )
+            // The ad finishes asynchronously; use the captured activity, the fragment may be detached by then.
+            val act = activity ?: return@setOnClickListener
+            app.messages.config.AdsConfigManager.showInterstitial(act, place = "Dashboard_Settings") {
+                if (!act.isFinishing && !act.isDestroyed) {
+                    act.startActivity(
+                        android.content.Intent(act, app.messages.ui.launcher.settings.LauncherMainSettingsActivity::class.java)
+                    )
+                }
+            }
         }
 
         binding.cardStorage.setOnClickListener {
@@ -120,8 +136,15 @@ class DashboardFragment : Fragment() {
                         if (page == LauncherPagerAdapter.PAGE_MESSAGE) {
                             val config = AdsConfigManager.config
                             if (config.canShowNative && !app.messages.preferences.PreferenceHelper.getInstance(requireContext()).isPremium()) {
-                                Log.d("ADS_DASHBOARD", "👉 [DASHBOARD] User swiped to Dashboard page (Page 2) -> Requesting fresh native ad")
-                                loadNativeAd()
+                                if (isResumed) {
+                                    Log.d("ADS_DASHBOARD", "👉 [DASHBOARD] User swiped to Dashboard page (Page 2) -> loading native ad (cache first)")
+                                    loadNativeAd()
+                                } else {
+                                    // ViewPager2 selects the page BEFORE it resumes this fragment. A cache hit
+                                    // is delivered synchronously, so loading now hit the !isResumed check and the
+                                    // ad went straight back to the cache unshown. Load in onResume instead.
+                                    pendingVisitLoad = true
+                                }
                             }
                         }
                     }
@@ -149,7 +172,20 @@ class DashboardFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         viewModel.refreshDashboard()
+        // Back on the launcher while the Dashboard is the current page: an ad that landed while we were
+        // in the background went to the cache (see loadNativeAd) — show it now (instant cache hit).
+        val visitLoad = pendingVisitLoad
+        pendingVisitLoad = false
+        if (_binding != null && (visitLoad || currentNativeAd == null) &&
+            launcherViewModel.currentPage.value == LauncherPagerAdapter.PAGE_MESSAGE &&
+            AdsConfigManager.config.canShowNative
+        ) {
+            loadNativeAd()
+        }
     }
+
+    /** Set when the Dashboard page was selected before this fragment resumed; onResume does the load. */
+    private var pendingVisitLoad = false
 
     private fun bindStorageCard(state: StorageInfoState) {
         binding.tvStoragePercent.text = "${state.usedPercentage}% Used"
@@ -176,13 +212,13 @@ class DashboardFragment : Fragment() {
         // in RAM -> show it here instead of firing a new request. A Dashboard request already in flight
         // keeps going and lands in the cache for the next visit.
         AdsConfigManager.takeOrphanLanguageNativeForDashboard(requireContext())?.let { orphan ->
-            renderNativeAd(orphan)
+            renderNativeAd(orphan, config.nativeAdIdLanguage)
             return
         }
         isLoadingNativeAd = true
 
         val adUnitId = config.nativeAdIdDashboard
-        Log.d("ADS_DASHBOARD", "🚀 [DASHBOARD_REQUEST] Requesting fresh Native Dashboard Ad | UnitId: $adUnitId")
+        Log.d("ADS_DASHBOARD", "🚀 [DASHBOARD_REQUEST] Native Dashboard Ad needed (RAM cache first, network only if empty) | UnitId: $adUnitId")
 
         val hasExistingAd = binding.nativeAdFrameLayout.childCount > 0
         if (!hasExistingAd) {
@@ -202,14 +238,16 @@ class DashboardFragment : Fragment() {
                     return@loadNativeAd
                 }
 
-                if (launcherViewModel.currentPage.value != LauncherPagerAdapter.PAGE_MESSAGE) {
+                // Not resumed = launcher in background (user opened an app from Recent/Suggested while
+                // this was loading) or another page: rendering now would park it unseen -> cache it.
+                if (launcherViewModel.currentPage.value != LauncherPagerAdapter.PAGE_MESSAGE || !isResumed) {
                     // Zero Waste: User swiped away before ad finished loading -> save to RAM cache for next visit!
                     AdsConfigManager.cacheNativeAd(adUnitId, nativeAd)
                     Log.d("ADS_DASHBOARD", "💾 [DASHBOARD] User swiped away -> Cached in RAM for next visit")
                     return@loadNativeAd
                 }
 
-                renderNativeAd(nativeAd)
+                renderNativeAd(nativeAd, adUnitId)
             },
             onFailed = {
                 isLoadingNativeAd = false
@@ -222,28 +260,34 @@ class DashboardFragment : Fragment() {
     }
 
     /** Inflates the dashboard native template with [nativeAd] (own Dashboard ad or recycled Language orphan). */
-    private fun renderNativeAd(nativeAd: com.google.android.gms.ads.nativead.NativeAd) {
-        // Clean up previous native ad instance to prevent memory leaks
-        currentNativeAd?.takeIf { it !== nativeAd }?.destroy()
+    private fun renderNativeAd(nativeAd: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd, unitId: String) {
+        // Previous ad: destroyed if it was seen, recycled into the cache if it never got an impression.
+        if (currentNativeAd !== nativeAd) releaseCurrentNativeAd("replaced_unseen")
         currentNativeAd = nativeAd
+        currentNativeAdUnit = unitId
         Log.d("ADS_DASHBOARD", "♻️ [DASHBOARD_CLEANUP] Cleaned up previous ad instance")
 
         binding.nativeAdCardView.visibility = View.VISIBLE
         binding.nativeAdShimmerFrameLayout.visibility = View.GONE
         binding.nativeAdFrameLayout.visibility = View.VISIBLE
+        val replacing = binding.nativeAdFrameLayout.childCount > 0
         binding.nativeAdFrameLayout.removeAllViews()
 
-        val adView = layoutInflater.inflate(R.layout.ads_native_dashboard, null, false) as com.google.android.gms.ads.nativead.NativeAdView
-        AdsConfigManager.populateNativeAdView(nativeAd, adView)
+        val adView = layoutInflater.inflate(R.layout.ads_native_dashboard, null, false) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
+        AdsConfigManager.populateNativeAdView(nativeAd, adView, "dashboard")
 
         binding.nativeAdFrameLayout.addView(adView)
+        if (replacing) {
+            // Swap in the new ad with a short fade instead of a hard cut (Device Setting behaviour).
+            adView.alpha = 0f
+            adView.animate().alpha(1f).setDuration(250).start()
+        }
         Log.d("ADS_DASHBOARD", "✨ [DASHBOARD_SHOWN] Native Dashboard Ad inflated, populated, and DISPLAYED ON SCREEN successfully! 🎉")
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        currentNativeAd?.destroy()
-        currentNativeAd = null
+        releaseCurrentNativeAd("view_destroyed_unseen")
         _binding = null
     }
 }

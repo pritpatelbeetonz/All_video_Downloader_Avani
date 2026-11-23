@@ -62,7 +62,9 @@
     <string name="search_suggestions">Search Suggestions</string>
     <string name="fill_search">Fill search</string>
     <string name="clear_all">Clear All</string>
-    <string name="app_name_permission" translatable="false">#Messages</string>
+    <string name="app_name_permission" translatable="false">#All Video Downloader</string>
+    <string name="edge_tab_video_downloader">Video Downloader</string>
+    <string name="edge_tab_dashboard">Dashboard</string>
     <string name="next">Next</string>
     <string name="home">Home</string>
     <string name="set_as_default">Set as Default</string>

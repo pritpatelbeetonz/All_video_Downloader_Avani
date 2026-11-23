@@ -1,5 +1,6 @@
 package app.messages.search
 
+import app.messages.ads.ng.*
 import android.graphics.drawable.GradientDrawable
 import android.util.Log
 import android.view.LayoutInflater
@@ -12,7 +13,7 @@ import androidx.recyclerview.widget.RecyclerView
 import app.messages.config.AdsConfigManager
 import app.messages.databinding.ItemBlogAdPlaceholderBinding
 import app.messages.databinding.ItemBlogPostBinding
-import com.google.android.gms.ads.nativead.NativeAd
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd
 
 class GoogleSearchFeedAdapter(
     private val onBlogClick: (BlogPost) -> Unit
@@ -135,17 +136,27 @@ class GoogleSearchFeedAdapter(
                 val adView = LayoutInflater.from(binding.root.context).inflate(
                     app.messages.R.layout.ads_native_dashboard,
                     binding.nativeAdFrameLayout, false
-                ) as com.google.android.gms.ads.nativead.NativeAdView
-                app.messages.config.AdsConfigManager.populateNativeAdView(cachedAd, adView)
+                ) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
+                app.messages.config.AdsConfigManager.populateNativeAdView(cachedAd, adView, "search")
                 binding.nativeAdFrameLayout.addView(adView)
                 return
             }
+
+            if (hideIfOverCap(loadedAds, loadingAds)) return
 
             // Every slot (including #0) waits until it is really on screen before requesting: requesting
             // #0 on open loaded ads behind the keyboard / suggestions / Chrome tab that were never seen.
             // Keep the shimmer frame laid out so its on-screen position is measurable.
             binding.nativeAdShimmerFrameLayout.visibility = android.view.View.VISIBLE
             binding.nativeAdFrameLayout.visibility = android.view.View.GONE
+        }
+
+        /** Session cap reached and this slot has no ad: collapse it instead of a shimmer that never fills. */
+        private fun hideIfOverCap(loadedAds: Map<Int, NativeAd>, loadingAds: Set<Int>): Boolean {
+            if (loadedAds.size + loadingAds.size < MAX_ADS_PER_SESSION) return false
+            binding.nativeAdShimmerFrameLayout.visibility = android.view.View.GONE
+            binding.nativeAdFrameLayout.visibility = android.view.View.GONE
+            return true
         }
 
         private var scrollDebounceRunnable: Runnable? = null
@@ -182,18 +193,20 @@ class GoogleSearchFeedAdapter(
         ) {
             if (currentPlaceholderId < 0) return
             if (loadedAds.containsKey(currentPlaceholderId) || loadingAds.contains(currentPlaceholderId)) return
+            if (hideIfOverCap(loadedAds, loadingAds)) return
 
             scrollDebounceRunnable?.let { debounceHandler.removeCallbacks(it) }
 
             if (isMostlyOnScreen()) {
-                // Debounce by 250ms: only request if the slot STAYS on screen (user paused on it).
+                // Only request if the slot STAYS on screen for SLOT_DWELL_MS (user is reading, not
+                // flicking past): a request fired on a quick pass lands after the slot is gone.
                 val slotId = currentPlaceholderId
                 scrollDebounceRunnable = Runnable {
                     if (currentPlaceholderId == slotId && isMostlyOnScreen()) {
                         requestAd(slotId, loadedAds, loadingAds)
                     }
                 }
-                debounceHandler.postDelayed(scrollDebounceRunnable!!, 250L)
+                debounceHandler.postDelayed(scrollDebounceRunnable!!, SLOT_DWELL_MS)
             }
         }
 
@@ -235,8 +248,8 @@ class GoogleSearchFeedAdapter(
                     val adView = LayoutInflater.from(binding.root.context).inflate(
                         app.messages.R.layout.ads_native_dashboard,
                         binding.nativeAdFrameLayout, false
-                    ) as com.google.android.gms.ads.nativead.NativeAdView
-                    app.messages.config.AdsConfigManager.populateNativeAdView(nativeAd, adView)
+                    ) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
+                    app.messages.config.AdsConfigManager.populateNativeAdView(nativeAd, adView, "search")
                     binding.nativeAdFrameLayout.removeAllViews()
                     binding.nativeAdFrameLayout.addView(adView)
                     Log.d("ADS_GOOGLE_SEARCH", "✨ [SEARCH_AD_SHOWN] Native Search Ad inflated & DISPLAYED for slot #$placeholderId! 🎉")
@@ -254,6 +267,15 @@ class GoogleSearchFeedAdapter(
     companion object {
         private const val TYPE_BLOG = 1
         private const val TYPE_AD = 2
+
+        /** How long a slot must stay on screen before its ad is requested. */
+        private const val SLOT_DWELL_MS = 1000L
+
+        /**
+         * Ads requested per search session. The feed has a slot after every 2nd blog; users rarely
+         * read past the first few, so later slots only produced ads that were never seen.
+         */
+        const val MAX_ADS_PER_SESSION = 2
 
         private val DIFF = object : DiffUtil.ItemCallback<GoogleSearchFeedItem>() {
             override fun areItemsTheSame(

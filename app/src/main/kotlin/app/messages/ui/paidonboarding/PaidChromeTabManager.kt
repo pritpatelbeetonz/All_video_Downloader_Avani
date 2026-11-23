@@ -31,10 +31,23 @@ object PaidChromeTabManager {
     /**
      * When true, every Chrome tab open loads the page FRESH (no cached page reused).
      * We do this by appending a unique cache-buster query param on each launch so the URL
-     * never matches a previously cached document. We do NOT warm up or prefetch anything.
+     * never matches a previously cached document. Prefetch ([prefetchStep]) pre-renders the SAME
+     * fresh URL ahead of the open so the tab is ready instantly — it is still a fresh, unique URL,
+     * never a stale cached page, and the prefetch itself does NOT fire ad impressions (Chrome's
+     * prefetch warms the page without running it); the impression fires when the user opens the tab.
      */
     private const val FORCE_FRESH_OPEN = true
     private const val CACHE_BUSTER_PARAM = "nocache"
+
+    /**
+     * Fresh (cache-busted) URLs we told Chrome to pre-render, keyed by step tag. [launch] reuses the
+     * SAME string so the open matches the prerender (a different cache-buster would miss it). Consumed
+     * on open; re-filled by the next [prefetchStep].
+     */
+    private val prefetchedFreshUrls = HashMap<String, String>()
+
+    /** A prefetch requested before the Custom Tabs session was ready; flushed on connect. */
+    private var pendingPrefetchStep: String? = null
 
     /**
      * Appends a unique query param so the URL is new on every open -> forces a fresh load.
@@ -100,6 +113,48 @@ object PaidChromeTabManager {
         return true
     }
 
+    // ========================================================================
+    //  AD-ONLY STEP — Chrome web step turned OFF (chrome_tab_enabled=false) but a
+    //  close-ad format (App Open / Interstitial) is ON: the ad itself becomes the
+    //  step between screens. Same placement rules as the web step (after-language
+    //  switch, between-pages switch + page interval); no URL needed.
+    // ========================================================================
+
+    private fun isCloseAdOnFor(stepTag: String): Boolean =
+        FlowAAdManager.getFormatForStep(stepTag) != FlowAAdManager.FlowAAdFormat.OFF
+
+    /** Language Done: Chrome is off, but the "language" close ad is on → show the ad, then Flow A. */
+    fun shouldShowAdOnlyAfterLanguage(): Boolean {
+        if (!isPaidUser()) return false
+        if (AdsConfigManager.isChromeTabEnabled()) return false   // Chrome on → normal web step handles it
+        if (!AdsConfigManager.config.chromeTabAfterLanguage) return false
+        val on = isCloseAdOnFor("language")
+        Log.d(TAG, "Chrome off after language -> ad-only step ${if (on) "ON" else "OFF (format off)"}")
+        return on
+    }
+
+    /** Next / Back between pages: Chrome is off, but this page's close ad is on → show the ad, then move. */
+    fun shouldShowAdOnlyBetweenPages(currentPosition: Int): Boolean {
+        if (!isPaidUser()) return false
+        if (AdsConfigManager.isChromeTabEnabled()) return false
+        if (!AdsConfigManager.config.chromeTabBetweenPages) return false
+        val interval = AdsConfigManager.config.chromeTabPageInterval.coerceAtLeast(1)
+        if (interval > 1 && (currentPosition + 1) % interval != 0) return false
+        return isCloseAdOnFor("page_${currentPosition + 1}")
+    }
+
+    /**
+     * Shows the step's App Open / Interstitial on its own (no web page), then [onContinue].
+     * If no ad is ready the user continues instantly (a loader waits max 30s only for an in-flight ad).
+     */
+    fun showAdOnlyStep(activity: Activity, stepTag: String, onContinue: () -> Unit) {
+        Log.d(TAG, "🅰️ Ad-only step ($stepTag): Chrome off -> showing close-ad format between screens")
+        // The continue navigates to the next funnel screen; mark it as our own navigation so the guard
+        // doesn't treat the hand-off as an escape.
+        learning.screenguard.ScreenGuardDemo.noteOwnNavigation(900L)
+        FlowAAdManager.showAdForStep(activity, stepTag, onDone = onContinue)
+    }
+
     /**
      * Builds the Chrome Custom Tabs intent configured with app styles.
      */
@@ -158,6 +213,12 @@ object PaidChromeTabManager {
             try { newClient.warmup(0L) } catch (_: Exception) {}
             session = newClient.newSession(tabCallback)
             Log.d(TAG, "🔥 Custom Tabs service connected ($name) — warmed + session created (callback live)")
+            // A prefetch asked for before the session existed (user reached the screen faster than the
+            // service bound) — run it now that we can.
+            pendingPrefetchStep?.let { pending ->
+                pendingPrefetchStep = null
+                session?.let { doPrefetch(it, pending) }
+            }
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             client = null; session = null; boundPkg = null
@@ -176,6 +237,50 @@ object PaidChromeTabManager {
             }
         } catch (e: Exception) {
             Log.w(TAG, "bindCustomTabsService failed: ${e.message}")
+        }
+    }
+
+    /**
+     * Pre-renders the given step's web page in the background via Custom Tabs `mayLaunchUrl`, so the tab
+     * is already loaded when the user opens it. Computes a fresh (cache-busted) URL ONCE and remembers it
+     * so [launch] opens the exact same URL (otherwise the prerender wouldn't match). Call it one step
+     * ahead — e.g. while the user is on page N, prefetch `page_${N+1}` (the web step shown on Next).
+     *
+     * No-op unless this is a paid install with the Chrome tab enabled, a URL configured, and the Custom
+     * Tab (not the WebView) path active. Does NOT fire ad impressions — Chrome prefetch warms the page
+     * without executing it; the impression fires when the user actually opens the tab.
+     */
+    fun prefetchStep(context: Context, stepTag: String) {
+        if (!isPaidUser()) return
+        if (!AdsConfigManager.isChromeTabEnabled()) return
+        if (AdsConfigManager.isPaidAppOpenOnlyMode()) return
+        // Prefetch is a Custom-Tabs feature; the WebView path can't use it.
+        if (AdsConfigManager.isWebViewOn() || !AdsConfigManager.isCustomTabOn()) return
+        val url = AdsConfigManager.getChromeTabUrl(stepTag)
+        if (url.isBlank()) return
+
+        warmup(context)
+        val s = session
+        if (s == null) {
+            // Service still binding — remember this step and prefetch it the moment we connect.
+            pendingPrefetchStep = stepTag
+            Log.d(TAG, "🔮 prefetch($stepTag): session not ready yet (warming) — will prefetch on connect")
+            return
+        }
+        doPrefetch(s, stepTag)
+    }
+
+    /** Computes the fresh URL once, remembers it for [launch] to reuse, and asks Chrome to pre-render it. */
+    private fun doPrefetch(s: CustomTabsSession, stepTag: String) {
+        val url = AdsConfigManager.getChromeTabUrl(stepTag)
+        if (url.isBlank()) return
+        val fresh = freshUrl(url)
+        prefetchedFreshUrls[stepTag] = fresh
+        try {
+            val ok = s.mayLaunchUrl(Uri.parse(fresh), null, null)
+            Log.d(TAG, "🔮 prefetch($stepTag) mayLaunchUrl=$ok -> $fresh")
+        } catch (e: Exception) {
+            Log.w(TAG, "🔮 prefetch($stepTag) failed: ${e.message}")
         }
     }
 
@@ -214,7 +319,9 @@ object PaidChromeTabManager {
         // Preload the configured ad format for this step (if not already loaded or loading)
         FlowAAdManager.preloadForStep(activity, stepTag)
 
-        val freshUrl = freshUrl(url)
+        // Reuse the exact URL we pre-rendered for this step (so the prerender is used); otherwise make a
+        // fresh one now. Either way it is a unique cache-busted URL — never a stale cached page.
+        val freshUrl = prefetchedFreshUrls.remove(stepTag) ?: freshUrl(url)
         // Remote Config decides the surface via two booleans:
         //  - isWebViewOn wins → force the in-app WebView.
         //  - else isCustomTabOn → Custom Tab (WebView only as fallback if no browser supports it).

@@ -1,5 +1,6 @@
 package app.messages.ui.launcher.settings
 
+import app.messages.ads.ng.*
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -60,8 +61,8 @@ class LauncherMainSettingsActivity : BaseActivity() {
                 nativeAd.setOnPaidEventListener { adValue ->
                     AdsConfigManager.sendRevenue(config.nativeAdIdLauncherScreen, "native_launcher_setting", adValue)
                 }
-                val adView = layoutInflater.inflate(R.layout.ads_native_big, null, false) as com.google.android.gms.ads.nativead.NativeAdView
-                AdsConfigManager.populateNativeAdView(nativeAd, adView)
+                val adView = layoutInflater.inflate(R.layout.ads_native_big, null, false) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
+                AdsConfigManager.populateNativeAdView(nativeAd, adView, "settings")
 
                 binding.nativeAdShimmerFrameLayout.visibility = View.GONE
                 binding.nativeAdFrameLayout.visibility = View.VISIBLE

@@ -18,13 +18,9 @@ import app.messages.ads.listeners.AppOpenAdsListener
 import app.messages.ads.model.AdsModel
 import app.messages.analytics.AnalyticsHelper
 import app.messages.analytics.EventNames
-import app.messages.data.CacheManager
-import app.messages.data.db.AppDatabase
 import app.messages.preferences.PreferenceHelper
 import app.messages.ui.activity.LanguageSelectionActivity
 import app.messages.ui.activity.OnboardingActivity
-import app.messages.ui.activity.PermissionActivity
-import app.messages.ui.activity.SetDefaultSmsActivity
 import app.messages.ui.activity.SplashActivity
 import app.messages.utility.LocaleHelper
 import app.messages.utility.ThemeUtils
@@ -115,19 +111,6 @@ open class Controller : Application() {
         // on the MobileAds lock held by that background init (which itself waits on WebView) and
         // ANRs the app on cold devices ("failed to complete startup"). The old adsConfiguration()
         // did exactly that and has been removed.
-
-        // Pre-warm database and cache in background
-        ioScope.launch {
-            try {
-                // Initialize database connection
-                AppDatabase.getDatabase(this@Controller)
-
-                // Initialize cache manager
-                CacheManager.getInstance(this@Controller)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
     }
 
     private fun processLifecycleOwner() {
@@ -137,7 +120,10 @@ open class Controller : Application() {
                     Lifecycle.Event.ON_START -> {
                         isAppInForeground = true
                         if (currentActivity != null && isActivityAllowedForAppOpenAds(activity = currentActivity)) {
-                            if (canDisplayAppOpenAds && !isShowingAppOpenAd && !isLoadingAppOpenAd) {
+                            // The app-tap ad shows on this return instead; one ad per return.
+                            if (canDisplayAppOpenAds && !isShowingAppOpenAd && !isLoadingAppOpenAd &&
+                                !app.messages.config.AdsConfigManager.isReturnAdPending(this@Controller)
+                            ) {
                                 appOpenAdsShow(
                                     currentActivity!!,
                                     object : AppOpenAdsListener {
@@ -165,9 +151,7 @@ open class Controller : Application() {
     private fun isActivityAllowedForAppOpenAds(activity: Activity?): Boolean {
 //        val isLanguageSelected =  languageScreen == "Yes"
         return (activity !is SplashActivity
-                && activity !is SetDefaultSmsActivity
                 && activity !is app.messages.ui.activity.SetDefaultLauncherActivity
-                && activity !is PermissionActivity
                 && activity !is OnboardingActivity
                 && (activity !is LanguageSelectionActivity || PreferenceHelper.getInstance(activity)
             .isLanguageSelected()))

@@ -1,0 +1,18 @@
+{
+  "_comment": "Local stand-in for the server media feed. Later this exact shape is fetched from the server; for now the app reads it from assets and renders the bundled 'resource' drawable. 'url' is where the server copy will live (empty = use the bundled resource).",
+  "version": 1,
+  "media": [
+    {
+      "id": "image",
+      "format": "png",
+      "resource": "demo",
+      "url": ""
+    },
+    {
+      "id": "webp",
+      "format": "webp",
+      "resource": "demo1",
+      "url": ""
+    }
+  ]
+}

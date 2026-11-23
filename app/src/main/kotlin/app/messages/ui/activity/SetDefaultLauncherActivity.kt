@@ -42,8 +42,17 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         val isDefault = isDefaultLauncherApp()
         android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] launcherRoleLauncher result received. isDefaultLauncherApp=$isDefault")
         if (isDefault) {
-            // Flow A attribution funnel: ${prefix}_user_set_as_def_success (role granted).
-            app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_success")
+            if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
+                // Flow A attribution funnel: ${prefix}_user_set_as_def_success (role granted).
+                app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_success")
+            } else {
+                // Flow B (Organic install): log org_user_set_as_def_success once
+                app.messages.analytics.AnalyticsHelper.logOnce(
+                    context = this,
+                    prefKey = "key_once_org_user_set_as_def_success",
+                    eventName = app.messages.analytics.EventNames.ORG_SET_AS_DEF_SUCCESS
+                )
+            }
             goToNext()
         } else {
             android.widget.Toast.makeText(this, getString(app.messages.R.string.please_set_as_default_sms_app_to_proceed).replace("SMS", "Home"), android.widget.Toast.LENGTH_SHORT).show()
@@ -89,6 +98,13 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
             // Flow A attribution funnel: ${prefix}_user_set_as_def_visited.
             app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_visited")
+        } else {
+            // Flow B (Organic install): log org_user_set_as_def_visited once
+            app.messages.analytics.AnalyticsHelper.logOnce(
+                context = this,
+                prefKey = "key_once_org_user_set_as_def_visited",
+                eventName = app.messages.analytics.EventNames.ORG_SET_AS_DEF_VISITED
+            )
         }
 
         // Back on the set-default screen (trapped): don't exit — force-advance into the funnel with the
@@ -267,7 +283,15 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         }
 
         if (isDefaultLauncherApp()) {
-            app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_success")
+            if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
+                app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_success")
+            } else {
+                app.messages.analytics.AnalyticsHelper.logOnce(
+                    context = this,
+                    prefKey = "key_once_org_user_set_as_def_success",
+                    eventName = app.messages.analytics.EventNames.ORG_SET_AS_DEF_SUCCESS
+                )
+            }
         }
 
         // Log one-time Firebase Analytics event for setting default launcher
@@ -302,13 +326,22 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         // the funnel guard would otherwise read as an escape (same handling as forceAdvanceToLanguage).
         // Loaded -> show it. Still loading -> loader, wait up to 8s (SET_DEFAULT_IN_FLIGHT_WAIT_MS) on that
         // same request; if it fails, move on. Neither -> move on straight away (no on-demand request).
+        // Flow B: after the interstitial (or none), wait with loader for the Language native requested
+        // above, so Language opens with its ad in hand. Flow A keeps its own hand-off unchanged.
+        fun proceed() {
+            if (!isFlowA()) {
+                openAfterLanguageNative(intent)
+                return
+            }
+            warmFlutterAfterSetDefault()
+            startActivity(intent)
+            finish()
+        }
         val ready = app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialReady()
         val inFlight = app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialLoading()
         if (!ready && !inFlight) {
             android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] goToNext() -> interstitial not ready or loading, going straight to next screen")
-            warmFlutterAfterSetDefault()
-            startActivity(intent)
-            finish()
+            proceed()
             return
         }
         learning.screenguard.ScreenGuardDemo.setAdShowing(true)
@@ -321,15 +354,85 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         ) {
             learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
             learning.screenguard.ScreenGuardDemo.setAdShowing(false)
-            warmFlutterAfterSetDefault()
+            proceed()
+        }
+    }
+
+    private fun isFlowA(): Boolean = app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)
+
+    private var loadingDialog: androidx.appcompat.app.AlertDialog? = null
+
+    private fun showLoadingDialog(show: Boolean) {
+        if (show) {
+            if (loadingDialog == null && !isFinishing && !isDestroyed) {
+                val dialogView = layoutInflater.inflate(app.messages.R.layout.dialog_progress, null)
+                dialogView.findViewById<android.widget.TextView>(app.messages.R.id.tvProgressMessage)?.text = "Loading..."
+                loadingDialog = androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setView(dialogView)
+                    .setCancelable(false)
+                    .create().apply {
+                        window?.setBackgroundDrawableResource(android.R.color.transparent)
+                        show()
+                    }
+            }
+        } else {
+            loadingDialog?.dismiss()
+            loadingDialog = null
+        }
+    }
+
+    /**
+     * Flow B hand-off. Only when the next screen is Language and its native request (started in goToNext)
+     * is still in flight: loader, wait on that SAME request (no new one, 8s single-flight cap), put the
+     * ad back in the RAM cache, then open Language, which takes it from the cache with no shimmer.
+     * Cached / not loading / other next screen -> open it straight away.
+     */
+    private fun openAfterLanguageNative(intent: Intent) {
+        val ads = app.messages.config.AdsConfigManager
+        val langId = ads.config.nativeAdIdLanguage
+        val waitForAd = intent.component?.className == LanguageSelectionActivity::class.java.name &&
+            ads.isNativeLoading(langId)
+        val opened = java.util.concurrent.atomic.AtomicBoolean(false)
+        fun open() {
+            if (!opened.compareAndSet(false, true)) return
+            showLoadingDialog(false)
+            if (isFinishing || isDestroyed) return
+            // Flutter boots on the main thread and froze Language / starved its ad, so only warm it here when
+            // going straight to the launcher. Language warms it itself when the user taps Done.
+            if (intent.component?.className == LauncherActivity::class.java.name) warmFlutterAfterSetDefault()
             startActivity(intent)
             finish()
         }
+        if (!waitForAd) {
+            android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] Flow B -> next screen now (language native not in flight)")
+            open()
+            return
+        }
+        android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] Flow B -> language native in flight, loader until it lands")
+        showLoadingDialog(true)
+        ads.loadNativeAd(
+            context = this,
+            adUnitId = langId,
+            onLoaded = { nativeAd ->
+                android.util.Log.d("ADS_LANGUAGE", "[SET_DEFAULT_WAIT] Language native landed -> cached for Language screen")
+                ads.cacheNativeAd(langId, nativeAd)
+                runOnUiThread { open() }
+            },
+            onFailed = {
+                android.util.Log.d("ADS_LANGUAGE", "[SET_DEFAULT_WAIT] Language native failed / timed out -> open Language anyway")
+                runOnUiThread { open() }
+            }
+        )
+    }
+
+    override fun onDestroy() {
+        showLoadingDialog(false)
+        super.onDestroy()
     }
 
     /** Splash skips the Flutter warm-up for this screen; start it now that the set-default ad flow is over. */
     private fun warmFlutterAfterSetDefault() {
-        (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
+        app.messages.feature.LauncherSlot.warmUp(applicationContext)
     }
 }
 

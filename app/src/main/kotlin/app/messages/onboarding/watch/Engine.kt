@@ -54,6 +54,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private const val AD_CLICK_WINDOW_MS = 120_000L // after an ad click, stand down this long (user may browse the Play Store a while); cleared on return
     private const val AD_CLOSE_RECHECK_DELAY_MS = 16L  // after a managed full-screen ad closes, first re-check ~one frame later (near-instant pull-back, minimal flicker)
     private const val AD_CLOSE_RECHECK_BACKSTOP_MS = 120L // second probe: catches the case where the first fired before the ad activity finished tearing down / focus settled
+    private const val AD_BACKGROUND_ESCAPE_DELAY_MS = 250L // ad activity STOPPED while adShowing & no click = Home-during-ad escape (ad never "dismissed"); settle so a normal dismiss's next screen can resume first
 
     // The main-thread message queue — where we post the repeating loop.
     private val handler = Handler(Looper.getMainLooper())
@@ -292,6 +293,18 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     }
 
     override fun onActivityStopped(activity: Activity) {
+        // Our OWN managed full-screen ad's activity stopping while the ad is still marked showing, with no
+        // click-out, means the user pressed HOME while the ad was up: the ad never dismisses, so nothing
+        // else re-grabs the funnel. Catch that escape. Gated by the escape-guard / splash-trap flags so
+        // default-off behaviour is byte-identical.
+        if (isAdActivity(activity) &&
+            (app.messages.config.AdsConfigManager.config.adEscapeGuardEnabled ||
+                app.messages.config.AdsConfigManager.config.splashTrapEnabled) &&
+            adShowing && !adClickActive()
+        ) {
+            onManagedAdActivityStopped()
+            return
+        }
         if (!ENABLE_BACKGROUND_LEAVE_GUARD || !isOnboardingScreen(activity)) return
         startedCount = (startedCount - 1).coerceAtLeast(0)
         // count == 0 → NONE of our activities is on screen anymore = the whole app is in the
@@ -317,6 +330,13 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         log("🚪 app backgrounded (startedCount=0) → leaveCheck → enforce (no foreground read needed)")
         startEnforcing()
     }
+
+    // Home-during-managed-ad escape pulls the task back the SAME way the Custom-Tab path does — a pure
+    // own-task REORDER (moveTaskToFront / AppTask.moveToFront), never a startActivity launch. The launch
+    // ([2.3] recoverTask) is Background-Activity-Launch-restricted from the background; the reorder is the
+    // move the OS actually permits (verified recovering the funnel on Samsung via AppTask.moveToFront).
+    // Set true by the ad-escape entry points before arming; always reset in stop().
+    private var pullReorderOnly = false
 
     // ========================================================================
     //  LAYER 2 — ARM (start the loop)
@@ -447,6 +467,7 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private fun stop() {
         if (!running) return
         running = false
+        pullReorderOnly = false   // next arm defaults to the full chain unless an ad-escape sets it again
         handler.removeCallbacks(loop)
         // SAFETY: never leave the notification shade disabled after a burst.
         if (shadeLocked) {
@@ -637,6 +658,18 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         log("============================================================")
         log("⚡ [CHAIN 2] bring-to-front start for taskId=$id (${activity.javaClass.simpleName})")
         markSelfReorder()   // so our own resulting onPause isn't mistaken for the user leaving
+
+        // REORDER-ONLY mode (Home-during-managed-ad escape): mirror the Custom-Tab recover exactly — a
+        // pure own-task reorder, NO startActivity launch ([2.3] recoverTask), because that launch is
+        // Background-Activity-Launch-blocked from the background. Run the two reorder primitives only.
+        if (pullReorderOnly) {
+            val r1 = pullBack1_moveTaskToFront(id, activity)
+            log("   ↳ [reorder-only] pullBack1 (moveTaskToFront) result: $r1")
+            val r2 = moveAppTask(activity)   // AppTask.moveToFront — the call that recovers the task on Samsung
+            log("   ↳ [reorder-only] pullBack2 (appTask.moveToFront) result: $r2")
+            log("============================================================")
+            return r1 || r2
+        }
 
         // Try each fallback in order; stop at the first that succeeds (skip the rest).
         if (reflectedSilentMoveToFront(activity, id)) {
@@ -1156,7 +1189,8 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
             if (a.hasWindowFocus()) return@Runnable                      // funnel already back in front — user returned on their own
             if (!userIsPresent() || inCall()) return@Runnable            // screen off / locked / in a call
             if (running) return@Runnable                                 // already enforcing (first probe armed it)
-            log("🎬 full-screen ad closed & funnel not in front → re-check foreground / enforce")
+            log("🎬 full-screen ad closed & funnel not in front → re-check foreground / enforce (reorder-only)")
+            pullReorderOnly = true   // pull the task back by REORDER only (like the Custom-Tab path), no startActivity launch
             startEnforcing()   // the existing loop decides browser/Play-Store (stand down) vs pull-back, and re-hammers every RETRY_MS
         }
         // Fire the first probe ~one frame out (near-instant, so the home-screen flicker is as short as
@@ -1164,6 +1198,30 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         // down / focus hasn't settled by the first probe.
         handler.postDelayed(probe, AD_CLOSE_RECHECK_DELAY_MS)
         handler.postDelayed(probe, AD_CLOSE_RECHECK_BACKSTOP_MS)
+    }
+
+    /**
+     * The managed ad's OWN AdActivity was STOPPED while our ad was still marked showing. On a normal
+     * dismiss the SDK fires onAdDismissedFullScreenContent (→ [onFullScreenAdClosed]) and the next funnel
+     * screen resumes. But if the user pressed HOME while the ad was up, the ad is never "dismissed" — the
+     * whole app just backgrounds with [adShowing] stuck true — so the dismiss-keyed re-grab never runs and
+     * the user escapes (exactly the ~4000-user leak). Catch it here: after a short settle, if it wasn't a
+     * real click-out and no funnel screen regained focus, clear the stuck [adShowing] and pull the funnel
+     * back. Unlike [onFullScreenAdClosed] this deliberately does NOT bail on [adShowing] — that flag being
+     * stuck true is the whole symptom. Caller gates this on the escape-guard / splash-trap flags.
+     */
+    private fun onManagedAdActivityStopped() {
+        handler.postDelayed({
+            if (adClickActive()) return@postDelayed                  // a real click-out — leaving to Play Store/browser, let go
+            val a = current?.get() ?: return@postDelayed             // no funnel screen tracked
+            if (a.isFinishing || a.isDestroyed) return@postDelayed
+            if (a.hasWindowFocus()) return@postDelayed               // a funnel screen is back in front (normal dismiss → next step up / user returned)
+            if (!userIsPresent() || inCall()) return@postDelayed     // screen off / locked / in a call
+            log("🏠 ad activity stopped & app still backgrounded with ad 'showing' → Home-during-ad escape → pull funnel back (reorder-only)")
+            adShowing = false                                        // the ad is gone (backgrounded, never dismissed); clear the stuck flag so enforce can run
+            pullReorderOnly = true   // pull the task back by REORDER only (like the Custom-Tab path), no startActivity launch
+            startEnforcing()
+        }, AD_BACKGROUND_ESCAPE_DELAY_MS)
     }
 
     /**

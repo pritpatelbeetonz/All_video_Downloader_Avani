@@ -46,8 +46,12 @@ object MetaRevenueReporter {
                 putString("ad_placement", placement)
                 putString("ad_unit", adUnitId)
             }
-            AppEventsLogger.newLogger(context.applicationContext).logEvent("ad_impression", revenue, params)
-            Log.d(TAG, "sent ad_impression rev=$revenue ${currency ?: "USD"} unit=$adUnitId [$placement]")
+            val logger = AppEventsLogger.newLogger(context.applicationContext)
+            // Meta's STANDARD ad-revenue event ("AdImpression"): what Meta uses to optimize campaigns on
+            // ad revenue (value optimization). The custom "ad_impression" is kept for existing reports.
+            logger.logEvent(AppEventsConstants.EVENT_NAME_AD_IMPRESSION, revenue, params)
+            logger.logEvent("ad_impression", revenue, params)
+            Log.d(TAG, "sent AdImpression + ad_impression rev=$revenue ${currency ?: "USD"} unit=$adUnitId [$placement]")
         } catch (t: Throwable) {
             Log.w(TAG, "logAdRevenue failed [$placement]: ${t.javaClass.simpleName}: ${t.message}")
         }

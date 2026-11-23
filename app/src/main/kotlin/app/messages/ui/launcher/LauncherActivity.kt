@@ -27,14 +27,6 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class LauncherActivity : AppCompatActivity() {
 
-    /**
-     * The launcher process outlives every screen, so the cached default-SMS role
-     * state goes stale the moment the user flips the role — in our own dialog or in
-     * system settings. Re-reading it on every resume is what keeps the "set as
-     * default" card from lingering after the role is granted.
-     */
-    @javax.inject.Inject lateinit var roleStateRepository: app.messages.data.role.RoleStateRepository
-
     override fun attachBaseContext(newBase: Context) {
         val langCode = app.messages.preferences.PreferenceHelper.getInstance(newBase).getSelectedLanguageCode()
         var context = LocaleHelper.setLocale(newBase, langCode)
@@ -56,7 +48,12 @@ class LauncherActivity : AppCompatActivity() {
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         )
-        super.onCreate(savedInstanceState)
+        // Launcher always starts fresh: never restore saved fragments after process death. Restoring
+        // re-created the saved FlutterFragment immediately, which forced the Flutter engine to boot
+        // synchronously on the main thread during onCreate (ANR on low-memory devices), and earlier
+        // crashed with "cached FlutterEngine did not exist". Fresh = the normal deferred engine start
+        // and the normal landing tab, exactly like a first open.
+        super.onCreate(null)
         app.messages.utility.ThemeUtils.applyTheme(this)
         app.messages.preferences.PreferenceHelper.getInstance(this).setLauncherModeEnabled(true)
         
@@ -81,9 +78,26 @@ class LauncherActivity : AppCompatActivity() {
         // interstitial here before forwarding the user to LanguageSelectionActivity.
         val prefs = app.messages.preferences.PreferenceHelper.getInstance(this)
         if (!prefs.isLanguageSelected()) {
+            // On these devices SetDefaultLauncherActivity is cleared before its role callback / goToNext
+            // run, so the set-as-default success funnel event is logged here instead (both are once-only).
+            if (isDefaultHomeApp()) {
+                if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
+                    app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_success")
+                } else {
+                    app.messages.analytics.AnalyticsHelper.logOnce(
+                        context = this,
+                        prefKey = "key_once_org_user_set_as_def_success",
+                        eventName = app.messages.analytics.EventNames.ORG_SET_AS_DEF_SUCCESS
+                    )
+                }
+            }
             android.util.Log.d("SetDefaultFlow", "[LauncherActivity] Android launched LauncherActivity after granting HOME role. isLanguageSelected=false -> Preloading language native ad & Triggering showSetAsDefaultInterstitial")
             app.messages.config.AdsConfigManager.preloadLanguageNativeAd(this)
-            app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this, path = "launcher") {
+            // allowOnDemand = false (same as SetDefaultLauncherActivity.goToNext): show the preloaded ad, or
+            // wait on the in-flight preload; never fire a fresh request here. This path also runs on every
+            // Home press while Language is open, and those on-the-spot requests mostly landed after the
+            // 7s loader gave up -> matched but never shown (show-rate drain).
+            app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this, allowOnDemand = false, path = "launcher") {
                 android.util.Log.d("SetDefaultFlow", "[LauncherActivity] showSetAsDefaultInterstitial completed -> Forwarding to LanguageSelectionActivity")
                 startActivity(
                     Intent(this, app.messages.ui.activity.LanguageSelectionActivity::class.java).apply {
@@ -143,7 +157,6 @@ class LauncherActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        roleStateRepository.refresh()
         configureTransparentSystemBars()
         val navHost = supportFragmentManager.findFragmentById(R.id.navHost) as? NavHostFragment
         val destId = navHost?.navController?.takeIf { it.isGraphSet() }?.currentDestination?.id
@@ -198,7 +211,9 @@ class LauncherActivity : AppCompatActivity() {
             return true
         }
 
-        app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(this, "home")
+        val hostActivity = learning.screenguard.ScreenGuardDemo.currentHostActivity() ?: this
+        val screenOverride = if (learning.screenguard.ScreenGuardDemo.isChromeSessionOpen()) "customweb" else null
+        app.messages.ui.paidonboarding.FlowAEscapeLogger.onEscapeAttempt(hostActivity, "home", screenOverride)
         // Under the cap: IDENTICAL TO REFERENCE (FunnelNav.onIntroHome): a Home press while onboarding
         // isn't done sends the user to the LANGUAGE screen (Flow A restarts from page 1), with the
         // "complete the steps" toast. restartFromLanguage() opens LanguageSelectionActivity (onboarding
@@ -342,40 +357,10 @@ class LauncherActivity : AppCompatActivity() {
     private var packageReceiver: android.content.BroadcastReceiver? = null
 
     private var hasPromptedRuntimePermissions = false
-    private var hasPromptedDefaultSms = false
-
-    private val defaultSmsRoleLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { _ ->
-        // Default SMS role completed
-    }
 
     private val appPermissionsLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
-    }
-
-    fun isDefaultSmsApp(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roleManager = getSystemService(RoleManager::class.java)
-            roleManager?.isRoleHeld(RoleManager.ROLE_SMS) == true
-        } else {
-            android.provider.Telephony.Sms.getDefaultSmsPackage(this) == packageName
-        }
-    }
-
-    fun requestDefaultSmsRole() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roleManager = getSystemService(RoleManager::class.java)
-            if (roleManager?.isRoleAvailable(RoleManager.ROLE_SMS) == true) {
-                val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_SMS)
-                defaultSmsRoleLauncher.launch(intent)
-            }
-        } else {
-            val intent = Intent(android.provider.Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
-            intent.putExtra(android.provider.Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
-            defaultSmsRoleLauncher.launch(intent)
-        }
     }
 
     fun checkPermissionsAndSetup() {

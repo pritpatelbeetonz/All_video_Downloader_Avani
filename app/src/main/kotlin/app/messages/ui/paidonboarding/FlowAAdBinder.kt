@@ -1,5 +1,6 @@
 package app.messages.ui.paidonboarding
 
+import app.messages.ads.ng.*
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -23,12 +24,11 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
 import com.bumptech.glide.load.resource.bitmap.DownsampleStrategy
 import com.google.android.material.card.MaterialCardView
-import com.google.android.gms.ads.AdLoader
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdSize
-import com.google.android.gms.ads.AdView
-import com.google.android.gms.ads.nativead.NativeAd
-import com.google.android.gms.ads.nativead.NativeAdView
+import app.messages.ads.ng.NgNativeLoader as AdLoader
+import com.google.android.libraries.ads.mobile.sdk.banner.AdSize
+import app.messages.ads.ng.BannerAdView
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
 
 /**
  * Renders the two Flow-A ad slots (native per page, banner shared on the activity). Each slot is
@@ -80,11 +80,11 @@ object FlowAAdBinder {
         "native2", AdsConfigManager::flowaNative2RealAdId, AdsConfigManager::isFlowaNative2RealIdValid, "native2_flowa"
     )
 
-    /** Currently active real AdView attached to the shared activity container. */
-    private var currentRealBannerView: AdView? = null
+    /** Currently active real BannerAdView attached to the shared activity container. */
+    private var currentRealBannerView: BannerAdView? = null
 
-    /** Preloaded real AdView waiting to be attached to the activity banner container. */
-    private var cachedRealBannerView: AdView? = null
+    /** Preloaded real BannerAdView waiting to be attached to the activity banner container. */
+    private var cachedRealBannerView: BannerAdView? = null
 
     /** Lock to prevent duplicate in-flight banner requests. */
     @Volatile
@@ -318,6 +318,26 @@ object FlowAAdBinder {
         }
     }
 
+    /**
+     * Natives currently shown on Flow A pages. AdMob attaches internal windows to each shown
+     * NativeAdView; they must be destroyed when replaced or when Flow A ends, or the activity
+     * leaks those windows (WindowLeaked on finish).
+     */
+    private val shownNatives = mutableListOf<Pair<NativeAdView, NativeAd>>()
+
+    /** Destroys a shown native that is being removed from [container] (replaced or page reused). */
+    private fun destroyShownIn(container: FrameLayout) {
+        val iterator = shownNatives.iterator()
+        while (iterator.hasNext()) {
+            val (view, ad) = iterator.next()
+            if (view.parent === container) {
+                try { view.destroy() } catch (_: Throwable) {}
+                try { ad.destroy() } catch (_: Throwable) {}
+                iterator.remove()
+            }
+        }
+    }
+
     private fun inflateNative(
         activity: Activity,
         container: FrameLayout,
@@ -325,8 +345,9 @@ object FlowAAdBinder {
         onRendered: (() -> Unit)? = null
     ) {
         try {
+            destroyShownIn(container)
             val adView = activity.layoutInflater.inflate(R.layout.ads_native_big, null) as NativeAdView
-            AdsConfigManager.populateNativeAdView(ad, adView)
+            AdsConfigManager.populateNativeAdView(ad, adView, "flowa")
 
             // Make native ad CTA button identically match the Flow A Next button (orange gradient & rounded corners)
             adView.findViewById<TextView>(R.id.ad_call_to_action)?.apply {
@@ -337,6 +358,7 @@ object FlowAAdBinder {
             container.removeAllViews()
             container.addView(adView)
             container.visibility = View.VISIBLE
+            shownNatives.add(adView to ad)
             Log.d(TAG, "✅ REAL native displayed successfully (Show Rate +1)")
             onRendered?.invoke()
         } catch (t: Throwable) {
@@ -355,6 +377,7 @@ object FlowAAdBinder {
         val id = slot.adId()
         Log.d(TAG, "📡 AdMob ${slot.label} request dispatched for page $pageNumber [unit: $id]")
         AdLoader.Builder(activity, id)
+            .withNativeAdOptions(AdsConfigManager.videoNativeAdOptions())
             .forNativeAd { ad ->
                 Log.d(TAG, "📥 Real ${slot.label} loaded from AdMob")
                 ad.setOnPaidEventListener { adValue ->
@@ -362,8 +385,8 @@ object FlowAAdBinder {
                 }
                 onLoaded(ad)
             }
-            .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+            .withAdListener(object : app.messages.ads.ng.AdListener() {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     Log.w(TAG, "❌ Real ${slot.label} load failed: ${error.message} (code: ${error.code})")
                     slot.isLoading = false
                     slot.pendingCallback = null
@@ -376,7 +399,7 @@ object FlowAAdBinder {
                 override fun onAdOpened() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
             })
             .build()
-            .loadAd(AdRequest.Builder().build())
+            .loadAd()
     }
 
     // ---- REAL banner -------------------------------------------------------------------------
@@ -386,7 +409,7 @@ object FlowAAdBinder {
         // 1. If the real banner is already attached and showing in this container, reuse it!
         val existing = currentRealBannerView
         if (existing != null && container.indexOfChild(existing) >= 0) {
-            Log.d(TAG, "♻️ REAL banner reused existing AdView (page $pageNumber)")
+            Log.d(TAG, "♻️ REAL banner reused existing BannerAdView (page $pageNumber)")
             container.visibility = View.VISIBLE
             return
         }
@@ -442,18 +465,18 @@ object FlowAAdBinder {
     private fun loadRealBanner(activity: Activity, pageNumber: Int) {
         val id = AdsConfigManager.flowaBannerRealAdId()
         Log.d(TAG, "📡 AdMob BannerAd request dispatched for page $pageNumber [unit: $id]")
-        val adView = AdView(activity).apply {
+        val adView = BannerAdView(activity).apply {
             adUnitId = id
             setAdSize(getAdaptiveBannerSize(activity))
             setOnPaidEventListener { adValue ->
                 AdsConfigManager.sendRevenue(id, "banner_flowa", adValue)
             }
         }
-        adView.adListener = object : com.google.android.gms.ads.AdListener() {
+        adView.adListener = object : app.messages.ads.ng.AdListener() {
             override fun onAdLoaded() {
                 onBannerAdLoaded(activity, adView)
             }
-            override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+            override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                 Log.w(TAG, "❌ Real banner load failed: ${error.message} (code: ${error.code})")
                 isBannerLoading = false
                 pendingBannerPage = -1
@@ -463,10 +486,10 @@ object FlowAAdBinder {
             override fun onAdClicked() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
             override fun onAdOpened() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
         }
-        adView.loadAd(AdRequest.Builder().build())
+        adView.loadAd()
     }
 
-    private fun onBannerAdLoaded(activity: Activity, adView: AdView) {
+    private fun onBannerAdLoaded(activity: Activity, adView: BannerAdView) {
         isBannerLoading = false
         val pendingCont = pendingBannerContainer
         pendingBannerPage = -1
@@ -568,7 +591,7 @@ object FlowAAdBinder {
                 if (currentRealBannerView != null) {
                     Log.d(TAG, "🔒 Real banner preload skipped: active banner view already exists")
                 } else if (cachedRealBannerView != null) {
-                    Log.d(TAG, "🔒 Real banner preload skipped: already have preloaded AdView in cache")
+                    Log.d(TAG, "🔒 Real banner preload skipped: already have preloaded BannerAdView in cache")
                 } else if (isBannerLoading) {
                     Log.d(TAG, "🔒 Real banner preload skipped: banner request already in-flight")
                 } else {
@@ -586,6 +609,12 @@ object FlowAAdBinder {
     /** Clean up any unused cached ads and views when exiting onboarding. */
     fun destroy() {
         try {
+            // Shown natives first: their AdMob windows belong to the finishing activity.
+            for ((view, ad) in shownNatives) {
+                try { view.destroy() } catch (_: Throwable) {}
+                try { ad.destroy() } catch (_: Throwable) {}
+            }
+            shownNatives.clear()
             for (slot in listOf(nativeSlot1, nativeSlot2)) {
                 slot.cachedAd?.destroy()
                 slot.cachedAd = null

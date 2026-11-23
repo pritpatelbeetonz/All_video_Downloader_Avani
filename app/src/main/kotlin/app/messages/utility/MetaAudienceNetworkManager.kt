@@ -59,9 +59,14 @@ object MetaAudienceNetworkManager {
             }
 
             // 3. Initialize Facebook SDK
+            if (app.messages.BuildConfig.DEBUG) {
+                FacebookSdk.setIsDebugEnabled(true)
+                FacebookSdk.addLoggingBehavior(com.facebook.LoggingBehavior.APP_EVENTS)
+            }
             FacebookSdk.sdkInitialize(appContext) {
                 Log.d(TAG, "Facebook SDK initialized")
             }
+            FacebookSdk.fullyInitialize()
 
             // 4. Initialize Meta Audience Network SDK
             if (!AudienceNetworkAds.isInitialized(appContext)) {

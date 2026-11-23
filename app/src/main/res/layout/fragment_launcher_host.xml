@@ -53,32 +53,58 @@
             android:overScrollMode="never" />
     </app.messages.ui.common.SwipeUpInterceptLayout>
 
+    <!-- Left edge tab (Home only): opens Video Downloader page -->
     <FrameLayout
         android:id="@+id/edgeTab"
         android:visibility="gone"
-        android:layout_width="70dp"
-        android:layout_height="58dp"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
         android:background="@drawable/bg_edge_tab"
         android:clickable="true"
+        android:contentDescription="@string/edge_tab_video_downloader"
         android:elevation="10dp"
         android:focusable="true"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.40">
+        app:layout_constraintVertical_bias="0.52">
 
         <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:padding="@dimen/_6sdp"
-            android:layout_marginEnd="@dimen/_4sdp"
-            android:layout_gravity="end|center_vertical"
+            android:id="@+id/edgeTabIcon"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_gravity="left|center_vertical"
+            android:layout_marginLeft="4dp"
+            android:importantForAccessibility="no"
+            android:src="@mipmap/ic_launcher_round" />
+    </FrameLayout>
+
+    <!-- Right edge tab (Home only): opens Dashboard page -->
+    <FrameLayout
+        android:id="@+id/edgeTabRight"
+        android:visibility="gone"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:background="@drawable/bg_edge_tab_right"
+        android:clickable="true"
+        android:contentDescription="@string/edge_tab_dashboard"
+        android:elevation="10dp"
+        android:focusable="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.52">
+
+        <ImageView
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_gravity="right|center_vertical"
+            android:layout_marginRight="4dp"
             android:background="@drawable/bg_circle_green"
             android:backgroundTint="#0082FF"
-            android:contentDescription="Scan"
-            android:src="@drawable/ic_foreground_message"
-
-           />
+            android:importantForAccessibility="no"
+            android:padding="12dp"
+            android:src="@drawable/ic_chevron_left_white" />
     </FrameLayout>
 
     <!-- Page indicator — above the home dock (margin = dock height + dock bottom + gap) -->

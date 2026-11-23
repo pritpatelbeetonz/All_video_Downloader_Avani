@@ -18,11 +18,6 @@
 }
 
 # ==============================================================================
-# 2. Compose runtime tooling
-# ==============================================================================
--keep class androidx.compose.runtime.** { *; }
-
-# ==============================================================================
 # 3. Reflection over Telephony provider columns (we read by name from Cursor).
 # ==============================================================================
 -keepclassmembers class android.provider.Telephony$* { *; }
@@ -39,12 +34,6 @@
 -keep class app.messages.ads.model.** { *; }
 -keep class app.messages.config.** { *; }
 -keep class app.messages.data.model.** { *; }
-
-# ==============================================================================
-# 5. Klinker MMS & SMS Library
-# ==============================================================================
--keep class com.klinker.android.send_message.** { *; }
--dontwarn com.klinker.android.send_message.**
 
 # ==============================================================================
 # 6. Google Play Billing
@@ -88,3 +77,14 @@
 -keep class xyz.justsoft.video_thumbnail.** { *; }
 -dontwarn xyz.justsoft.video_thumbnail.**
 
+
+
+
+# ==============================================================================
+# 9. Cronet / Chromium net (release VerifyError: org.chromium.net.DnsStatus helper
+#    was merged by R8 into another class and failed bytecode verification).
+#    Keep the whole package untouched so R8 cannot merge/outline it.
+# ==============================================================================
+-keep class org.chromium.net.** { *; }
+-keep class org.chromium.base.** { *; }
+-dontwarn org.chromium.**

@@ -22,7 +22,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Messages"
+rootProject.name = "Avani_video_Down_launcher"
 include(":app")
 
 // Link Flutter module

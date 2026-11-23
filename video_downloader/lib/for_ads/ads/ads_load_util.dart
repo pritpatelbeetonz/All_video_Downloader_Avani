@@ -8,7 +8,7 @@ import 'package:get/get_navigation/src/extension_navigation.dart';
 import 'package:get/get_rx/src/rx_types/rx_types.dart';
 import 'package:get/get_state_manager/src/rx_flutter/rx_obx_widget.dart';
 import 'package:get/get_state_manager/src/simple/get_controllers.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:video_downloader/for_ads/ng/ng_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_downloader/firebase_analysis.dart';
 import 'package:video_downloader/for_ads/ads/ads_variable.dart';
@@ -1258,10 +1258,80 @@ class AppBigNativeAdPool {
     );
   }
 
+  // ---- Impression / age tracking + waste measurement ----
+
+  /// Ads AdMob recorded an impression for (set from the listener's onAdImpression).
+  static final Expando<bool> _impressed = Expando('bigNativeImpressed');
+  /// When each ad finished loading (TTL is measured from load, not from caching).
+  static final Expando<DateTime> _loadedAt = Expando('bigNativeLoadedAt');
+  static const String _prefUnseenCachedAt = 'big_native_unseen_cached_loaded_at';
+
+  static bool hasImpression(NativeAd ad) => _impressed[ad] == true;
+
+  static int? _ageMin(NativeAd ad) {
+    final t = _loadedAt[ad];
+    return t == null ? null : DateTime.now().difference(t).inMinutes;
+  }
+
+  /// A loaded big native ad was thrown away unseen.
+  /// reason: expired | cache_overwritten | disposed_unseen | replaced_unseen | process_ended
+  static void _logWasted(String reason, {int? ageMin}) {
+    showLog("🗑️ [AppBigNativeAdPool] WASTED reason=$reason ageMin=$ageMin");
+    FirebaseAnalyticsService.logEvent(
+      eventName: 'big_native_wasted',
+      parameters: {
+        'reason': reason,
+        'age_min': ?ageMin,
+      },
+    );
+  }
+
+  /// Persist "an unseen ad sits in the cache" so a process death can be counted next start.
+  static Future<void> _persistUnseenCached(DateTime? loadedAt) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (loadedAt == null) {
+        await prefs.remove(_prefUnseenCachedAt);
+      } else {
+        await prefs.setInt(_prefUnseenCachedAt, loadedAt.millisecondsSinceEpoch);
+      }
+    } catch (_) {}
+  }
+
+  /// Once per process (call at startup): if the previous process died holding an unseen
+  /// cached ad, that ad was never shown -> log it as process_ended.
+  static Future<void> checkLeftoverFromLastProcess() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final loadedAtMs = prefs.getInt(_prefUnseenCachedAt);
+      if (loadedAtMs != null) {
+        final ageMin = DateTime.now()
+            .difference(DateTime.fromMillisecondsSinceEpoch(loadedAtMs))
+            .inMinutes;
+        _logWasted('process_ended', ageMin: ageMin);
+        await prefs.remove(_prefUnseenCachedAt);
+      }
+    } catch (_) {}
+  }
+
+  /// The only place an ad enters the cache. One slot: keep the FRESHER ad, dispose + log the other.
   static void _storeInCache(NativeAd ad) {
-    _cachedAd?.dispose();
+    final old = _cachedAd;
+    if (old != null && !identical(old, ad)) {
+      final oldLoaded = _loadedAt[old] ?? _cachedAt ?? DateTime.now();
+      final newLoaded = _loadedAt[ad] ?? DateTime.now();
+      if (oldLoaded.isAfter(newLoaded)) {
+        // Cached one is fresher: keep it, drop the incoming one.
+        _logWasted('cache_overwritten', ageMin: _ageMin(ad));
+        ad.dispose();
+        return;
+      }
+      _logWasted('cache_overwritten', ageMin: _ageMin(old));
+      old.dispose();
+    }
     _cachedAd = ad;
-    _cachedAt = DateTime.now();
+    _cachedAt = _loadedAt[ad] ?? DateTime.now();
+    _persistUnseenCached(_cachedAt);
   }
 
   /// Returns the cached ad if it is still fresh; expired ones are disposed.
@@ -1271,12 +1341,33 @@ class AppBigNativeAdPool {
     final cachedAt = _cachedAt;
     _cachedAd = null;
     _cachedAt = null;
+    _persistUnseenCached(null);
     if (cachedAt != null && DateTime.now().difference(cachedAt) > _cacheTtl) {
       showLog("⌛🗑️ [AppBigNativeAdPool] Cached ad expired -> Disposing it");
+      _logWasted('expired', ageMin: _ageMin(ad));
       ad.dispose();
       return null;
     }
     return ad;
+  }
+
+  /// A screen is dropping an ad it displayed (replaced by a newer one, or the screen closed).
+  /// Seen -> dispose. Never seen (e.g. rendered while the downloader page was hidden, or the
+  /// screen closed right after it arrived) -> back into the cache for the next screen.
+  static void releaseAd(NativeAd ad, {required String reason}) {
+    if (hasImpression(ad)) {
+      ad.dispose();
+      return;
+    }
+    final loadedAt = _loadedAt[ad];
+    if (loadedAt != null && DateTime.now().difference(loadedAt) > _cacheTtl) {
+      _logWasted('expired', ageMin: _ageMin(ad));
+      ad.dispose();
+      return;
+    }
+    showLog("♻️ [AppBigNativeAdPool] Unseen ad released ($reason) -> back into cache");
+    // If the slot is taken, _storeInCache keeps the fresher ad and logs the other as overwritten.
+    _storeInCache(ad);
   }
 
   /// [allowNetwork] false = deliver a cached ad or fail at once, never call AdMob.
@@ -1356,6 +1447,9 @@ class AppBigNativeAdPool {
       adUnitId: AdsVariable.prAppBigNative,
       factoryId: 'bigNativeAds',
       listener: NativeAdListener(
+        onAdImpression: (ad) {
+          _impressed[ad] = true;
+        },
         onPaidEvent: (ad, valueMicros, precision, currencyCode) {
           FirebaseAnalyticsService.logAdImpression(
             adUnitId: ad.adUnitId,
@@ -1373,8 +1467,21 @@ class AppBigNativeAdPool {
           _isInFlight = false;
           isFailedToLoad.value = false;
           final ad = loadedAd as NativeAd;
+          _loadedAt[ad] = DateTime.now();
 
-          if (_activeScreenTag != null && _onAdLoadedCallback != null) {
+          if (!_isVisible) {
+            // Downloader page is hidden (user swiped to another launcher page): rendering now
+            // would put the ad where nobody sees it. Cache it; the screen re-requests (cache hit)
+            // when the page becomes visible again.
+            showLog(
+                "🙈💾 [AppBigNativeAdPool] AD LOADED while downloader hidden -> Caching instead of delivering");
+            final failCb = _onAdFailedCallback;
+            _activeScreenTag = null;
+            _onAdLoadedCallback = null;
+            _onAdFailedCallback = null;
+            _storeInCache(ad);
+            failCb?.call();
+          } else if (_activeScreenTag != null && _onAdLoadedCallback != null) {
             showLog(
                 "🎯✅ [AppBigNativeAdPool] AD LOADED! -> Delivering directly to active screen: $_activeScreenTag");
             final cb = _onAdLoadedCallback!;

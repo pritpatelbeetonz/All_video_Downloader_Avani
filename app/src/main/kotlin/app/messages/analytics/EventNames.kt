@@ -12,6 +12,12 @@ object EventNames {
     const val LANGUAGE_SCREEN_DONE = "language_screen_done"
     const val SMS_PERMISSION_GRANTED = "set_asDefault_sms_permission_granted"
 
+    // Organic onboarding funnel events (non-reserved, <= 40 chars)
+    const val ORG_SET_AS_DEF_VISITED = "org_user_set_as_def_visited"
+    const val ORG_SET_AS_DEF_SUCCESS = "org_user_set_as_def_success"
+    const val ORG_LANG_VISITED = "org_user_lang_visited"
+    const val ORG_LANG_SUCCESS = "org_user_lang_success"
+
     const val PERMISSION_CLICK_ALLOW_PERMISSION = "permission_click_allow_permission"
 
     const val LANGUAGE_CLICK_DONE_ = "language_click_done_"

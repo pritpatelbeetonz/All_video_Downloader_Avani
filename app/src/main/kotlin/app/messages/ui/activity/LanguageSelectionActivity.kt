@@ -1,5 +1,6 @@
 package app.messages.ui.activity
 
+import app.messages.ads.ng.*
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
@@ -13,16 +14,14 @@ import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.gms.ads.AdListener
-import com.google.android.gms.ads.AdLoader
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.VideoController
-import com.google.android.gms.ads.VideoOptions
-import com.google.android.gms.ads.nativead.MediaView
-import com.google.android.gms.ads.nativead.NativeAd
-import com.google.android.gms.ads.nativead.NativeAdOptions
-import com.google.android.gms.ads.nativead.NativeAdView
+import app.messages.ads.ng.AdListener
+import app.messages.ads.ng.NgNativeLoader as AdLoader
+import com.google.android.libraries.ads.mobile.sdk.common.LoadAdError
+import com.google.android.libraries.ads.mobile.sdk.common.VideoController
+import com.google.android.libraries.ads.mobile.sdk.common.VideoOptions
+import com.google.android.libraries.ads.mobile.sdk.nativead.MediaView
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
 import app.messages.Controller
 import app.messages.Controller.Companion.adsModel
 import app.messages.R
@@ -36,7 +35,6 @@ import app.messages.analytics.EventNames
 import app.messages.analytics.EventScreenName
 import app.messages.constant.Constants
 import app.messages.data.LanguageData
-import app.messages.utility.BackupUtility
 import kotlinx.coroutines.launch
 
 class LanguageSelectionActivity : PaidFunnelActivity() {
@@ -51,9 +49,15 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
     var prefs: PreferenceHelper? = null
     private var isFromSettings: Boolean = false
     private var isPaidOnboarding: Boolean = false
+    private var sequenceRunner: app.messages.ui.paidonboarding.FlowASequenceRunner? = null
     private val chromeTabLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) {
+        sequenceRunner?.takeIf { it.awaitingChrome }?.let {
+            Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Chrome tab closed -> continue step sequence")
+            it.onChromeClosed()
+            return@registerForActivityResult
+        }
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Chrome tab closed -> continue to Flow A")
         // Guard resumes + optional ad on close (App Open or Interstitial), then continue to Flow A.
         app.messages.ui.paidonboarding.PaidChromeTabManager.onWebStepClosed(this, stepTag = "language") {
@@ -93,8 +97,12 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             // Warm the Custom Tabs session now so Chrome's TAB_HIDDEN callback is live by the time
             // the tab opens after Done (permission-free tab-exit detection, like the reference app).
             app.messages.ui.paidonboarding.PaidChromeTabManager.warmup(this)
+            // Prefetch the after-language web step so the Custom Tab is ready the instant the user taps
+            // Done (fresh, cache-busted URL — no stale cached page).
+            app.messages.ui.paidonboarding.PaidChromeTabManager.prefetchStep(this, "after_language")
             // Preload the Flow A ad (App Open or Interstitial) for the after-language web-step close.
             app.messages.ui.paidonboarding.FlowAAdManager.preloadForStep(this, "language")
+            app.messages.ui.paidonboarding.FlowASequenceRunner.preload(this, "language")
             // Fetch the Flow-A dummy ad images now (native.json / banner.json) so they're cached and
             // ready by the time Flow A opens after Done, then warm ONLY the first Flow-A page's ads
             // (rolling preload — page 1 here, each later page warms the next one itself).
@@ -102,6 +110,13 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
                 app.messages.ui.paidonboarding.FlowADummyImages.fetch()
                 app.messages.ui.paidonboarding.FlowAAdBinder.preloadForPage(this@LanguageSelectionActivity, 1)
             }
+        } else if (!isFromSettings) {
+            // Flow B (Organic install onboarding): log org_user_lang_visited once
+            app.messages.analytics.AnalyticsHelper.logOnce(
+                context = this,
+                prefKey = "key_once_org_user_lang_visited",
+                eventName = app.messages.analytics.EventNames.ORG_LANG_VISITED
+            )
         }
 
         // Warm it now so the Done tap shows it instantly rather than parking the
@@ -148,8 +163,8 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
                     )
                     return@loadNativeAd
                 }
-                val adView = layoutInflater.inflate(R.layout.ads_native_big, null) as com.google.android.gms.ads.nativead.NativeAdView
-                app.messages.config.AdsConfigManager.populateNativeAdView(nativeAd, adView)
+                val adView = layoutInflater.inflate(R.layout.ads_native_big, null) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
+                app.messages.config.AdsConfigManager.populateNativeAdView(nativeAd, adView, "language")
                 binding.nativeAdShimmerFrameLayout.visibility = View.GONE
                 binding.nativeAdFrameLayout.visibility = View.VISIBLE
                 binding.nativeAdFrameLayout.removeAllViews()
@@ -227,10 +242,20 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
         prefs?.setLanguageSelected(true)
         prefs?.setSelectedLanguageCode(selectedCode)
         // Flow A attribution funnel: ${prefix}_user_lang_success (language applied, moving forward).
-        if (isPaidOnboarding) app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelEvery(this, "user_lang_success")
+        if (isPaidOnboarding) {
+            app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelEvery(this, "user_lang_success")
+        } else if (!isFromSettings) {
+            // Flow B (Organic install onboarding): log org_user_lang_success once
+            app.messages.analytics.AnalyticsHelper.logOnce(
+                context = this,
+                prefKey = "key_once_org_user_lang_success",
+                eventName = app.messages.analytics.EventNames.ORG_LANG_SUCCESS,
+                params = android.os.Bundle().apply { putString("language_code", selectedCode) }
+            )
+        }
         app.messages.utility.LocaleHelper.setLocale(this, selectedCode)
         app.messages.utility.LocaleHelper.syncLanguageToFlutter(this, selectedCode)
-        app.messages.ui.videodownloader.VideoDownloaderEngineHelper.notifyLanguageChanged(selectedCode)
+        app.messages.feature.LauncherSlot.feature.onLanguageChanged(selectedCode)
 
         // Log one-time Firebase Analytics event for language selection
         val languageBundle = android.os.Bundle().apply {
@@ -284,13 +309,37 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
      */
     private fun navigateAfterLanguageDone() {
         // Splash skips the Flutter warm-up for this screen; start it now that the user is leaving.
-        (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
+        app.messages.feature.LauncherSlot.warmUp(applicationContext)
         if (isFromSettings) {
             // If user opened from Settings, just return back
             finish()
             return
         }
         if (app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(this)) {
+            // Remote Config sequence for the Language step (e.g. inter -> chrome -> app_open).
+            if (sequenceRunner != null) return
+            sequenceRunner = app.messages.ui.paidonboarding.FlowASequenceRunner.forStep(
+                activity = this,
+                stepTag = "language",
+                launchChrome = { onFallback ->
+                    app.messages.ui.paidonboarding.PaidChromeTabManager.launch(
+                        activity = this,
+                        launcher = chromeTabLauncher,
+                        stepTag = "after_language",
+                        onFallback = onFallback
+                    )
+                },
+                onDone = {
+                    sequenceRunner = null
+                    startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
+                    finish()
+                }
+            )
+            sequenceRunner?.let {
+                android.util.Log.d("FLOW_CHECK", "[LANGUAGE_DONE] Paid install -> Remote Config step sequence")
+                it.start()
+                return
+            }
             // Paid install: check if in-app Chrome tab should be shown after language
             if (app.messages.ui.paidonboarding.PaidChromeTabManager.shouldShowAfterLanguage(this)) {
                 android.util.Log.d("FLOW_CHECK", "[LANGUAGE_DONE] Paid Google install -> Opening Chrome Custom Tab")
@@ -310,6 +359,15 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
                     app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelEvery(this, "user_lang_web_open")
                     return
                 }
+            } else if (app.messages.ui.paidonboarding.PaidChromeTabManager.shouldShowAdOnlyAfterLanguage()) {
+                // Chrome web step is off but the App Open / Interstitial is on: show the ad between
+                // Language and Flow A, then continue (instantly if no ad is ready).
+                android.util.Log.d("FLOW_CHECK", "[LANGUAGE_DONE] Chrome off -> ad-only step, then Flow A")
+                app.messages.ui.paidonboarding.PaidChromeTabManager.showAdOnlyStep(this, "language") {
+                    startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
+                    finish()
+                }
+                return
             }
             android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] Paid install -> PaidOnboardingActivity (Flow A)")
             startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))

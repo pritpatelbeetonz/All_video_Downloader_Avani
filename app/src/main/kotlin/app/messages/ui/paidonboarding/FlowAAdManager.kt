@@ -228,6 +228,29 @@ object FlowAAdManager {
         }
     }
 
+    /** Preloads a specific [format] (used by the Flow A step sequence). */
+    fun preloadFormat(context: Context, format: FlowAAdFormat) {
+        when (format) {
+            FlowAAdFormat.APP_OPEN -> preloadAppOpen(context)
+            FlowAAdFormat.INTERSTITIAL -> preloadInterstitial(context)
+            FlowAAdFormat.OFF -> { /* no-op */ }
+        }
+    }
+
+    /** Shows a specific [format] now (Flow A step sequence); continues instantly when nothing is ready. */
+    fun showAdOfFormat(activity: Activity, format: FlowAAdFormat, onDone: () -> Unit) {
+        if (isPremium(activity)) {
+            onDone()
+            return
+        }
+        Log.d(TAG, "🚀 showAdOfFormat($format)")
+        when (format) {
+            FlowAAdFormat.OFF -> onDone()
+            FlowAAdFormat.APP_OPEN -> handleShowAppOpen(activity, onDone)
+            FlowAAdFormat.INTERSTITIAL -> handleShowInterstitial(activity, onDone)
+        }
+    }
+
     private fun handleShowAppOpen(activity: Activity, onDone: () -> Unit) {
         val loaded = appOpenAd
         if (loaded != null) {

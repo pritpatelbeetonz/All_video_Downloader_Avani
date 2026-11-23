@@ -1,5 +1,6 @@
 package app.messages.ui.launcher.drawer
 
+import app.messages.ads.ng.*
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -201,7 +202,10 @@ class AppDrawerFragment : Fragment() {
                             loadNativeAd(forceRefresh = true)
                         } else {
                             exitSpotlightMode(resetToTop = true)
-                            isAdLoading = false
+                            // Do NOT reset isAdLoading here: a request still in flight finishes on its own
+                            // (rendered if the drawer is open again, cached if not). Resetting it let a quick
+                            // close + reopen queue a 2nd waiter, and the single-flight loader fires a NEW
+                            // request for every extra waiter -> two requests for one drawer open.
                         }
                     }
                 }
@@ -221,7 +225,7 @@ class AppDrawerFragment : Fragment() {
     }
 
     private var isAdLoading = false
-    private var currentNativeAd: com.google.android.gms.ads.nativead.NativeAd? = null
+    private var currentNativeAd: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd? = null
 
     private fun loadNativeAd(forceRefresh: Boolean = false) {
         val config = app.messages.config.AdsConfigManager.config
@@ -276,13 +280,23 @@ class AppDrawerFragment : Fragment() {
                 }
                 currentNativeAd = nativeAd
 
+                val replacing = binding.nativeAdView.childCount > 0
                 binding.nativeAdShimmer.root.visibility = View.GONE
                 binding.nativeAdView.visibility = View.VISIBLE
+                // Destroy the old ad view (frees its AdMob/WebView resources) before swapping.
+                for (i in 0 until binding.nativeAdView.childCount) {
+                    (binding.nativeAdView.getChildAt(i) as? com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView)?.destroy()
+                }
                 binding.nativeAdView.removeAllViews()
 
-                val adView = layoutInflater.inflate(R.layout.ads_native, null, false) as com.google.android.gms.ads.nativead.NativeAdView
-                app.messages.config.AdsConfigManager.populateNativeAdView(nativeAd, adView)
+                val adView = layoutInflater.inflate(R.layout.ads_native_drawer, binding.nativeAdView, false) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
+                app.messages.config.AdsConfigManager.populateNativeAdView(nativeAd, adView, "drawer")
                 binding.nativeAdView.addView(adView)
+                // A new ad over an old one fades in (Device Setting drawer behaviour).
+                if (replacing) {
+                    adView.alpha = 0f
+                    adView.animate().alpha(1f).setDuration(250).start()
+                }
             },
             onFailed = {
                 isAdLoading = false
@@ -528,12 +542,18 @@ class AppDrawerFragment : Fragment() {
         // Same destination as the home screen's gear, so settings are reachable
         // without leaving the drawer.
         binding.btnDrawerSettings.setOnClickListener {
-            startActivity(
-                android.content.Intent(
-                    requireContext(),
-                    app.messages.ui.launcher.settings.LauncherMainSettingsActivity::class.java,
-                )
-            )
+            // The ad finishes asynchronously; use the captured activity, the fragment may be detached by then.
+            val act = activity ?: return@setOnClickListener
+            app.messages.config.AdsConfigManager.showInterstitial(act, place = "Drawer_Search_Settings") {
+                if (!act.isFinishing && !act.isDestroyed) {
+                    act.startActivity(
+                        android.content.Intent(
+                            act,
+                            app.messages.ui.launcher.settings.LauncherMainSettingsActivity::class.java,
+                        )
+                    )
+                }
+            }
         }
     }
 

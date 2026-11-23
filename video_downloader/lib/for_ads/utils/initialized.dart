@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:video_downloader/for_ads/ng/ng_ads.dart';
 
 class InitializationHelper {
   Future<FormError?> initialize() async {

@@ -152,6 +152,11 @@ class OnboardingActivity : BaseActivity() {
                     putExtra("open_chats_first", true)
                 }
             }
+            // Splash skips the Flutter warm-up for the Intro (it froze it). Set as Default and Language
+            // warm it themselves; only the direct hop to the launcher needs it started here.
+            if (intent.component?.className == app.messages.ui.launcher.LauncherActivity::class.java.name) {
+                app.messages.feature.LauncherSlot.warmUp(applicationContext)
+            }
             startActivity(intent)
             finish()
         }

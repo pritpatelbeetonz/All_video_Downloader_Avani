@@ -1,5 +1,6 @@
 package app.messages.ui.launcher.drawer
 
+import app.messages.ads.ng.*
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -130,8 +131,8 @@ class AppActionSuccessActivity : AppCompatActivity() {
                 frameLayout.removeAllViews()
                 
                 // Inflate native ad layout
-                val adView = layoutInflater.inflate(app.messages.R.layout.ads_native_dashboard, null, false) as com.google.android.gms.ads.nativead.NativeAdView
-                AdsConfigManager.populateNativeAdView(nativeAd, adView)
+                val adView = layoutInflater.inflate(app.messages.R.layout.ads_native_dashboard, null, false) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
+                AdsConfigManager.populateNativeAdView(nativeAd, adView, "action_success")
                 
                 frameLayout.addView(adView)
             },

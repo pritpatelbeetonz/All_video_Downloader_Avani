@@ -120,7 +120,15 @@ object InstallSourceManager {
      * background and saves its result for later launches).
      */
     fun checkFromSplash(maxWaitMs: Long, onDone: (String) -> Unit) {
-        if (!decided.isCompleted && checkStarted.compareAndSet(false, true)) startCheck()
+        if (decided.isCompleted) {
+            // Returning user: init() read the switch from the previous launch's values. The splash has
+            // fetched + activated fresh ones by now, so re-read it (otherwise the switch lags a launch).
+            val on = AttributionConfig.fromJson(cachedConfigJson()).isShowRegularToAll
+            if (on != regularToAll) {
+                AttributionLog.d("🔄 isShowRegularToAll changed after fetch: $regularToAll -> $on")
+                regularToAll = on
+            }
+        } else if (checkStarted.compareAndSet(false, true)) startCheck()
         scope.launch {
             val inTime = withTimeoutOrNull(maxWaitMs) { decided.await() } != null
             if (!inTime) AttributionLog.w("⏱️ Not decided within ${maxWaitMs}ms. Splash continues as ${currentSource()}")

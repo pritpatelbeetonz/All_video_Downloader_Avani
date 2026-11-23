@@ -8,7 +8,8 @@ import com.facebook.appevents.AppEventsLogger
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin
+import app.messages.ads.ng.flutter.NgAdsFlutterBridge
+import app.messages.ads.ng.flutter.NgNativeAdFactory
 
 object VideoDownloaderEngineHelper {
     const val ENGINE_ID = "video_downloader_engine"
@@ -24,23 +25,23 @@ object VideoDownloaderEngineHelper {
     fun registerAdFactories(context: Context, flutterEngine: FlutterEngine) {
         val inflater = LayoutInflater.from(context)
         try {
-            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "smallNativeAds")
-            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "bigNativeAds")
-            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "fullNativeAds")
+            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "smallNativeAds")
+            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "bigNativeAds")
+            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "fullNativeAds")
         } catch (_: Exception) {
         }
 
-        GoogleMobileAdsPlugin.registerNativeAdFactory(
+        NgAdsFlutterBridge.registerNativeAdFactory(
             flutterEngine,
             "smallNativeAds",
             NativeAdFactorySmall(inflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
         )
-        GoogleMobileAdsPlugin.registerNativeAdFactory(
+        NgAdsFlutterBridge.registerNativeAdFactory(
             flutterEngine,
             "bigNativeAds",
             NativeAdFactoryBig(inflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
         )
-        GoogleMobileAdsPlugin.registerNativeAdFactory(
+        NgAdsFlutterBridge.registerNativeAdFactory(
             flutterEngine,
             "fullNativeAds",
             NativeAdFactoryFull(inflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
@@ -301,6 +302,8 @@ object VideoDownloaderEngineHelper {
     }
 
     fun initEngine(context: Context, flutterEngine: FlutterEngine) {
+        // Next-Gen ads bridge for the Flutter module (replaces the google_mobile_ads plugin).
+        NgAdsFlutterBridge.attach(context, flutterEngine)
         registerAdFactories(context, flutterEngine)
         initMethodChannel(context, flutterEngine)
         if (app.messages.config.AdsConfigManager.rawConfigJson.isNotBlank()) {

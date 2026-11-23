@@ -194,9 +194,19 @@ class LauncherHostFragment : Fragment() {
     }
 
     private fun setupEdgeTab() {
+        app.messages.feature.LauncherSlot.feature.let { f ->
+            binding.edgeTabIcon.setImageResource(f.iconRes)
+            binding.edgeTab.contentDescription = getString(f.labelRes)
+        }
+        // Left tab (app icon): opens Video Downloader (Page 0)
         binding.edgeTab.setOnClickListener {
             forceCloseDrawer()
-            binding.viewPager.setCurrentItem(LauncherPagerAdapter.PAGE_DASHBOARD, true)
+            binding.viewPager.setCurrentItem(LauncherPagerAdapter.PAGE_VIDEO_DOWNLOADER, true)
+        }
+        // Right tab (chevron): opens Dashboard (Page 2)
+        binding.edgeTabRight.setOnClickListener {
+            forceCloseDrawer()
+            binding.viewPager.setCurrentItem(LauncherPagerAdapter.PAGE_MESSAGE, true)
         }
     }
 
@@ -213,7 +223,7 @@ class LauncherHostFragment : Fragment() {
             drawerContainer = binding.drawerContainer,
             drawerPanel = binding.drawerDismiss,
             scrim = binding.drawerScrim,
-            chromeViews = listOf(binding.pageIndicatorBlur, binding.edgeTab)
+            chromeViews = listOf(binding.pageIndicatorBlur, binding.edgeTab, binding.edgeTabRight)
         )
     }
 
@@ -315,7 +325,9 @@ class LauncherHostFragment : Fragment() {
         // On Video Downloader (page 0), disable ViewPager2 swipe gesture so that full-screen webview,
         // Reels vertical/diagonal swipes, and browser gestures are never intercepted by ViewPager2.
         // Swiping between Home (1) and Messages/Dashboard (2) remains enabled when drawer is closed.
-        binding.viewPager.isUserInputEnabled = (current != LauncherPagerAdapter.PAGE_VIDEO_DOWNLOADER) && (!onHome || isDrawerClosed)
+        val featureLocksSwipe = current == LauncherPagerAdapter.PAGE_FEATURE &&
+            app.messages.feature.LauncherSlot.feature.lockPagerSwipeOnPage
+        binding.viewPager.isUserInputEnabled = !featureLocksSwipe && (!onHome || isDrawerClosed)
         android.util.Log.d("GESTURE_CHECK", "🖐️ [SWIPE_ENABLED] page=$current, onHome=$onHome, isDrawerClosed=$isDrawerClosed -> isUserInputEnabled=${binding.viewPager.isUserInputEnabled}")
     }
 
@@ -366,7 +378,9 @@ class LauncherHostFragment : Fragment() {
 
         binding.glassPageIndicatorBlur.isVisible = false
         binding.pageIndicatorBlur.isVisible = false
-        binding.edgeTab.isVisible = false
+        val onHome = page == LauncherPagerAdapter.PAGE_HOME
+        binding.edgeTab.isVisible = onHome && app.messages.feature.LauncherSlot.feature.isEnabled
+        binding.edgeTabRight.isVisible = onHome
         (activity as? LauncherActivity)?.applyLauncherPageSystemBars(page)
         updateSwipeEnabled()
     }

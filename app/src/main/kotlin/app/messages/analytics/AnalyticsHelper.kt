@@ -20,16 +20,8 @@ import app.messages.analytics.EventScreenName.ONBOARDING
 import app.messages.analytics.EventScreenName.OTHER
 import app.messages.analytics.EventScreenName.SELECT_CONTACT
 import app.messages.analytics.EventScreenName.SPLASH
-import app.messages.ui.activity.AddPeopleActivity
-import app.messages.ui.activity.ArchiveActivity
-import app.messages.ui.activity.BlockListActivity
-import app.messages.ui.activity.ChatActivity
-import app.messages.ui.activity.GroupInfoActivity
-import app.messages.ui.activity.HomeActivity
 import app.messages.ui.activity.LanguageSelectionActivity
 import app.messages.ui.activity.OnboardingActivity
-import app.messages.ui.activity.SelectContactActivity
-import app.messages.ui.activity.SetDefaultSmsActivity
 import app.messages.ui.activity.SplashActivity
 
 
@@ -50,27 +42,11 @@ object AnalyticsHelper {
         var activityName: String = ""
         if (activity is SplashActivity) {
             activityName = SPLASH
-        } else if (activity is AddPeopleActivity) {
-            activityName = ADD_PEOPLE
-        } else if (activity is ArchiveActivity) {
-            activityName = ARCHIVE_LIST
-        } else if (activity is HomeActivity) {
-            activityName = HOME
-        } else if (activity is BlockListActivity) {
-            activityName = EventScreenName.BLOCK_LIST
-        } else if (activity is ChatActivity) {
-            activityName = EventScreenName.CHAT
-        } else if (activity is GroupInfoActivity) {
-            activityName = EventScreenName.GROUP_INFO
         } else if (activity is LanguageSelectionActivity) {
             activityName = LANGUAGE
         } else if (activity is OnboardingActivity) {
             activityName = ONBOARDING
-        } else if (activity is SelectContactActivity) {
-            activityName = SELECT_CONTACT
-        } else if (activity is SetDefaultSmsActivity) {
-            activityName = DEFAULT_APP_PERMISSION
-        }  else
+        } else
             activityName = OTHER
 
         return activityName

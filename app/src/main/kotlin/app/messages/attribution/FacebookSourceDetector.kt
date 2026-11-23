@@ -26,6 +26,7 @@ internal object FacebookSourceDetector {
         AttributionLog.d("🟣 [Facebook] Checking...")
 
         // 1. Deferred deep link
+        AttributionLog.d("🟣 [Facebook] Deferred link markers from Remote Config (fbUtmsForDeferrerLink): ${config.fbUtmsForDeferrerLink}")
         val link = fetchDeferredLink(context, config)
         if (!link.isNullOrEmpty()) {
             AttributionLog.d("🟣 [Facebook] Deferred link: $link")
@@ -33,13 +34,14 @@ internal object FacebookSourceDetector {
                 AttributionLog.d("🟣 [Facebook] ✅ Deferred link contains \"$it\"")
                 return "deferred_link"
             }
-            AttributionLog.d("🟣 [Facebook] ❌ Deferred link has no Facebook marker")
+            AttributionLog.d("🟣 [Facebook] ❌ Deferred link has no marker from fbUtmsForDeferrerLink: ${config.fbUtmsForDeferrerLink}")
             log(context, "src_fb_deferred_link_not_matched")
         } else {
             log(context, "src_fb_deferred_link_not_found")
         }
 
         // 2. Play referrer
+        AttributionLog.d("🟣 [Facebook] Referrer markers from Remote Config (fbUtm): ${config.fbUtm}")
         if (referrer.isOk) {
             containsMarker(referrer.raw.orEmpty(), config.fbUtm)?.let {
                 AttributionLog.d("🟣 [Facebook] ✅ Play referrer contains \"$it\"")
@@ -69,7 +71,14 @@ internal object FacebookSourceDetector {
                 withTimeoutOrNull(config.fbDeferredLinkTimeoutSec * 1000L) {
                     suspendCancellableCoroutine<String?> { cont ->
                         AppLinkData.fetchDeferredAppLinkData(context) { data ->
-                            if (cont.isActive) cont.resume(data?.targetUri?.toString())
+                            if (cont.isActive) {
+                                val uri = data?.targetUri?.toString()
+                                val ref = data?.ref
+                                if (data != null) {
+                                    AttributionLog.d("🟣 [Facebook] 📩 AppLinkData received: targetUri=$uri, ref=$ref")
+                                }
+                                cont.resume(uri ?: ref)
+                            }
                         }
                     }
                 }

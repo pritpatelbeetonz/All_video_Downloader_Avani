@@ -11,7 +11,7 @@ import 'import_all.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:video_downloader/for_ads/ng/ng_ads.dart';
 
 void main() async {
   debugPrint("🚀 [VideoDownloader] main() started");
@@ -88,6 +88,9 @@ void main() async {
     }
     return null;
   });
+
+  // Count a big native ad the previous process died holding unseen (big_native_wasted: process_ended).
+  AppBigNativeAdPool.checkLeftoverFromLastProcess();
 
   // The downloader page may already be on screen if the engine started late.
   platformMethodChannel.invokeMethod('isDownloaderVisible').then((res) {

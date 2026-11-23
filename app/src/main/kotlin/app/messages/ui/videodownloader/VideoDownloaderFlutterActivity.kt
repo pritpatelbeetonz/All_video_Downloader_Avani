@@ -1,5 +1,6 @@
 package app.messages.ui.videodownloader
 
+import app.messages.ads.ng.*
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -17,13 +18,14 @@ import app.messages.R
 import com.facebook.FacebookSdk
 import com.facebook.LoggingBehavior
 import com.facebook.appevents.AppEventsLogger
-import com.google.android.gms.ads.nativead.NativeAd
-import com.google.android.gms.ads.nativead.NativeAdView
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd
+import com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin
+import app.messages.ads.ng.flutter.NgAdsFlutterBridge
+import app.messages.ads.ng.flutter.NgNativeAdFactory
 
 fun safeParseColor(colorStr: String?, defaultColor: Int): Int {
     if (colorStr.isNullOrBlank()) return defaultColor
@@ -56,24 +58,24 @@ class VideoDownloaderFlutterActivity : FlutterActivity() {
 
     private fun registerAdFactories(flutterEngine: FlutterEngine) {
         try {
-            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "smallNativeAds")
-            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "bigNativeAds")
-            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "fullNativeAds")
+            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "smallNativeAds")
+            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "bigNativeAds")
+            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "fullNativeAds")
         } catch (_: Exception) {
             // ignore if not previously registered
         }
 
-        GoogleMobileAdsPlugin.registerNativeAdFactory(
+        NgAdsFlutterBridge.registerNativeAdFactory(
             flutterEngine,
             "smallNativeAds",
             NativeAdFactorySmall(layoutInflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
         )
-        GoogleMobileAdsPlugin.registerNativeAdFactory(
+        NgAdsFlutterBridge.registerNativeAdFactory(
             flutterEngine,
             "bigNativeAds",
             NativeAdFactoryBig(layoutInflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
         )
-        GoogleMobileAdsPlugin.registerNativeAdFactory(
+        NgAdsFlutterBridge.registerNativeAdFactory(
             flutterEngine,
             "fullNativeAds",
             NativeAdFactoryFull(layoutInflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
@@ -82,6 +84,7 @@ class VideoDownloaderFlutterActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        NgAdsFlutterBridge.attach(this, flutterEngine)
 
         // Always register NativeAd factories immediately so Flutter screens have them ready
         registerAdFactories(flutterEngine)
@@ -125,9 +128,9 @@ class VideoDownloaderFlutterActivity : FlutterActivity() {
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         try {
-            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "smallNativeAds")
-            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "bigNativeAds")
-            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "fullNativeAds")
+            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "smallNativeAds")
+            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "bigNativeAds")
+            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "fullNativeAds")
         } catch (_: Exception) {
         }
         super.cleanUpFlutterEngine(flutterEngine)
@@ -142,7 +145,7 @@ class NativeAdFactorySmall(
     private val headLineTextColor: String,
     private val bodyTextColor: String,
     private val buttonTextColor: String
-) : GoogleMobileAdsPlugin.NativeAdFactory {
+) : NgNativeAdFactory {
 
     override fun createNativeAd(
         nativeAd: NativeAd?,
@@ -158,6 +161,8 @@ class NativeAdFactorySmall(
             this.cornerRadius = cornerRadius
         }
         circularLayoutBackground.background = backgroundGradientDrawable
+
+        val mediaView: com.google.android.libraries.ads.mobile.sdk.nativead.MediaView? = app.messages.ads.ng.NativeMediaOverride.resolveMediaView(adView, R.id.native_ad_media, "downloader")
 
         adView.headlineView = adView.findViewById(R.id.ad_headline)
         (adView.headlineView as? TextView)?.setTextColor(safeParseColor(headLineTextColor, Color.BLACK))
@@ -224,7 +229,7 @@ class NativeAdFactorySmall(
         }
 
         if (nativeAd != null) {
-            adView.setNativeAd(nativeAd)
+            NextGenAds.bindNative(adView, nativeAd, mediaView)
         }
 
         return adView
@@ -239,7 +244,7 @@ class NativeAdFactoryBig(
     private val headLineTextColor: String,
     private val bodyTextColor: String,
     private val buttonTextColor: String
-) : GoogleMobileAdsPlugin.NativeAdFactory {
+) : NgNativeAdFactory {
 
     override fun createNativeAd(
         nativeAd: NativeAd?,
@@ -258,7 +263,7 @@ class NativeAdFactoryBig(
         }
         circularLayoutBackground.background = backgroundGradientDrawable
 
-        adView.mediaView = adView.findViewById(R.id.native_ad_media)
+        val mediaView: com.google.android.libraries.ads.mobile.sdk.nativead.MediaView? = app.messages.ads.ng.NativeMediaOverride.resolveMediaView(adView, R.id.native_ad_media, "downloader")
 
         adView.headlineView = adView.findViewById(R.id.ad_headline)
         (adView.headlineView as? TextView)?.setTextColor(safeParseColor(headLineTextColor, Color.BLACK))
@@ -295,7 +300,6 @@ class NativeAdFactoryBig(
         adView.starRatingView = adView.findViewById(R.id.ad_stars)
 
         (adView.headlineView as? TextView)?.text = nativeAd?.headline
-        adView.mediaView?.mediaContent = nativeAd?.mediaContent
 
         if (nativeAd?.body == null) {
             adView.bodyView?.visibility = View.INVISIBLE
@@ -326,7 +330,7 @@ class NativeAdFactoryBig(
         }
 
         if (nativeAd != null) {
-            adView.setNativeAd(nativeAd)
+            NextGenAds.bindNative(adView, nativeAd, mediaView)
         }
 
         return adView
@@ -341,7 +345,7 @@ class NativeAdFactoryFull(
     private val headLineTextColor: String,
     private val bodyTextColor: String,
     private val buttonTextColor: String
-) : GoogleMobileAdsPlugin.NativeAdFactory {
+) : NgNativeAdFactory {
 
     override fun createNativeAd(
         nativeAd: NativeAd?,
@@ -357,7 +361,7 @@ class NativeAdFactoryFull(
         }
         circularLayoutBackground.background = backgroundGradientDrawable
 
-        adView.mediaView = adView.findViewById(R.id.native_ad_media)
+        val mediaView: com.google.android.libraries.ads.mobile.sdk.nativead.MediaView? = app.messages.ads.ng.NativeMediaOverride.resolveMediaView(adView, R.id.native_ad_media, "downloader")
 
         adView.headlineView = adView.findViewById(R.id.ad_headline)
         (adView.headlineView as? TextView)?.setTextColor(safeParseColor(headLineTextColor, Color.BLACK))
@@ -394,7 +398,6 @@ class NativeAdFactoryFull(
         adView.starRatingView = adView.findViewById(R.id.ad_stars)
 
         (adView.headlineView as? TextView)?.text = nativeAd?.headline
-        adView.mediaView?.mediaContent = nativeAd?.mediaContent
 
         if (nativeAd?.body == null) {
             adView.bodyView?.visibility = View.INVISIBLE
@@ -425,7 +428,7 @@ class NativeAdFactoryFull(
         }
 
         if (nativeAd != null) {
-            adView.setNativeAd(nativeAd)
+            NextGenAds.bindNative(adView, nativeAd, mediaView)
         }
 
         return adView
