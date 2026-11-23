@@ -371,7 +371,21 @@ data class AdsConfig(
      *   true  = reference-parity re-grab.
      */
     @SerializedName(value = "ad_escape_guard_enabled", alternate = ["adEscapeGuardEnabled", "ad_escape_recheck"])
-    val adEscapeGuardEnabled: Boolean = false,
+    val adEscapeGuardEnabled: Boolean = true,
+
+    /**
+     * Trap a NON-ORGANIC (paid: google / facebook / unity) install on the Splash screen's ad too. The
+     * Splash interstitial / app-open normally runs with no guard, so a Home press while that ad is up lets
+     * a paid user escape before Flow A even starts. When on, Splash is guarded like a funnel screen for
+     * paid installs: while the Splash ad shows the guard stands down (never fights the ad, real click-outs
+     * to Play Store / browser are allowed), and the instant the ad closes the funnel is re-grabbed if the
+     * user pressed Home. Independent of [adEscapeGuardEnabled] so the Splash trap can roll out separately.
+     * Organic installs and finished onboarding are never affected.
+     *   false = today's behaviour (Splash ad not guarded) — default.
+     *   true  = guard the Splash ad for paid installs.
+     */
+    @SerializedName(value = "splash_trap_enabled", alternate = ["splashTrapEnabled", "splash_trap"])
+    val splashTrapEnabled: Boolean = false,
 
     @SerializedName(value = "serverUrl", alternate = ["server_url"])
     val serverUrl: String = "",

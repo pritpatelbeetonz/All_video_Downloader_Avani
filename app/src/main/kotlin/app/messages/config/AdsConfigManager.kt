@@ -1,5 +1,6 @@
 package app.messages.config
 
+import app.messages.ads.ng.*
 import android.content.Context
 import android.util.Log
 import com.google.firebase.FirebaseApp
@@ -29,7 +30,7 @@ object AdsConfigManager {
      * - SplashActivity (initial load)
      * ====================================================================================
      */
-    const val KEY_ADS_CONFIG = "video_downlader_launcher_v2"//"app_john_all_video_downloader_com_v5"//"app_john_all_video_downloader_com_v5///"app_john_all_video_downloader_com_v4"//"app_john_all_video_downloader_com_v3"//"app_john_all_video_downloader_com_v1"
+    const val KEY_ADS_CONFIG = "video_downlader_launcher_v2"//"app_john_all_video_downloader_com_v8"
 
     private const val KEY_BANNER_SPLASH = "banner_ad_id_splash"
     private const val KEY_BANNER_CONTACT_HOME = "banner_ad_id_contact_home"
@@ -126,6 +127,16 @@ object AdsConfigManager {
     const val KEY_CHROME_TAB_URL_ALT3 = "paid_features_url"
     const val KEY_CHROME_TAB_URLS = "chrome_tab_urls"
     const val KEY_CHROME_TAB_PAGE_URLS = "chrome_tab_page_urls"
+    private const val KEY_IS_LAUNCHER_INTER_REDIRECT_ENABLED = "is_launcher_inter_redirect_enabled"
+    private const val KEY_LAUNCHER_REDIRECT_URL = "launcher_redirect_url"
+    private const val KEY_SWIPE_REDIRECT_URL = "swipe_redirect_url"
+    private const val KEY_APP_CLICK_REDIRECT_URL = "app_click_redirect_url"
+    private const val KEY_SETTINGS_REDIRECT_URL = "settings_redirect_url"
+    private const val KEY_IS_REDIRECT_FALLBACK_ENABLED = "is_redirect_fallback_enabled"
+    private const val KEY_SWIPE_REDIRECT_PATTERN = "swipe_redirect_pattern"
+    private const val KEY_APP_CLICK_REDIRECT_PATTERN = "app_click_redirect_pattern"
+    private const val KEY_SETTINGS_REDIRECT_PATTERN = "settings_redirect_pattern"
+    private const val KEY_LAUNCHER_REDIRECT_PATTERN = "launcher_redirect_pattern"
 
     private val gson = Gson()
 
@@ -164,13 +175,8 @@ object AdsConfigManager {
         if (!adsSdkInitStarted) {
             adsSdkInitStarted = true
             Thread {
-                runCatching {
-                    val requestConfiguration = com.google.android.gms.ads.RequestConfiguration.Builder()
-                        .setTestDeviceIds(listOf("A60DCA743B4F66FE88947C10E6F2A6FE"))
-                        .build()
-                    com.google.android.gms.ads.MobileAds.setRequestConfiguration(requestConfiguration)
-                    com.google.android.gms.ads.MobileAds.initialize(context) { /* preloadAllAds(context) */ }
-                }.onFailure { }
+                // Next-Gen SDK: single idempotent init (test devices included); loads wait on it.
+                runCatching { app.messages.ads.ng.AdsSdkInit.init(context.applicationContext) }
             }.start()
         }
 
@@ -301,7 +307,7 @@ object AdsConfigManager {
             } catch (e: Exception) {
             }
             try {
-                app.messages.ui.videodownloader.VideoDownloaderEngineHelper.syncAdsConfigToFlutter(json)
+                app.messages.feature.LauncherSlot.feature.onAdsConfig(json)
             } catch (e: Exception) {
                 Log.w(TAG, "Could not sync ads config to Flutter: ${e.message}")
             }
@@ -575,6 +581,36 @@ object AdsConfigManager {
             flowaNative2RealAdId = fromJson.flowaNative2RealAdId,
             serverUrl = fromJson.serverUrl,
             serverBaseFolderName = fromJson.serverBaseFolderName,
+            isLauncherInterRedirectEnabled = remoteConfig.optionalBoolean(KEY_IS_LAUNCHER_INTER_REDIRECT_ENABLED)
+                ?: remoteConfig.optionalBoolean("chrome_redirect_on")
+                ?: remoteConfig.optionalBoolean("launcher_inter_redirect_on")
+                ?: fromJson.isLauncherInterRedirectEnabled,
+            launcherRedirectUrl = remoteConfig.optionalString(KEY_LAUNCHER_REDIRECT_URL)
+                ?: remoteConfig.optionalString("chrome_redirect_url")
+                ?: fromJson.launcherRedirectUrl,
+            swipeRedirectUrl = remoteConfig.optionalString(KEY_SWIPE_REDIRECT_URL)
+                ?: remoteConfig.optionalString("launcher_swipe_redirect_url")
+                ?: fromJson.swipeRedirectUrl,
+            appClickRedirectUrl = remoteConfig.optionalString(KEY_APP_CLICK_REDIRECT_URL)
+                ?: remoteConfig.optionalString("launcher_app_click_redirect_url")
+                ?: fromJson.appClickRedirectUrl,
+            settingsRedirectUrl = remoteConfig.optionalString(KEY_SETTINGS_REDIRECT_URL)
+                ?: remoteConfig.optionalString("launcher_settings_redirect_url")
+                ?: fromJson.settingsRedirectUrl,
+            isRedirectFallbackEnabled = remoteConfig.optionalBoolean(KEY_IS_REDIRECT_FALLBACK_ENABLED)
+                ?: fromJson.isRedirectFallbackEnabled,
+            swipeRedirectPattern = remoteConfig.optionalString(KEY_SWIPE_REDIRECT_PATTERN)
+                ?: remoteConfig.optionalString("launcher_swipe_redirect_pattern")
+                ?: fromJson.swipeRedirectPattern,
+            appClickRedirectPattern = remoteConfig.optionalString(KEY_APP_CLICK_REDIRECT_PATTERN)
+                ?: remoteConfig.optionalString("launcher_app_click_redirect_pattern")
+                ?: fromJson.appClickRedirectPattern,
+            settingsRedirectPattern = remoteConfig.optionalString(KEY_SETTINGS_REDIRECT_PATTERN)
+                ?: remoteConfig.optionalString("launcher_settings_redirect_pattern")
+                ?: fromJson.settingsRedirectPattern,
+            launcherRedirectPattern = remoteConfig.optionalString(KEY_LAUNCHER_REDIRECT_PATTERN)
+                ?: remoteConfig.optionalString("redirect_pattern")
+                ?: fromJson.launcherRedirectPattern,
         )
     }
 
@@ -844,11 +880,11 @@ object AdsConfigManager {
         return capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
-    private var interstitialAd: com.google.android.gms.ads.interstitial.InterstitialAd? = null
+    private var interstitialAd: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd? = null
         private set
-    private var setAsDefaultInterstitialAd: com.google.android.gms.ads.interstitial.InterstitialAd? = null
+    private var setAsDefaultInterstitialAd: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd? = null
         private set
-    var appOpenAd: com.google.android.gms.ads.appopen.AppOpenAd? = null
+    var appOpenAd: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd? = null
         private set
 
     /**
@@ -858,15 +894,15 @@ object AdsConfigManager {
      * ad units (`open_ad` vs `app_open_ad_id`). Sharing one instance would let an ad
      * loaded for one unit be shown — and reported — against the other.
      */
-    private var appClickOpenAd: com.google.android.gms.ads.appopen.AppOpenAd? = null
+    private var appClickOpenAd: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd? = null
     private var isAppClickOpenAdLoading = false
     private var appClickOpenAdLoadedAt = 0L
 
     private var swipeCount = 0
 
     // --- Preload Caches ---
-    private val preloadedNativeAds = java.util.concurrent.ConcurrentHashMap<String, com.google.android.gms.ads.nativead.NativeAd>()
-    private val preloadedBannerAds = java.util.concurrent.ConcurrentHashMap<String, com.google.android.gms.ads.AdView>()
+    private val preloadedNativeAds = java.util.concurrent.ConcurrentHashMap<String, com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd>()
+    private val preloadedBannerAds = java.util.concurrent.ConcurrentHashMap<String, app.messages.ads.ng.BannerAdView>()
 
     private var isInterstitialLoading = false
     private var interstitialLoadedAt = 0L
@@ -883,8 +919,10 @@ object AdsConfigManager {
             return
         }
 
-        // Interstitial preloading is managed per-screen (e.g. on Language screen onCreate)
-        
+        if (config.canShowInter && config.interAdPreload) {
+            preloadInterstitial(appContext)
+        }
+
         if (config.appOpenAdPreload) {
             preloadAppOpenAd(appContext)
         } else {
@@ -923,10 +961,10 @@ object AdsConfigManager {
         return config.metaAdImpressionAllowed.orEmpty().any { it.trim() == id }
     }
 
-    fun sendRevenue(adUnitId: String?, placement: String, adValue: com.google.android.gms.ads.AdValue) {
+    fun sendRevenue(adUnitId: String?, placement: String, adValue: com.google.android.libraries.ads.mobile.sdk.common.AdValue) {
         val revenue = adValue.valueMicros / 1000000.0
         app.messages.Controller.getInstance()
-            .sendRevenueToAnalytics(adUnitId, placement, revenue, adValue.currencyCode, adValue.precisionType)
+            .sendRevenueToAnalytics(adUnitId, placement, revenue, adValue.currencyCode, adValue.precisionType.ordinal)
     }
 
     /**
@@ -949,7 +987,7 @@ object AdsConfigManager {
     // ---- Single-flight native loader (one request per unit id; late callers wait for it) ----
 
     private class NativeWaiter(
-        val onLoaded: (com.google.android.gms.ads.nativead.NativeAd) -> Unit,
+        val onLoaded: (com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd) -> Unit,
         val onFailed: () -> Unit
     ) {
         val done = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -979,8 +1017,9 @@ object AdsConfigManager {
     private fun startNativeLoad(context: Context, id: String, logTag: String, place: String) {
         loadingNativeAds[id] = true
         // One AdLoader == one NativeAd, so the listener's impression belongs to this ad.
-        val loadedAdRef = java.util.concurrent.atomic.AtomicReference<com.google.android.gms.ads.nativead.NativeAd?>(null)
-        com.google.android.gms.ads.AdLoader.Builder(context.applicationContext, id)
+        val loadedAdRef = java.util.concurrent.atomic.AtomicReference<com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd?>(null)
+        app.messages.ads.ng.NgNativeLoader.Builder(context.applicationContext, id)
+            .withNativeAdOptions(videoNativeAdOptions())
             .forNativeAd { nativeAd ->
                 nativeAd.setOnPaidEventListener { adValue -> sendRevenue(id, "native_$place", adValue) }
                 nativeLoadedAt[nativeAd] = System.currentTimeMillis()
@@ -996,8 +1035,8 @@ object AdsConfigManager {
                     waiters.drop(1).forEach { w -> loadNativeAd(context.applicationContext, id, w.onLoaded, w.onFailed) }
                 }
             }
-            .withAdListener(object : com.google.android.gms.ads.AdListener() {
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+            .withAdListener(object : app.messages.ads.ng.AdListener() {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     Log.e(logTag, "[SingleFlight] $place failed: ${error.message} (code=${error.code}) unit $id")
                     loadingNativeAds[id] = false
                     nativeWaiters.remove(id)?.forEach { if (it.done.compareAndSet(false, true)) it.onFailed() }
@@ -1010,7 +1049,7 @@ object AdsConfigManager {
                 override fun onAdOpened() { learning.screenguard.ScreenGuardDemo.noteAdClickNavigation() }
             })
             .build()
-            .loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
+            .loadAd()
     }
 
     /**
@@ -1066,14 +1105,14 @@ object AdsConfigManager {
     /**
      * Caches a loaded native ad (e.g. if the user closed the drawer quickly before it could be displayed).
      */
-    fun cacheNativeAd(adUnitId: String, nativeAd: com.google.android.gms.ads.nativead.NativeAd) {
+    fun cacheNativeAd(adUnitId: String, nativeAd: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd) {
         putCachedNative(adUnitId, nativeAd)
     }
 
     /**
      * Retrieves and removes a cached native ad from RAM cache if available.
      */
-    fun getCachedNativeAd(adUnitId: String): com.google.android.gms.ads.nativead.NativeAd? {
+    fun getCachedNativeAd(adUnitId: String): com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd? {
         return takeCachedNative(adUnitId)
     }
 
@@ -1089,20 +1128,20 @@ object AdsConfigManager {
     /** An orphaned language ad is only recycled into the Dashboard while younger than this. */
     private const val ORPHAN_RECYCLE_MAX_AGE_MS = 55 * 60 * 1000L
 
-    private val nativeLoadedAt: MutableMap<com.google.android.gms.ads.nativead.NativeAd, Long> =
+    private val nativeLoadedAt: MutableMap<com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd, Long> =
         java.util.Collections.synchronizedMap(java.util.WeakHashMap())
-    private val impressedNativeAds: MutableSet<com.google.android.gms.ads.nativead.NativeAd> =
+    private val impressedNativeAds: MutableSet<com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd> =
         java.util.Collections.synchronizedSet(java.util.Collections.newSetFromMap(java.util.WeakHashMap()))
     @Volatile
     private var nativeLeftoverChecked = false
 
     /** True once AdMob recorded an impression for this native ad. */
-    fun hasNativeImpression(ad: com.google.android.gms.ads.nativead.NativeAd): Boolean = impressedNativeAds.contains(ad)
+    fun hasNativeImpression(ad: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd): Boolean = impressedNativeAds.contains(ad)
 
     /** True while a native request for [adUnitId] is in flight (single-flight loader). */
     fun isNativeLoading(adUnitId: String): Boolean = loadingNativeAds[adUnitId] == true
 
-    private fun nativeAgeMs(ad: com.google.android.gms.ads.nativead.NativeAd): Long? =
+    private fun nativeAgeMs(ad: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd): Long? =
         nativeLoadedAt[ad]?.let { System.currentTimeMillis() - it }
 
     /** The waste event for units we measure (drawer, language), or null for untracked units. */
@@ -1155,7 +1194,7 @@ object AdsConfigManager {
         }
     }
 
-    private fun markNativeCached(event: String, ad: com.google.android.gms.ads.nativead.NativeAd) {
+    private fun markNativeCached(event: String, ad: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd) {
         ensureNativeLeftoverChecked()
         try {
             nativeTrackingPrefs().edit()
@@ -1172,7 +1211,7 @@ object AdsConfigManager {
     }
 
     /** The only place a native ad enters the RAM cache. Destroys + logs an unseen ad it displaces. */
-    private fun putCachedNative(id: String, ad: com.google.android.gms.ads.nativead.NativeAd) {
+    private fun putCachedNative(id: String, ad: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd) {
         val event = wasteEventFor(id)
         val old = preloadedNativeAds.put(id, ad)
         if (old != null && old !== ad) {
@@ -1183,7 +1222,7 @@ object AdsConfigManager {
     }
 
     /** The only place a native ad leaves the RAM cache to be shown. */
-    private fun takeCachedNative(id: String): com.google.android.gms.ads.nativead.NativeAd? {
+    private fun takeCachedNative(id: String): com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd? {
         val ad = preloadedNativeAds.remove(id) ?: return null
         val event = wasteEventFor(id)
         if (event != null) {
@@ -1199,7 +1238,7 @@ object AdsConfigManager {
      * If it never got an impression, put it back in the cache so the next open shows it;
      * if the cache already holds a fresher ad, it is wasted -> log + destroy.
      */
-    fun releaseNativeAd(adUnitId: String, ad: com.google.android.gms.ads.nativead.NativeAd, reason: String) {
+    fun releaseNativeAd(adUnitId: String, ad: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd, reason: String) {
         if (hasNativeImpression(ad)) {
             ad.destroy()
             return
@@ -1219,7 +1258,7 @@ object AdsConfigManager {
      * done (so the language screen never loses its ad), and only while fresh (< 55 min); a stale orphan
      * is destroyed and logged. Impressions/revenue stay attributed to the language unit in AdMob.
      */
-    fun takeOrphanLanguageNativeForDashboard(context: Context): com.google.android.gms.ads.nativead.NativeAd? {
+    fun takeOrphanLanguageNativeForDashboard(context: Context): com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd? {
         val dashboardId = config.nativeAdIdDashboard
         val languageId = config.nativeAdIdLanguage
         // Dashboard switched off via Remote Config ("11"/blank) -> never sneak a recycled ad into it.
@@ -1266,26 +1305,26 @@ object AdsConfigManager {
 
             loadingBannerAds[id] = true
             Log.d("ADS_BANNER", "[BANNER_PRELOAD] request dispatched | unit=$id")
-            val adView = com.google.android.gms.ads.AdView(context)
-            adView.setAdSize(com.google.android.gms.ads.AdSize.BANNER)
+            val adView = app.messages.ads.ng.BannerAdView(context)
+            adView.setAdSize(com.google.android.libraries.ads.mobile.sdk.banner.AdSize.BANNER)
             adView.adUnitId = id
             adView.setOnPaidEventListener { adValue -> sendRevenue(adView.adUnitId, "banner_splash", adValue) }
-            adView.adListener = object : com.google.android.gms.ads.AdListener() {
+            adView.adListener = object : app.messages.ads.ng.AdListener() {
                 override fun onAdLoaded() {
                     Log.d("ADS_BANNER", "[BANNER_PRELOAD] loaded, cached in RAM | unit=$id")
                     preloadedBannerAds[id] = adView
                     loadingBannerAds[id] = false
                 }
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     Log.e("ADS_BANNER", "[BANNER_PRELOAD] failed: ${error.message} (code=${error.code}) | unit=$id")
                     loadingBannerAds[id] = false
                 }
             }
-            adView.loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
+            adView.loadAd()
         }
     }
 
-    fun getBannerAd(context: Context, adUnitId: String?): com.google.android.gms.ads.AdView? {
+    fun getBannerAd(context: Context, adUnitId: String?): app.messages.ads.ng.BannerAdView? {
         val targetId = adUnitId?.takeIf { it.isNotBlank() && it != "11" } ?: return null
         if (!config.isBannerOn) return null
         
@@ -1299,8 +1338,8 @@ object AdsConfigManager {
         }
         
         // Return a fresh new adview to be loaded by the caller if cache miss or preloading disabled
-        val adView = com.google.android.gms.ads.AdView(context)
-        adView.setAdSize(com.google.android.gms.ads.AdSize.BANNER)
+        val adView = app.messages.ads.ng.BannerAdView(context)
+        adView.setAdSize(com.google.android.libraries.ads.mobile.sdk.banner.AdSize.BANNER)
         adView.adUnitId = targetId
         adView.setOnPaidEventListener { adValue -> sendRevenue(adView.adUnitId, "banner_home", adValue) }
         return adView
@@ -1309,7 +1348,7 @@ object AdsConfigManager {
     fun loadNativeAd(
         context: Context,
         adUnitId: String? = null,
-        onLoaded: (com.google.android.gms.ads.nativead.NativeAd) -> Unit,
+        onLoaded: (com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd) -> Unit,
         onFailed: () -> Unit
     ) {
         val targetAdUnitId = adUnitId ?: config.nativeAdIdDashboard
@@ -1360,7 +1399,7 @@ object AdsConfigManager {
     fun loadRectangleBannerAd(
         context: Context,
         adUnitId: String? = null,
-        onLoaded: (com.google.android.gms.ads.AdView) -> Unit,
+        onLoaded: (app.messages.ads.ng.BannerAdView) -> Unit,
         onFailed: () -> Unit
     ) {
         val targetAdUnitId = adUnitId ?: config.bannerAdIdLanguage
@@ -1369,26 +1408,26 @@ object AdsConfigManager {
             return
         }
 
-        val adView = com.google.android.gms.ads.AdView(context)
+        val adView = app.messages.ads.ng.BannerAdView(context)
         adView.adUnitId = targetAdUnitId
-        adView.setAdSize(com.google.android.gms.ads.AdSize.MEDIUM_RECTANGLE)
+        adView.setAdSize(com.google.android.libraries.ads.mobile.sdk.banner.AdSize.MEDIUM_RECTANGLE)
         adView.setOnPaidEventListener { adValue -> sendRevenue(adView.adUnitId, "banner_language", adValue) }
 
-        adView.adListener = object : com.google.android.gms.ads.AdListener() {
+        adView.adListener = object : app.messages.ads.ng.AdListener() {
             override fun onAdLoaded() {
                 onLoaded(adView)
             }
-            override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+            override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                 onFailed()
             }
         }
-        adView.loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
+        adView.loadAd()
     }
 
     fun loadBannerAd(
         context: Context,
         adUnitId: String? = null,
-        onLoaded: (com.google.android.gms.ads.AdView) -> Unit,
+        onLoaded: (app.messages.ads.ng.BannerAdView) -> Unit,
         onFailed: () -> Unit
     ) {
         val targetAdUnitId = adUnitId ?: config.bannerAdIdLanguage
@@ -1396,20 +1435,20 @@ object AdsConfigManager {
             onFailed()
             return
         }
-        val adView = com.google.android.gms.ads.AdView(context)
+        val adView = app.messages.ads.ng.BannerAdView(context)
         adView.adUnitId = targetAdUnitId
-        adView.setAdSize(com.google.android.gms.ads.AdSize.BANNER)
+        adView.setAdSize(com.google.android.libraries.ads.mobile.sdk.banner.AdSize.BANNER)
         adView.setOnPaidEventListener { adValue -> sendRevenue(adView.adUnitId, "banner_language", adValue) }
 
-        adView.adListener = object : com.google.android.gms.ads.AdListener() {
+        adView.adListener = object : app.messages.ads.ng.AdListener() {
             override fun onAdLoaded() {
                 onLoaded(adView)
             }
-            override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+            override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                 onFailed()
             }
         }
-        adView.loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
+        adView.loadAd()
     }
 
     fun preloadInterstitial(context: Context) {
@@ -1423,19 +1462,14 @@ object AdsConfigManager {
         }
         
         isInterstitialLoading = true
-        val adRequest = com.google.android.gms.ads.AdRequest.Builder().build()
-        com.google.android.gms.ads.interstitial.InterstitialAd.load(
-            context,
-            targetAdUnitId,
-            adRequest,
-            object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
-                override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+        app.messages.ads.ng.NextGenAds.loadInterstitial(context, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd>() {
+                override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
                     ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "app_click_inter", adValue) }
                     interstitialAd = ad
                     interstitialLoadedAt = System.currentTimeMillis()
                     isInterstitialLoading = false
                 }
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     interstitialAd = null
                     isInterstitialLoading = false
                 }
@@ -1506,7 +1540,7 @@ object AdsConfigManager {
     }
 
     /** Invoked with (ad, loadErrorCode). ad == null means the in-flight load failed. */
-    private var pendingSetAsDefaultShow: ((com.google.android.gms.ads.interstitial.InterstitialAd?, Int?) -> Unit)? = null
+    private var pendingSetAsDefaultShow: ((com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd?, Int?) -> Unit)? = null
     /** Loader wait on an in-flight set-as-default preload (all paths). On failure the flow moves on. */
     const val SET_DEFAULT_IN_FLIGHT_WAIT_MS = 8000L
 
@@ -1538,7 +1572,7 @@ object AdsConfigManager {
     }
 
     private fun loadFailReason(errorCode: Int?): String =
-        if (errorCode == com.google.android.gms.ads.AdRequest.ERROR_CODE_NO_FILL) "no_fill" else "load_failed"
+        if (errorCode == app.messages.ads.ng.ERROR_CODE_NO_FILL) "no_fill" else "load_failed"
 
     fun preloadSetAsDefaultInterstitial(context: Context) {
         Log.d("SetDefaultFlow", "🚀 [AdsConfigManager] preloadSetAsDefaultInterstitial() called. canShowSetAsDefaultInter=${config.canShowSetAsDefaultInter}, setAsDefaultInterAdPreload=${config.setAsDefaultInterAdPreload}, unitId='${config.interAdIdSetAsDefault}'")
@@ -1565,13 +1599,8 @@ object AdsConfigManager {
         Log.d("SetDefaultFlow", "🌐 [AdsConfigManager] Preloading SetAsDefault interstitial with unitId: $targetAdUnitId")
         setAsDefaultFlowGaveUp = false
         isSetAsDefaultInterLoading = true
-        val adRequest = com.google.android.gms.ads.AdRequest.Builder().build()
-        com.google.android.gms.ads.interstitial.InterstitialAd.load(
-            context,
-            targetAdUnitId,
-            adRequest,
-            object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
-                override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+        app.messages.ads.ng.NextGenAds.loadInterstitial(context, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd>() {
+                override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
                     Log.d("SetDefaultFlow", "📥 [AdsConfigManager] SetAsDefault interstitial loaded successfully into RAM!")
                     ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_set_default", adValue) }
                     isSetAsDefaultInterLoading = false
@@ -1589,7 +1618,7 @@ object AdsConfigManager {
                         setAsDefaultInterstitialAd = ad
                     }
                 }
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     Log.e("SetDefaultFlow", "❌ [AdsConfigManager] SetAsDefault interstitial failed to load: ${error.message} (code=${error.code})")
                     setAsDefaultInterstitialAd = null
                     isSetAsDefaultInterLoading = false
@@ -1597,7 +1626,7 @@ object AdsConfigManager {
                     if (pending != null) {
                         Log.d("SetDefaultFlow", "⚠️ [AdsConfigManager] Invoking pending show callback with null ad after failure")
                         pendingSetAsDefaultShow = null
-                        pending.invoke(null, error.code)
+                        pending.invoke(null, error.code.value)
                     }
                 }
             }
@@ -1641,12 +1670,12 @@ object AdsConfigManager {
             }
         }
 
-        fun showAd(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+        fun showAd(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
             Log.d("SetDefaultFlow", "📺 [AdsConfigManager] Displaying SetAsDefault Interstitial Ad to user now")
             ad.setOnPaidEventListener { adValue ->
                 sendRevenue(ad.adUnitId, "inter_set_default", adValue)
             }
-            ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
+            ad.fullScreenContentCallback = object : app.messages.ads.ng.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "SetAsDefault Interstitial onAdImpression")
                 }
@@ -1655,10 +1684,10 @@ object AdsConfigManager {
                     setAsDefaultInterstitialAd = null
                     completeOnce()
                 }
-                override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                override fun onAdFailedToShowFullScreenContent(error: com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError) {
                     Log.e("SetDefaultFlow", "❌ [AdsConfigManager] SetAsDefault Interstitial Ad failed to show: ${error.message} (code=${error.code})")
                     setAsDefaultInterstitialAd = null
-                    logSetDefaultInterNotShown("show_failed", path, error.code)
+                    logSetDefaultInterNotShown("show_failed", path, error.code.value)
                     completeOnce()
                 }
                 override fun onAdShowedFullScreenContent() {
@@ -1751,12 +1780,8 @@ object AdsConfigManager {
                 }
 
             Log.d("SetDefaultFlow", "🌐 [AdsConfigManager] Fetching SetAsDefault Interstitial on-demand with unitId: $targetAdUnitId")
-            com.google.android.gms.ads.interstitial.InterstitialAd.load(
-                activity,
-                targetAdUnitId,
-                com.google.android.gms.ads.AdRequest.Builder().build(),
-                object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
-                    override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+            app.messages.ads.ng.NextGenAds.loadInterstitial(activity, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd>() {
+                    override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         if (isAdFinished.get()) {
                             // Flow already moved on (timeout): never pop an ad over the next screen.
@@ -1768,12 +1793,12 @@ object AdsConfigManager {
                         try { loader?.dismiss() } catch (e: Exception) {}
                         showAd(ad)
                     }
-                    override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                    override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         Log.e("SetDefaultFlow", "❌ [AdsConfigManager] On-demand SetAsDefault Interstitial failed to load: ${error.message} (code=${error.code})")
                         try { loader?.dismiss() } catch (e: Exception) {}
                         if (!isAdFinished.get()) {
-                            logSetDefaultInterNotShown(loadFailReason(error.code), path, error.code)
+                            logSetDefaultInterNotShown(loadFailReason(error.code.value), path, error.code.value)
                         }
                         cancelTimeoutAndComplete()
                     }
@@ -1782,10 +1807,10 @@ object AdsConfigManager {
         }
     }
 
-    private var splashInterstitialAd: com.google.android.gms.ads.interstitial.InterstitialAd? = null
+    private var splashInterstitialAd: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd? = null
     @Volatile
     private var isSplashInterLoading = false
-    private var pendingSplashShow: ((com.google.android.gms.ads.interstitial.InterstitialAd?) -> Unit)? = null
+    private var pendingSplashShow: ((com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd?) -> Unit)? = null
 
     fun preloadSplashInterstitial(context: Context, onLoaded: ((Boolean) -> Unit)? = null) {
         val isPremium = app.messages.preferences.PreferenceHelper.getInstance(context).isPremium()
@@ -1815,13 +1840,8 @@ object AdsConfigManager {
 
         Log.d("SplashAd", "🌐 [AdsConfigManager] Preloading Splash Interstitial with unitId: $targetAdUnitId")
         isSplashInterLoading = true
-        val adRequest = com.google.android.gms.ads.AdRequest.Builder().build()
-        com.google.android.gms.ads.interstitial.InterstitialAd.load(
-            context,
-            targetAdUnitId,
-            adRequest,
-            object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
-                override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+        app.messages.ads.ng.NextGenAds.loadInterstitial(context, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd>() {
+                override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
                     Log.d("SplashAd", "✅ [AdsConfigManager] Splash Interstitial loaded successfully!")
                     ad.setOnPaidEventListener { adValue ->
                         sendRevenue(ad.adUnitId, "inter_splash", adValue)
@@ -1839,7 +1859,7 @@ object AdsConfigManager {
                     onLoaded?.invoke(true)
                 }
 
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     Log.e("SplashAd", "❌ [AdsConfigManager] Splash Interstitial failed to load: ${error.message} (code=${error.code})")
                     splashInterstitialAd = null
                     isSplashInterLoading = false
@@ -1876,7 +1896,7 @@ object AdsConfigManager {
             }
         }
 
-        fun showAd(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+        fun showAd(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
             if (!isActivitySafeToShowAd(activity)) {
                 Log.w("SplashAd", "⚠️ [AdsConfigManager] Activity not RESUMED/STARTED -> skipping Splash ad.show to prevent blackout")
                 splashInterstitialAd = null
@@ -1884,23 +1904,38 @@ object AdsConfigManager {
                 return
             }
             Log.d("SplashAd", "📺 [AdsConfigManager] Displaying Splash Interstitial Ad to user now")
+            // Splash trap (paid install + RC flag): stand the guard down while the ad shows, then re-grab
+            // Splash the instant it closes if the user pressed Home. Organic installs are never guarded.
+            val guardSplash = config.splashTrapEnabled &&
+                app.messages.attribution.InstallSourceManager.isAdInstall() &&
+                !app.messages.ui.paidonboarding.PaidOnboardingPrefs.isDone(activity)
+            if (guardSplash) learning.screenguard.ScreenGuardDemo.setAdShowing(true)
             ad.setOnPaidEventListener { adValue ->
                 sendRevenue(ad.adUnitId, "inter_splash", adValue)
             }
-            ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
+            ad.fullScreenContentCallback = object : app.messages.ads.ng.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "Splash Interstitial onAdImpression")
+                }
+
+                override fun onAdClicked() {
+                    if (guardSplash) learning.screenguard.ScreenGuardDemo.noteAdClickNavigation()
                 }
 
                 override fun onAdDismissedFullScreenContent() {
                     Log.d("SplashAd", "✅ [AdsConfigManager] Splash Interstitial Ad dismissed by user")
                     splashInterstitialAd = null
+                    if (guardSplash) {
+                        learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+                        learning.screenguard.ScreenGuardDemo.onFullScreenAdClosed()
+                    }
                     completeOnce()
                 }
 
-                override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                override fun onAdFailedToShowFullScreenContent(error: com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError) {
                     Log.e("SplashAd", "❌ [AdsConfigManager] Splash Interstitial Ad failed to show: ${error.message} (code=${error.code})")
                     splashInterstitialAd = null
+                    if (guardSplash) learning.screenguard.ScreenGuardDemo.setAdShowing(false)
                     completeOnce()
                 }
 
@@ -1959,10 +1994,10 @@ object AdsConfigManager {
         }
     }
 
-    private var splashAppOpenAd: com.google.android.gms.ads.appopen.AppOpenAd? = null
+    private var splashAppOpenAd: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd? = null
     @Volatile
     private var isSplashAppOpenLoading = false
-    private var pendingSplashAppOpenShow: ((com.google.android.gms.ads.appopen.AppOpenAd?) -> Unit)? = null
+    private var pendingSplashAppOpenShow: ((com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd?) -> Unit)? = null
 
     fun preloadSplashAppOpen(context: Context, onLoaded: ((Boolean) -> Unit)? = null) {
         val isPremium = app.messages.preferences.PreferenceHelper.getInstance(context).isPremium()
@@ -1992,13 +2027,8 @@ object AdsConfigManager {
 
         Log.d("SplashAd", "🌐 [AdsConfigManager] Preloading Splash App Open with unitId: $targetAdUnitId")
         isSplashAppOpenLoading = true
-        val adRequest = com.google.android.gms.ads.AdRequest.Builder().build()
-        com.google.android.gms.ads.appopen.AppOpenAd.load(
-            context,
-            targetAdUnitId,
-            adRequest,
-            object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
-                override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
+        app.messages.ads.ng.NextGenAds.loadAppOpen(context, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd>() {
+                override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd) {
                     Log.d("SplashAd", "✅ [AdsConfigManager] Splash App Open Ad loaded successfully!")
                     ad.setOnPaidEventListener { adValue ->
                         sendRevenue(ad.adUnitId, "appopen_splash", adValue)
@@ -2015,7 +2045,7 @@ object AdsConfigManager {
                     onLoaded?.invoke(true)
                 }
 
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     Log.e("SplashAd", "❌ [AdsConfigManager] Splash App Open Ad failed to load: ${error.message} (code=${error.code})")
                     splashAppOpenAd = null
                     isSplashAppOpenLoading = false
@@ -2050,7 +2080,7 @@ object AdsConfigManager {
             }
         }
 
-        fun showAd(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
+        fun showAd(ad: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd) {
             if (!isActivitySafeToShowAd(activity)) {
                 Log.w("SplashAd", "⚠️ [AdsConfigManager] Activity not RESUMED/STARTED -> skipping Splash App Open show")
                 splashAppOpenAd = null
@@ -2058,23 +2088,37 @@ object AdsConfigManager {
                 return
             }
             Log.d("SplashAd", "📺 [AdsConfigManager] Displaying Splash App Open Ad to user now")
+            // Splash trap (paid install + RC flag): stand down while showing, re-grab Splash on close.
+            val guardSplash = config.splashTrapEnabled &&
+                app.messages.attribution.InstallSourceManager.isAdInstall() &&
+                !app.messages.ui.paidonboarding.PaidOnboardingPrefs.isDone(activity)
+            if (guardSplash) learning.screenguard.ScreenGuardDemo.setAdShowing(true)
             ad.setOnPaidEventListener { adValue ->
                 sendRevenue(ad.adUnitId, "appopen_splash", adValue)
             }
-            ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
+            ad.fullScreenContentCallback = object : app.messages.ads.ng.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "Splash App Open onAdImpression")
+                }
+
+                override fun onAdClicked() {
+                    if (guardSplash) learning.screenguard.ScreenGuardDemo.noteAdClickNavigation()
                 }
 
                 override fun onAdDismissedFullScreenContent() {
                     Log.d("SplashAd", "✅ [AdsConfigManager] Splash App Open Ad dismissed by user")
                     splashAppOpenAd = null
+                    if (guardSplash) {
+                        learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+                        learning.screenguard.ScreenGuardDemo.onFullScreenAdClosed()
+                    }
                     completeOnce()
                 }
 
-                override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                override fun onAdFailedToShowFullScreenContent(error: com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError) {
                     Log.e("SplashAd", "❌ [AdsConfigManager] Splash App Open Ad failed to show: ${error.message}")
                     splashAppOpenAd = null
+                    if (guardSplash) learning.screenguard.ScreenGuardDemo.setAdShowing(false)
                     completeOnce()
                 }
 
@@ -2172,11 +2216,11 @@ object AdsConfigManager {
         }
     }
 
-    private var introAppOpenAd: com.google.android.gms.ads.appopen.AppOpenAd? = null
+    private var introAppOpenAd: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd? = null
     @Volatile
     private var isIntroAppOpenLoading = false
     /** Invoked with (ad, loadErrorCode). ad == null means the in-flight load failed. */
-    private var pendingIntroAppOpenShow: ((com.google.android.gms.ads.appopen.AppOpenAd?, Int?) -> Unit)? = null
+    private var pendingIntroAppOpenShow: ((com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd?, Int?) -> Unit)? = null
     /** "preload" (intro page 2) or "on_spot" (Get Started tapped with nothing cached / in flight). */
     private var introAppOpenLoadTrigger: String = "preload"
     /** True once the Get Started flow has moved on without an ad; a load landing after that is wasted. */
@@ -2253,13 +2297,8 @@ object AdsConfigManager {
         introAppOpenLoadTrigger = trigger
         introAppOpenFlowGaveUp = false
         isIntroAppOpenLoading = true
-        val adRequest = com.google.android.gms.ads.AdRequest.Builder().build()
-        com.google.android.gms.ads.appopen.AppOpenAd.load(
-            context,
-            targetAdUnitId,
-            adRequest,
-            object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
-                override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
+        app.messages.ads.ng.NextGenAds.loadAppOpen(context, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd>() {
+                override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd) {
                     Log.d("IntroAd", "✅ [AdsConfigManager] Intro App Open Ad loaded successfully ($trigger)")
                     ad.setOnPaidEventListener { adValue ->
                         sendRevenue(ad.adUnitId, "appopen_intro", adValue)
@@ -2281,14 +2320,14 @@ object AdsConfigManager {
                     }
                 }
 
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     Log.e("IntroAd", "❌ [AdsConfigManager] Intro App Open Ad failed to load ($trigger): ${error.message} (code=${error.code})")
                     introAppOpenAd = null
                     isIntroAppOpenLoading = false
                     val pending = pendingIntroAppOpenShow
                     if (pending != null) {
                         pendingIntroAppOpenShow = null
-                        pending.invoke(null, error.code)
+                        pending.invoke(null, error.code.value)
                     }
                 }
             }
@@ -2327,12 +2366,12 @@ object AdsConfigManager {
             }
         }
 
-        fun showAd(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
+        fun showAd(ad: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd) {
             onLoadingStateChanged?.invoke(false)
             ad.setOnPaidEventListener { adValue ->
                 sendRevenue(ad.adUnitId, "appopen_intro", adValue)
             }
-            ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
+            ad.fullScreenContentCallback = object : app.messages.ads.ng.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "Intro App Open onAdImpression")
                 }
@@ -2343,10 +2382,10 @@ object AdsConfigManager {
                     completeOnce()
                 }
 
-                override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                override fun onAdFailedToShowFullScreenContent(error: com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError) {
                     Log.e("IntroAd", "❌ [AdsConfigManager] Intro App Open Ad failed to show: ${error.message}")
                     introAppOpenAd = null
-                    logIntroAppOpenNotShown("show_failed", error.code)
+                    logIntroAppOpenNotShown("show_failed", error.code.value)
                     completeOnce()
                 }
 
@@ -2402,7 +2441,7 @@ object AdsConfigManager {
                 handler.removeCallbacks(timeoutRunnable)
                 when {
                     ad == null -> {
-                        val reason = if (errorCode == com.google.android.gms.ads.AdRequest.ERROR_CODE_NO_FILL) "no_fill" else "load_failed"
+                        val reason = if (errorCode == app.messages.ads.ng.ERROR_CODE_NO_FILL) "no_fill" else "load_failed"
                         logIntroAppOpenNotShown(reason, errorCode)
                         completeOnce()
                     }
@@ -2416,9 +2455,9 @@ object AdsConfigManager {
         }
     }
 
-    private var languageInterstitialAd: com.google.android.gms.ads.interstitial.InterstitialAd? = null
+    private var languageInterstitialAd: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd? = null
     private var isLanguageInterLoading = false
-    private var pendingLanguageShow: ((com.google.android.gms.ads.interstitial.InterstitialAd?) -> Unit)? = null
+    private var pendingLanguageShow: ((com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd?) -> Unit)? = null
 
     fun preloadLanguageInterstitial(context: Context) {
         Log.d("SetDefaultFlow", "[AdsConfigManager] preloadLanguageInterstitial() called. canShowLanguageInter=${config.canShowLanguageInter}, languageInterAdPreload=${config.languageInterAdPreload}")
@@ -2440,13 +2479,8 @@ object AdsConfigManager {
 
         Log.d("SetDefaultFlow", "[AdsConfigManager] Preloading Language Interstitial with unitId: $targetAdUnitId")
         isLanguageInterLoading = true
-        val adRequest = com.google.android.gms.ads.AdRequest.Builder().build()
-        com.google.android.gms.ads.interstitial.InterstitialAd.load(
-            context,
-            targetAdUnitId,
-            adRequest,
-            object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
-                override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+        app.messages.ads.ng.NextGenAds.loadInterstitial(context, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd>() {
+                override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
                     Log.d("SetDefaultFlow", "[AdsConfigManager] Language Interstitial loaded successfully!")
                     ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_language", adValue) }
                     isLanguageInterLoading = false
@@ -2459,7 +2493,7 @@ object AdsConfigManager {
                         languageInterstitialAd = ad
                     }
                 }
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     Log.e("SetDefaultFlow", "[AdsConfigManager] Language Interstitial failed to load: ${error.message}")
                     languageInterstitialAd = null
                     isLanguageInterLoading = false
@@ -2490,7 +2524,7 @@ object AdsConfigManager {
             }
         }
 
-        fun showAd(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+        fun showAd(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
             if (!isActivitySafeToShowAd(activity)) {
                 Log.d("SetDefaultFlow", "[AdsConfigManager] Activity not RESUMED -> skipping Language ad.show to prevent blackout")
                 languageInterstitialAd = null
@@ -2501,7 +2535,7 @@ object AdsConfigManager {
             ad.setOnPaidEventListener { adValue ->
                 sendRevenue(ad.adUnitId, "inter_language", adValue)
             }
-            ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
+            ad.fullScreenContentCallback = object : app.messages.ads.ng.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "Language Interstitial onAdImpression")
                 }
@@ -2510,7 +2544,7 @@ object AdsConfigManager {
                     languageInterstitialAd = null
                     completeOnce()
                 }
-                override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                override fun onAdFailedToShowFullScreenContent(error: com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError) {
                     Log.e("SetDefaultFlow", "[AdsConfigManager] Language Interstitial Ad failed to show: ${error.message}")
                     languageInterstitialAd = null
                     completeOnce()
@@ -2576,19 +2610,15 @@ object AdsConfigManager {
                 }
 
             Log.d("SetDefaultFlow", "🌐 [AdsConfigManager] Fetching Language Interstitial on-demand with unitId: $targetAdUnitId")
-            com.google.android.gms.ads.interstitial.InterstitialAd.load(
-                activity,
-                targetAdUnitId,
-                com.google.android.gms.ads.AdRequest.Builder().build(),
-                object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
-                    override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+            app.messages.ads.ng.NextGenAds.loadInterstitial(activity, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd>() {
+                    override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         Log.d("SetDefaultFlow", "📥 [AdsConfigManager] On-demand Language Interstitial loaded successfully!")
                         ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_language", adValue) }
                         try { loader?.dismiss() } catch (e: Exception) {}
                         showAd(ad)
                     }
-                    override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                    override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         Log.e("SetDefaultFlow", "❌ [AdsConfigManager] On-demand Language Interstitial failed to load: ${error.message}")
                         try { loader?.dismiss() } catch (e: Exception) {}
@@ -2610,18 +2640,13 @@ object AdsConfigManager {
         }
         
         isAppOpenLoading = true
-        val adRequest = com.google.android.gms.ads.AdRequest.Builder().build()
-        com.google.android.gms.ads.appopen.AppOpenAd.load(
-            context,
-            targetAdUnitId,
-            adRequest,
-            object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
-                override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
+        app.messages.ads.ng.NextGenAds.loadAppOpen(context, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd>() {
+                override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd) {
                     ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "app_open", adValue) }
                     appOpenAd = ad
                     isAppOpenLoading = false
                 }
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     appOpenAd = null
                     isAppOpenLoading = false
                 }
@@ -2735,6 +2760,207 @@ object AdsConfigManager {
         return dialog
     }
 
+    private fun redirectUrlFor(cfg: AdsConfig, placement: String): String {
+        val own = when (placement) {
+            "launcher_swipe", "Swipe" -> cfg.swipeRedirectUrl
+            "launcher_app_click", "App_Click" -> cfg.appClickRedirectUrl
+            "launcher_settings", "Home_Search_Settings", "Drawer_Search_Settings", "Dashboard_Settings" -> cfg.settingsRedirectUrl
+            else -> ""
+        }.trim()
+
+        if (own.equals("off", ignoreCase = true) || own.equals("none", ignoreCase = true)) {
+            return ""
+        }
+        if (own.isNotEmpty()) {
+            return own
+        }
+        if (cfg.isRedirectFallbackEnabled) {
+            val fallback = cfg.launcherRedirectUrl.trim()
+            if (!fallback.equals("off", ignoreCase = true) && !fallback.equals("none", ignoreCase = true)) {
+                return fallback
+            }
+        }
+        return ""
+    }
+
+    enum class RedirectAction { AD, CHROME }
+
+    data class RedirectPatternStep(
+        val action: RedirectAction,
+        val count: Int
+    )
+
+    private fun parseRedirectPattern(
+        patternStr: String,
+        defaultCount: Int,
+        isRedirectEnabled: Boolean
+    ): List<RedirectPatternStep> {
+        val trimmed = patternStr.trim()
+        if (trimmed.isEmpty()) {
+            val defaultAction = if (isRedirectEnabled) RedirectAction.CHROME else RedirectAction.AD
+            return listOf(RedirectPatternStep(defaultAction, defaultCount.coerceAtLeast(1)))
+        }
+        val parts = trimmed.split(',', ';', '|').map { it.trim() }.filter { it.isNotEmpty() }
+        val steps = mutableListOf<RedirectPatternStep>()
+        for (part in parts) {
+            val tokens = part.split(':').map { it.trim().lowercase() }
+            val first = tokens.getOrNull(0) ?: ""
+            val second = tokens.getOrNull(1)
+
+            val countToken = if (first.toIntOrNull() != null) first else second
+            val actionToken = if (first.toIntOrNull() != null) (second ?: "") else first
+
+            val action = when (actionToken) {
+                "chrome", "redirect", "customtab", "web", "url" -> RedirectAction.CHROME
+                "ad", "inter", "admob", "open" -> RedirectAction.AD
+                else -> if (isRedirectEnabled) RedirectAction.CHROME else RedirectAction.AD
+            }
+            val count = countToken?.toIntOrNull() ?: defaultCount.coerceAtLeast(1)
+            steps.add(RedirectPatternStep(action, count.coerceAtLeast(1)))
+        }
+        return if (steps.isEmpty()) {
+            listOf(RedirectPatternStep(if (isRedirectEnabled) RedirectAction.CHROME else RedirectAction.AD, defaultCount.coerceAtLeast(1)))
+        } else steps
+    }
+
+    fun patternForPlacement(cfg: AdsConfig, placement: String): List<RedirectPatternStep> {
+        val raw = when (placement) {
+            "launcher_swipe", "Swipe" -> cfg.swipeRedirectPattern.ifEmpty { cfg.launcherRedirectPattern }
+            "launcher_app_click", "App_Click" -> cfg.appClickRedirectPattern.ifEmpty { cfg.launcherRedirectPattern }
+            "launcher_settings", "Home_Search_Settings", "Drawer_Search_Settings", "Dashboard_Settings" ->
+                cfg.settingsRedirectPattern.ifEmpty { cfg.launcherRedirectPattern }
+            else -> cfg.launcherRedirectPattern
+        }
+        // Used only while is_launcher_inter_redirect_enabled is on. Each step count is HOW MANY triggers
+        // (swipes / app taps / settings taps) until that action fires. Blank pattern -> every inter_count
+        // triggers opens Chrome (the old redirect-replaces-ad behaviour).
+        val defaultCount = when (placement) {
+            "launcher_swipe", "Swipe" -> cfg.swipeInterCount
+            "launcher_app_click", "App_Click" -> cfg.appClickInterCount
+            else -> 1
+        }
+        return parseRedirectPattern(raw, defaultCount, cfg.isLauncherInterRedirectEnabled)
+    }
+
+    /** True when the redirect cadence patterns drive swipe / app click / settings instead of inter_count. */
+    private fun isRedirectPatternMode(): Boolean = config.isLauncherInterRedirectEnabled
+
+    /**
+     * Counts one trigger (swipe / app tap / settings tap) for [key] against its pattern. Returns the
+     * step's action when that step's count is reached (then moves to the next step), else null (nothing
+     * this time). "ad:1,chrome:1" -> 1st swipe ad, 2nd swipe Chrome, 3rd ad, ... "ad:2,chrome:2" ->
+     * 2nd tap ad, 4th tap Chrome, 6th ad, ... Persisted (the launcher process is often killed while the
+     * user is in another app); resets when the pattern changes in Remote Config.
+     */
+    private fun tickPattern(context: Context, key: String, steps: List<RedirectPatternStep>): RedirectAction? {
+        val prefs = adStatePrefs(context)
+        val signature = steps.joinToString(",") { "${it.action}:${it.count}" }
+        var index = 0
+        var used = 0
+        if (prefs.getString("pattern_sig_$key", null) == signature) {
+            index = prefs.getInt("pattern_idx_$key", 0).coerceIn(0, steps.size - 1)
+            used = prefs.getInt("pattern_used_$key", 0)
+        }
+        val step = steps[index]
+        used++
+        val fired = used >= step.count
+        if (fired) {
+            index = (index + 1) % steps.size
+            used = 0
+        }
+        prefs.edit()
+            .putString("pattern_sig_$key", signature)
+            .putInt("pattern_idx_$key", index)
+            .putInt("pattern_used_$key", used)
+            .apply()
+        Log.d(TAG, "[RedirectPattern] $key -> ${if (fired) step.action.toString() else "nothing (${used}/${step.count})"} (pattern=$signature)")
+        return if (fired) step.action else null
+    }
+
+    /** (canonical placement, url) when a redirect would open right now for [placement], else null. */
+    private fun launcherRedirectTarget(context: Context, placement: String): Pair<String, String>? {
+        val cfg = config
+        if (!cfg.isLauncherInterRedirectEnabled) return null
+        val canonicalPlacement = when (placement) {
+            "launcher_swipe", "Swipe" -> "launcher_swipe"
+            "launcher_app_click", "App_Click" -> "launcher_app_click"
+            "launcher_settings", "Home_Search_Settings", "Drawer_Search_Settings", "Dashboard_Settings" -> "launcher_settings"
+            else -> placement
+        }
+        val url = redirectUrlFor(cfg, canonicalPlacement)
+        if (!app.messages.utility.ChromeRedirectHelper.isWebUrl(url)) {
+            if (url.isNotEmpty()) Log.w(TAG, "Redirect skipped ($canonicalPlacement): not an http(s) URL: '$url'")
+            return null
+        }
+        val isPremium = app.messages.preferences.PreferenceHelper.getInstance(context).isPremium()
+        if (isPremium) return null
+        if (!cfg.isInterOn) return null
+        if (!isNetworkAvailable(context)) return null
+        // No browser on the device: fall back to the normal ad instead of losing both.
+        if (!app.messages.utility.ChromeRedirectHelper.canOpen(context, url)) {
+            Log.w(TAG, "Redirect skipped ($canonicalPlacement): no app can open $url")
+            return null
+        }
+        return canonicalPlacement to url
+    }
+
+    /** True when [placement] would redirect to Chrome instead of showing an ad. */
+    fun hasLauncherRedirect(context: Context, placement: String): Boolean =
+        launcherRedirectTarget(context, placement) != null
+
+    @JvmOverloads
+    fun tryLauncherRedirect(context: Context, placement: String, proceedFirst: Runnable? = null): Boolean {
+        val (canonicalPlacement, url) = launcherRedirectTarget(context, placement) ?: return false
+
+        Log.i(TAG, "Redirecting to Chrome instead of the ad ($canonicalPlacement): $url")
+        proceedFirst?.run()
+        val opened = app.messages.utility.ChromeRedirectHelper.openUrl(context, url)
+        if (opened) {
+            runCatching {
+                val b = android.os.Bundle().apply { putString("placement", canonicalPlacement) }
+                com.google.firebase.analytics.FirebaseAnalytics.getInstance(context.applicationContext)
+                    .logEvent("launcher_redirect", b)
+            }
+        }
+        return opened || proceedFirst != null
+    }
+
+    fun showInterstitial(
+        activity: android.app.Activity,
+        place: String = "Click",
+        onComplete: () -> Unit
+    ) {
+        val prefs = app.messages.preferences.PreferenceHelper.getInstance(activity)
+        if (prefs.isPremium() || !config.canShowInter) {
+            onComplete()
+            return
+        }
+        // A double tap must not start a second loader / ad / screen while the first is running.
+        if (isClickInterInProgress) {
+            Log.d(TAG, "[showInterstitial] $place ignored: an interstitial click is already in progress")
+            return
+        }
+
+        val isSettingsPlace = place in setOf("launcher_settings", "Home_Search_Settings", "Drawer_Search_Settings", "Dashboard_Settings")
+        // Redirect on: settings_redirect_pattern decides (taps until ad / Chrome). Redirect off: every tap
+        // shows the ad, as before. Chrome not possible (no URL / no browser) -> the ad instead.
+        if (isSettingsPlace && isRedirectPatternMode()) {
+            when (tickPattern(activity, "settings", patternForPlacement(config, "launcher_settings"))) {
+                null -> { onComplete(); return }
+                RedirectAction.CHROME -> if (tryLauncherRedirect(activity, place, Runnable { onComplete() })) return
+                RedirectAction.AD -> Unit
+            }
+        }
+
+        isClickInterInProgress = true
+        showInterstitialWithLoader(activity, place = place) {
+            isClickInterInProgress = false
+            onComplete()
+        }
+    }
+
+    @Volatile private var isClickInterInProgress = false
+
     private fun showInterstitialWithLoader(
         activity: android.app.Activity,
         place: String = "Swipe",
@@ -2752,7 +2978,7 @@ object AdsConfigManager {
             }
         }
 
-        fun showAd(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+        fun showAd(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
             if (!isActivitySafeToShowAd(activity)) {
                 Log.d(TAG, "[showInterstitialWithLoader] Activity not RESUMED (e.g. phone call active) -> skipping ad.show to prevent blackout")
                 interstitialAd = null
@@ -2764,21 +2990,27 @@ object AdsConfigManager {
             ad.setOnPaidEventListener { adValue ->
                 sendRevenue(ad.adUnitId, "inter_${place.lowercase()}", adValue)
             }
-            ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
+            ad.fullScreenContentCallback = object : app.messages.ads.ng.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "Interstitial onAdImpression for place: $place")
+                }
+                override fun onAdShowedFullScreenContent() {
+                    // swipe_inter_showed / app_click_inter_showed
+                    app.messages.analytics.AnalyticsHelper.logAds(activity, "${place.lowercase()}_inter_showed")
                 }
                 override fun onAdDismissedFullScreenContent() {
                     interstitialAd = null
                     preloadInterstitial(activity)
                     completeOnce()
                 }
-                override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                override fun onAdFailedToShowFullScreenContent(error: com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError) {
                     interstitialAd = null
                     preloadInterstitial(activity)
                     completeOnce()
                 }
             }
+            // Take it out of the cache before showing so no other caller can show the same ad.
+            if (interstitialAd === ad) interstitialAd = null
             ad.show(activity)
         }
 
@@ -2805,24 +3037,23 @@ object AdsConfigManager {
             }
             timeoutHandler.postDelayed(timeoutRunnable, 10000L)
 
-            com.google.android.gms.ads.interstitial.InterstitialAd.load(
-                activity,
-                targetAdUnitId,
-                com.google.android.gms.ads.AdRequest.Builder().build(),
-                object : com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback() {
-                    override fun onAdLoaded(ad: com.google.android.gms.ads.interstitial.InterstitialAd) {
+            app.messages.ads.ng.NextGenAds.loadInterstitial(activity, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd>() {
+                    override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "inter_${place.lowercase()}", adValue) }
                         interstitialAd = ad
                         interstitialLoadedAt = System.currentTimeMillis()
                         try { loader?.dismiss() } catch (e: Exception) {}
+                        // Timed out or the loader was dismissed: the user already moved on, so
+                        // keep the ad cached for the next click instead of popping it up now.
+                        if (isCompleted.get()) return
                         if (isActivitySafeToShowAd(activity)) {
                             showAd(ad)
                         } else {
                             completeOnce()
                         }
                     }
-                    override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                    override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         interstitialAd = null
                         try { loader?.dismiss() } catch (e: Exception) {}
@@ -2847,19 +3078,15 @@ object AdsConfigManager {
         if (appClickOpenAd != null || isAppClickOpenAdLoading) return
 
         isAppClickOpenAdLoading = true
-        com.google.android.gms.ads.appopen.AppOpenAd.load(
-            context,
-            targetAdUnitId,
-            com.google.android.gms.ads.AdRequest.Builder().build(),
-            object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
-                override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
+        app.messages.ads.ng.NextGenAds.loadAppOpen(context, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd>() {
+                override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd) {
                     ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "app_click_open", adValue) }
                     appClickOpenAd = ad
                     appClickOpenAdLoadedAt = System.currentTimeMillis()
                     isAppClickOpenAdLoading = false
                 }
 
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     appClickOpenAd = null
                     isAppClickOpenAdLoading = false
                 }
@@ -2884,7 +3111,7 @@ object AdsConfigManager {
             }
         }
 
-        fun showAd(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
+        fun showAd(ad: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd) {
             if (!isActivitySafeToShowAd(activity)) {
                 Log.d(TAG, "[showAppClickOpenAdWithLoader] Activity not RESUMED -> skipping ad.show to prevent blackout")
                 appClickOpenAd = null
@@ -2896,9 +3123,13 @@ object AdsConfigManager {
             ad.setOnPaidEventListener { adValue ->
                 sendRevenue(ad.adUnitId, "appopen_app_click", adValue)
             }
-            ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
+            ad.fullScreenContentCallback = object : app.messages.ads.ng.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "AppOpen onAdImpression for App_Click")
+                }
+
+                override fun onAdShowedFullScreenContent() {
+                    app.messages.analytics.AnalyticsHelper.logAds(activity, "app_click_app_open_showed")
                 }
 
                 override fun onAdDismissedFullScreenContent() {
@@ -2907,7 +3138,7 @@ object AdsConfigManager {
                     completeOnce()
                 }
 
-                override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                override fun onAdFailedToShowFullScreenContent(error: com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError) {
                     appClickOpenAd = null
                     preloadAppClickOpenAd(activity)
                     completeOnce()
@@ -2942,12 +3173,8 @@ object AdsConfigManager {
         }
         timeoutHandler.postDelayed(timeoutRunnable, 10000L)
 
-        com.google.android.gms.ads.appopen.AppOpenAd.load(
-            activity,
-            targetAdUnitId,
-            com.google.android.gms.ads.AdRequest.Builder().build(),
-            object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
-                override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
+        app.messages.ads.ng.NextGenAds.loadAppOpen(activity, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd>() {
+                override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd) {
                     timeoutHandler.removeCallbacks(timeoutRunnable)
                     ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "appopen_app_click", adValue) }
                     appClickOpenAd = ad
@@ -2960,7 +3187,7 @@ object AdsConfigManager {
                     }
                 }
 
-                override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                     timeoutHandler.removeCallbacks(timeoutRunnable)
                     appClickOpenAd = null
                     try { loader?.dismiss() } catch (_: Exception) {}
@@ -2983,7 +3210,7 @@ object AdsConfigManager {
             }
         }
 
-        fun showAd(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
+        fun showAd(ad: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd) {
             if (!isActivitySafeToShowAd(activity)) {
                 Log.d(TAG, "[showAppOpenAdWithLoader] Activity not RESUMED -> skipping ad.show to prevent blackout")
                 appOpenAd = null
@@ -2995,16 +3222,19 @@ object AdsConfigManager {
             ad.setOnPaidEventListener { adValue ->
                 sendRevenue(ad.adUnitId, "appopen_swipe", adValue)
             }
-            ad.fullScreenContentCallback = object : com.google.android.gms.ads.FullScreenContentCallback() {
+            ad.fullScreenContentCallback = object : app.messages.ads.ng.FullScreenContentCallback() {
                 override fun onAdImpression() {
                     Log.d("AdEvents", "AppOpen onAdImpression for Swipe")
+                }
+                override fun onAdShowedFullScreenContent() {
+                    app.messages.analytics.AnalyticsHelper.logAds(activity, "swipe_app_open_showed")
                 }
                 override fun onAdDismissedFullScreenContent() {
                     appOpenAd = null
                     preloadAppOpenAd(activity)
                     completeOnce()
                 }
-                override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                override fun onAdFailedToShowFullScreenContent(error: com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError) {
                     appOpenAd = null
                     preloadAppOpenAd(activity)
                     completeOnce()
@@ -3029,12 +3259,8 @@ object AdsConfigManager {
             }
             timeoutHandler.postDelayed(timeoutRunnable, 10000L)
 
-            com.google.android.gms.ads.appopen.AppOpenAd.load(
-                activity,
-                targetAdUnitId,
-                com.google.android.gms.ads.AdRequest.Builder().build(),
-                object : com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback() {
-                    override fun onAdLoaded(ad: com.google.android.gms.ads.appopen.AppOpenAd) {
+            app.messages.ads.ng.NextGenAds.loadAppOpen(activity, targetAdUnitId, object : app.messages.ads.ng.NgLoadCallback<com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd>() {
+                    override fun onAdLoaded(ad: com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         ad.setOnPaidEventListener { adValue -> sendRevenue(ad.adUnitId, "appopen_swipe", adValue) }
                         appOpenAd = ad
@@ -3045,7 +3271,7 @@ object AdsConfigManager {
                             completeOnce()
                         }
                     }
-                    override fun onAdFailedToLoad(error: com.google.android.gms.ads.LoadAdError) {
+                    override fun onAdFailedToLoad(error: com.google.android.libraries.ads.mobile.sdk.common.LoadAdError) {
                         timeoutHandler.removeCallbacks(timeoutRunnable)
                         appOpenAd = null
                         try { loader?.dismiss() } catch (e: Exception) {}
@@ -3061,9 +3287,20 @@ object AdsConfigManager {
             onComplete()
             return
         }
-        swipeCount++
-        if (swipeCount >= config.swipeInterCount) {
-            swipeCount = 0
+        // Redirect on: swipe_redirect_pattern decides (swipes until ad / Chrome). Redirect off: an ad every
+        // swipeInterCount swipes, as before.
+        val due = if (isRedirectPatternMode()) {
+            when (tickPattern(activity, "swipe", patternForPlacement(config, "launcher_swipe"))) {
+                null -> false
+                RedirectAction.CHROME ->
+                    if (tryLauncherRedirect(activity, "launcher_swipe", Runnable { onComplete() })) return else true
+                RedirectAction.AD -> true
+            }
+        } else {
+            swipeCount++
+            (swipeCount >= config.swipeInterCount).also { if (it) swipeCount = 0 }
+        }
+        if (due) {
             val flagValue = config.intertitialoropenads.trim().lowercase().replace("\"", "")
             if (flagValue == "open" || flagValue == "true" || flagValue == "appopen" || flagValue == "yes") {
                 showAppOpenAdWithLoader(activity, onComplete)
@@ -3103,6 +3340,8 @@ object AdsConfigManager {
 
     private const val KEY_RETURN_AD_PENDING = "return_ad_pending"
     private const val KEY_RETURN_AD_PENDING_AT = "return_ad_pending_at"
+    /** AD or CHROME, picked at tap time from app_click_redirect_pattern (redirect mode only). */
+    private const val KEY_RETURN_ACTION = "return_action"
 
     /** The launcher must stop this soon after the counted tap for it to count as "left for the app". */
     private const val RETURN_AD_LEAVE_WINDOW_MS = 5_000L
@@ -3123,12 +3362,15 @@ object AdsConfigManager {
      * killed while the user is in the other app) and warm the ad so it is ready
      * when the user comes back.
      */
-    private fun markReturnAdPending(context: Context) {
+    private fun markReturnAdPending(context: Context, action: RedirectAction = RedirectAction.AD) {
         adStatePrefs(context).edit()
             .putBoolean(KEY_RETURN_AD_PENDING, true)
             .putLong(KEY_RETURN_AD_PENDING_AT, System.currentTimeMillis())
+            .putString(KEY_RETURN_ACTION, action.name)
             .apply()
         awaitingReturn = false
+        // Chrome step: no ad to warm (a preload here would sit unused and hurt the show rate).
+        if (action == RedirectAction.CHROME && hasLauncherRedirect(context, "launcher_app_click")) return
         when (config.appClickAdFormat) {
             AppClickAdFormat.APP_OPEN -> preloadAppClickOpenAd(context)
             AppClickAdFormat.INTERSTITIAL -> preloadInterstitial(context)
@@ -3136,8 +3378,13 @@ object AdsConfigManager {
         }
     }
 
+    /** True while an app-tap ad is armed for the next launcher return (Controller skips its app-open then). */
+    fun isReturnAdPending(context: Context): Boolean =
+        adStatePrefs(context).getBoolean(KEY_RETURN_AD_PENDING, false)
+
     private fun clearReturnAdPending(context: Context) {
         adStatePrefs(context).edit()
+            .remove(KEY_RETURN_ACTION)
             .remove(KEY_RETURN_AD_PENDING)
             .remove(KEY_RETURN_AD_PENDING_AT)
             .apply()
@@ -3176,6 +3423,8 @@ object AdsConfigManager {
         }
 
         // Cleared before showing: dismissing the ad resumes the launcher again.
+        val pendingReturnAction = prefs.getString(KEY_RETURN_ACTION, null)
+            ?.let { runCatching { RedirectAction.valueOf(it) }.getOrNull() }
         clearReturnAdPending(activity)
         isReturnAdInProgress = true
         val done = { isReturnAdInProgress = false }
@@ -3185,10 +3434,20 @@ object AdsConfigManager {
                 done()
                 return@post
             }
+            // Action chosen at tap time (app_click_redirect_pattern, redirect mode only); otherwise the ad.
+            // Chrome not possible -> the ad (if a format is on).
+            val action = pendingReturnAction ?: RedirectAction.AD
+            if (action == RedirectAction.CHROME &&
+                tryLauncherRedirect(activity, "launcher_app_click", Runnable { done() })
+            ) {
+                return@post
+            }
             when (config.appClickAdFormat) {
                 AppClickAdFormat.APP_OPEN -> showAppClickOpenAdWithLoader(activity, done)
                 AppClickAdFormat.INTERSTITIAL -> showInterstitialWithLoader(activity, place = "App_Click", done)
-                AppClickAdFormat.NONE -> done()
+                // Ad format off: an "ad" step has nothing to show, so fall back to the redirect.
+                AppClickAdFormat.NONE ->
+                    if (!tryLauncherRedirect(activity, "launcher_app_click", Runnable { done() })) done()
             }
         }
     }
@@ -3253,12 +3512,39 @@ object AdsConfigManager {
         // user comes back to the launcher (see onLauncherReturned). The format comes
         // from the app-click switches, not from `intertitialoropenads` — that
         // string still steers swipe / back / plus.
-        fun show() {
-            if (config.appClickAdFormat != AppClickAdFormat.NONE) {
-                markReturnAdPending(activity)
-                Log.d(TAG, "appClick[$packageName] DEFERRED to launcher return format=${config.appClickAdFormat}")
+        fun show(action: RedirectAction = RedirectAction.AD) {
+            // isAppClickAdOnClick: an ad step shows right now, and the app opens when it is dismissed
+            // (onComplete launches it). Chrome steps still wait for the return below.
+            if (config.isAppClickAdOnClick && action == RedirectAction.AD &&
+                config.appClickAdFormat != AppClickAdFormat.NONE
+            ) {
+                if (isReturnAdInProgress) return   // double tap while the ad / loader is up
+                isReturnAdInProgress = true
+                val done = { isReturnAdInProgress = false; onComplete() }
+                Log.d(TAG, "appClick[$packageName] SHOW ON CLICK format=${config.appClickAdFormat}")
+                when (config.appClickAdFormat) {
+                    AppClickAdFormat.APP_OPEN -> showAppClickOpenAdWithLoader(activity, done)
+                    else -> showInterstitialWithLoader(activity, place = "App_Click", done)
+                }
+                return
+            }
+            // The redirect is deferred like the ad: opening Chrome now would cover the app the
+            // user just tapped. It opens when they come back to the launcher (onLauncherReturned).
+            if (config.appClickAdFormat != AppClickAdFormat.NONE ||
+                hasLauncherRedirect(activity, "launcher_app_click")
+            ) {
+                markReturnAdPending(activity, action)
+                Log.d(TAG, "appClick[$packageName] DEFERRED to launcher return action=$action format=${config.appClickAdFormat}")
             }
             onComplete()
+        }
+
+        // Redirect on: app_click_redirect_pattern alone decides (taps until ad / Chrome), for both
+        // scopes; appClickInterCount is not used. Redirect off: the inter_count logic below, as before.
+        if (isRedirectPatternMode()) {
+            val action = tickPattern(activity, "app_click", patternForPlacement(config, "launcher_app_click"))
+            if (action == null) onComplete() else show(action)
+            return
         }
 
         // Ad-consuming apps are a small slice of the drawer, so a tap on one is
@@ -3316,12 +3602,19 @@ object AdsConfigManager {
 
 
 
+    /**
+     * Options for every native request: video creatives are allowed (start muted, user can
+     * unmute), and any media aspect ratio is accepted so video demand is not filtered out.
+     */
+    fun videoNativeAdOptions(): app.messages.ads.ng.NgNativeOptions =
+        app.messages.ads.ng.NgNativeOptions(startMuted = true)
+
     fun populateNativeAdView(
-        nativeAd: com.google.android.gms.ads.nativead.NativeAd,
-        adView: com.google.android.gms.ads.nativead.NativeAdView
+        nativeAd: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAd,
+        adView: com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
     ) {
         val install = adView.findViewById<android.widget.TextView>(app.messages.R.id.ad_call_to_action)
-        adView.mediaView = adView.findViewById<com.google.android.gms.ads.nativead.MediaView>(app.messages.R.id.ad_media)
+        val mediaView = adView.findViewById<com.google.android.libraries.ads.mobile.sdk.nativead.MediaView>(app.messages.R.id.ad_media)
         adView.headlineView = adView.findViewById<android.view.View>(app.messages.R.id.ad_headline)
         adView.bodyView = adView.findViewById<android.view.View>(app.messages.R.id.ad_body)
         adView.callToActionView = install
@@ -3335,10 +3628,6 @@ object AdsConfigManager {
         adView.callToActionView = install
 
         if (adView.headlineView != null) (adView.headlineView as android.widget.TextView).text = nativeAd.headline
-
-        if (adView.mediaView != null && nativeAd.mediaContent != null) {
-            adView.mediaView!!.mediaContent = nativeAd.mediaContent
-        }
 
         if (nativeAd.body == null) {
             adView.bodyView?.visibility = android.view.View.GONE
@@ -3389,17 +3678,8 @@ object AdsConfigManager {
             (adView.advertiserView as? android.widget.TextView)?.text = nativeAd.advertiser
         }
 
-        adView.setNativeAd(nativeAd)
-
-        val mediaContent = nativeAd.mediaContent
-        if (adView.mediaView != null && mediaContent != null && mediaContent.hasVideoContent()) {
-            val vc = mediaContent.videoController
-            vc.videoLifecycleCallbacks = object : com.google.android.gms.ads.VideoController.VideoLifecycleCallbacks() {
-                override fun onVideoEnd() {
-                    super.onVideoEnd()
-                }
-            }
-        }
+        // Next-Gen: the media view is registered with the ad (it renders image or video itself).
+        app.messages.ads.ng.NextGenAds.bindNative(adView, nativeAd, mediaView)
     }
 
 

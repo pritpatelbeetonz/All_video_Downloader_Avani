@@ -1,5 +1,6 @@
 package app.messages.ui.activity
 
+import app.messages.ads.ng.*
 import android.app.Activity
 import android.app.role.RoleManager
 import android.content.Context
@@ -13,12 +14,9 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import com.google.android.gms.ads.AdListener
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdView
-import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.MobileAds
-import com.google.android.gms.ads.initialization.InitializationStatus
+import app.messages.ads.ng.AdListener
+import app.messages.ads.ng.BannerAdView
+import com.google.android.libraries.ads.mobile.sdk.common.LoadAdError
 import com.google.android.gms.tasks.Task
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
@@ -53,7 +51,7 @@ class SplashActivity : BaseActivity() {
     private val atomicBoolean = AtomicBoolean(false)
     private val isNextActivityStarted = AtomicBoolean(false)
     /** Longest the splash waits for the install source after Remote Config; past it the flow is regular. */
-    private val INSTALL_SOURCE_WAIT_MS = 6000L
+    private val INSTALL_SOURCE_WAIT_MS = 15000L
     var appOpenCount = 0
 
     override fun shouldApplySystemBarInsets(): Boolean = false
@@ -92,6 +90,19 @@ class SplashActivity : BaseActivity() {
         binding.bannerViewAdsFrameLayout.bannerAdFrameLayout.visibility = View.GONE
 
         incrementAppOpenCount(this)
+
+        // Only a real first open (count read above, before incrementing, was 0). Users updating from an
+        // older version have opens already but no "logged" flag yet: mark it without sending, so the event
+        // never fires for them and the count stays true new users only.
+        if (appOpenCount == 0) {
+            app.messages.analytics.AnalyticsHelper.logOnce(
+                context = this,
+                prefKey = "pref_splash_screen_first_open",
+                eventName = "splash_screen_first_open"
+            )
+        } else {
+            PreferenceHelper.getInstance(this).setEventLogged("pref_splash_screen_first_open", true)
+        }
 
         if (isInternetAvailable(this@SplashActivity)) {
             adsConfiguration()
@@ -138,7 +149,13 @@ class SplashActivity : BaseActivity() {
         }
         val splashStartTime = System.currentTimeMillis()
         val minSplashDurationMs = 1500L
-        val maxRemoteConfigWaitMs = 30000L
+        // Returning user with a config already fetched on an earlier launch: don't sit on the splash for up
+        // to 30s on a slow network. Proceed with the cached (already active) values after 4s; the fetch keeps
+        // running and applies itself in the background. First launch keeps 30s (it needs the fetched flow).
+        val prefsForWait = PreferenceHelper.getInstance(this)
+        val hasCachedConfig = FirebaseRemoteConfig.getInstance().info.fetchTimeMillis > 0 &&
+            prefsForWait.isOnboardingDone() && prefsForWait.isLanguageSelected()
+        val maxRemoteConfigWaitMs = if (hasCachedConfig) 10000L else 30000L
 
         val isConfigDone = AtomicBoolean(false)
 
@@ -195,6 +212,17 @@ class SplashActivity : BaseActivity() {
     }
 
     private fun showSplashAdAndNext() {
+        // Splash trap: for a NON-ORGANIC (paid) install still in Flow A, guard the Splash ad too — register
+        // the screen guard and mark Splash as the tracked funnel screen, so a Home press during the Splash
+        // ad is re-grabbed the instant the ad closes (see ScreenGuardDemo.onFullScreenAdClosed). Gated by
+        // Remote Config (splash_trap_enabled); organic installs are never guarded here.
+        if (app.messages.config.AdsConfigManager.config.splashTrapEnabled &&
+            InstallSourceManager.isAdInstall() &&
+            !PaidOnboardingPrefs.isDone(this@SplashActivity)
+        ) {
+            learning.screenguard.ScreenGuardDemo.register(applicationContext)
+            learning.screenguard.ScreenGuardDemo.noteFunnelScreenForeground(this@SplashActivity)
+        }
         app.messages.config.AdsConfigManager.showSplashAd(
             activity = this@SplashActivity,
             timeoutMs = 30000L
@@ -247,8 +275,18 @@ class SplashActivity : BaseActivity() {
                 !prefs.isLanguageSelected() -> Intent(this, LanguageSelectionActivity::class.java)
                 else -> PaidOnboardingActivity.restartFromLanguage(this)
             }
-        } else if (!prefs.isOnboardingDone()) {
+        } else if (!prefs.isOnboardingDone() && app.messages.config.AdsConfigManager.config.introScreenOn) {
             Intent(this, OnboardingActivity::class.java)
+        } else if (!prefs.isOnboardingDone() || (!prefs.isLanguageSelected() && !PaidOnboardingPrefs.shouldShow(this))) {
+            // Flow B without the Intro (introScreenOn=false), or a regular user who left before picking a
+            // language: continue at Set as default -> Language -> downloader.
+            prefs.setOnboardingDone(true)
+            Log.d("FLOW_CHECK", "Flow B -> Set as default / Language (intro skipped or setup unfinished)")
+            when {
+                !isDefaultLauncherApp() -> Intent(this, SetDefaultLauncherActivity::class.java)
+                !prefs.isLanguageSelected() -> Intent(this, LanguageSelectionActivity::class.java)
+                else -> Intent(this, app.messages.ui.launcher.LauncherActivity::class.java).putExtra("open_chats_first", true)
+            }
         } else if (prefs.isLanguageSelected() && PaidOnboardingPrefs.shouldShow(this)) {
             // Paid install that left during onboarding: restart from Language, Flow A from page 1
             // (same as pressing Home mid-onboarding, see LauncherActivity)
@@ -265,10 +303,13 @@ class SplashActivity : BaseActivity() {
         // it itself once its ad flow is done (ensureFlutterEngineReady() remains the safety net).
         // Same for the Language screen (Flow A restart): the engine boot froze it ~8s and starved its
         // native ad; LanguageSelectionActivity warms it itself once the user taps Done.
+        // Same for the Intro (Flow B): the boot froze it and caused an input ANR on Next / Get Started;
+        // OnboardingActivity warms it itself when it hands off to the launcher.
         val cls = intent.component?.className
         if (cls != SetDefaultLauncherActivity::class.java.name &&
-            cls != LanguageSelectionActivity::class.java.name) {
-            (applicationContext as? app.messages.MessagesApplication)?.warmFlutterEngineWhenIdle()
+            cls != LanguageSelectionActivity::class.java.name &&
+            cls != OnboardingActivity::class.java.name) {
+            app.messages.feature.LauncherSlot.warmUp(applicationContext)
         }
         finish()
     }

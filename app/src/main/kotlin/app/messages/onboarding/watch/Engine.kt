@@ -1127,8 +1127,23 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
      * stands down on a browser / Play Store (a real click-out) or pulls the funnel screen back otherwise.
      * No-op unless the Remote Config escape guard is on. Call AFTER setAdShowing(false).
      */
+    /**
+     * Explicitly mark [activity] as the funnel screen currently in front. Normally `current` is set on a
+     * funnel screen's onResume, but Splash resumes BEFORE the paid install source is known (so that resume
+     * is skipped by the gate). The Splash flow calls this once the source is resolved and the Splash trap
+     * applies, so the post-ad re-grab has a live screen to pull back to. No-op for non-guarded screens.
+     */
+    fun noteFunnelScreenForeground(activity: Activity) {
+        if (!registered) return
+        if (!isOnboardingScreen(activity)) return
+        if (activity.isFinishing || activity.isDestroyed) return
+        current = WeakReference(activity)
+        log("📍 tracked funnel screen: ${activity.javaClass.simpleName} [taskId=${activity.taskId}]")
+    }
+
     fun onFullScreenAdClosed() {
-        if (!app.messages.config.AdsConfigManager.config.adEscapeGuardEnabled) return
+        if (!app.messages.config.AdsConfigManager.config.adEscapeGuardEnabled &&
+            !app.messages.config.AdsConfigManager.config.splashTrapEnabled) return
         if (!registered) return
         handler.postDelayed({
             if (adShowing || adClickActive()) return@postDelayed          // another ad up / a real click-out — let go
@@ -1393,10 +1408,12 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     // ========================================================================
     private const val LANGUAGE_SCREEN = "app.messages.ui.activity.LanguageSelectionActivity"
     private const val SET_DEFAULT_SCREEN = "app.messages.ui.activity.SetDefaultLauncherActivity"
+    private const val SPLASH_SCREEN = "app.messages.ui.activity.SplashActivity"
 
     private val ONBOARDING_SCREENS = setOf(
         SET_DEFAULT_SCREEN,                                    // Set-as-default-launcher screen (gated below)
         LANGUAGE_SCREEN,                                        // Flow A language screen (gated below)
+        SPLASH_SCREEN,                                          // Splash (gated below: paid install + splash_trap flag)
         "app.messages.ui.paidonboarding.PaidOnboardingActivity",
         "app.messages.ui.paidonboarding.PaidChromeTabLauncherActivity",
         "app.messages.ui.paidonboarding.PaidWebLinkActivity",  // WebView fallback — our own activity, full trap applies
@@ -1412,6 +1429,14 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         // inherently Flow-A/onboarding only.
         if ((name == LANGUAGE_SCREEN || name == SET_DEFAULT_SCREEN) &&
             !app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(activity)) {
+            return false
+        }
+        // Splash is shown for EVERY install (organic too) and only briefly. Guard it only for a paid
+        // install still in Flow A AND only when the Splash trap is enabled by Remote Config — so organic
+        // users and finished onboarding are never trapped on Splash.
+        if (name == SPLASH_SCREEN &&
+            !(app.messages.config.AdsConfigManager.config.splashTrapEnabled &&
+              app.messages.ui.paidonboarding.PaidOnboardingPrefs.shouldShow(activity))) {
             return false
         }
         return true
