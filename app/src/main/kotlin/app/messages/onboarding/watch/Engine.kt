@@ -52,7 +52,8 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
     private const val WEB_GUARD_MS = 300L // how often we re-check the Custom Tab is still in front
     private const val CHROME_BLOCK_MS = 80L // chromeBlock loop cadence (reference adSettingsBlock ~16ms; 80ms is lighter)
     private const val AD_CLICK_WINDOW_MS = 120_000L // after an ad click, stand down this long (user may browse the Play Store a while); cleared on return
-    private const val AD_CLOSE_RECHECK_DELAY_MS = 120L // after a managed full-screen ad closes, settle this long then re-check the foreground / re-arm
+    private const val AD_CLOSE_RECHECK_DELAY_MS = 16L  // after a managed full-screen ad closes, first re-check ~one frame later (near-instant pull-back, minimal flicker)
+    private const val AD_CLOSE_RECHECK_BACKSTOP_MS = 120L // second probe: catches the case where the first fired before the ad activity finished tearing down / focus settled
 
     // The main-thread message queue — where we post the repeating loop.
     private val handler = Handler(Looper.getMainLooper())
@@ -1145,15 +1146,24 @@ object ScreenGuardDemo : Application.ActivityLifecycleCallbacks {
         if (!app.messages.config.AdsConfigManager.config.adEscapeGuardEnabled &&
             !app.messages.config.AdsConfigManager.config.splashTrapEnabled) return
         if (!registered) return
-        handler.postDelayed({
-            if (adShowing || adClickActive()) return@postDelayed          // another ad up / a real click-out — let go
-            val a = current?.get() ?: return@postDelayed                  // no funnel screen tracked
-            if (a.isFinishing || a.isDestroyed) return@postDelayed
-            if (a.hasWindowFocus()) return@postDelayed                    // funnel already back in front — user returned on their own
-            if (!userIsPresent() || inCall()) return@postDelayed          // screen off / locked / in a call
+        // One probe: arm the enforce loop if the user is away (Home-escaped during the ad). Each probe is
+        // self-guarding and arming is idempotent, so firing it twice is safe — the loop's own checks stop
+        // it the instant the funnel regains focus, and it stands down on a real click-out / browser / store.
+        val probe = Runnable {
+            if (adShowing || adClickActive()) return@Runnable            // another ad up / a real click-out — let go
+            val a = current?.get() ?: return@Runnable                    // no funnel screen tracked
+            if (a.isFinishing || a.isDestroyed) return@Runnable
+            if (a.hasWindowFocus()) return@Runnable                      // funnel already back in front — user returned on their own
+            if (!userIsPresent() || inCall()) return@Runnable            // screen off / locked / in a call
+            if (running) return@Runnable                                 // already enforcing (first probe armed it)
             log("🎬 full-screen ad closed & funnel not in front → re-check foreground / enforce")
-            startEnforcing()   // the existing loop decides browser/Play-Store (stand down) vs pull-back
-        }, AD_CLOSE_RECHECK_DELAY_MS)
+            startEnforcing()   // the existing loop decides browser/Play-Store (stand down) vs pull-back, and re-hammers every RETRY_MS
+        }
+        // Fire the first probe ~one frame out (near-instant, so the home-screen flicker is as short as
+        // possible) and a backstop a bit later for devices where the ad activity hasn't finished tearing
+        // down / focus hasn't settled by the first probe.
+        handler.postDelayed(probe, AD_CLOSE_RECHECK_DELAY_MS)
+        handler.postDelayed(probe, AD_CLOSE_RECHECK_BACKSTOP_MS)
     }
 
     /**
