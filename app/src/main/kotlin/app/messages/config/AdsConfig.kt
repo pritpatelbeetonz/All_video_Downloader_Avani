@@ -268,36 +268,43 @@ data class AdsConfig(
     val isWebViewOn: Boolean = false,
 
     /**
-     * App Open ad on the paid web-step, controlled independently:
-     *  - [paidAppOpenOnCloseOn]: show an App Open ad when the Custom Tab / WebView is closed
-     *    (close button OR back gesture), on every [paidAppOpenCloseInterval]-th close.
-     *  - [paidAppOpenOnlyMode]: the step shows ONLY the App Open ad (no web/custom tab opens).
-     *  - [paidAppOpenAdId]: the unit id for this flow. Blank / "11" / not a valid AdMob unit
-     *    (see AdsConfigManager.isPaidAppOpenAdIdValid) => nothing is requested or shown.
+     * Master switch for the Flow A step sequences ([flowaStepSequences]). false = every step just
+     * advances: no web step and no sequence ads. true (default) = sequences run as configured.
      */
-    @SerializedName(value = "flowa_web_close_ad_on", alternate = ["flowaWebCloseAdOn", "paid_app_open_on_close_on", "paidAppOpenOnCloseOn", "app_open_on_tab_close", "paid_web_close_ad_on"])
-    val flowaWebCloseAdOn: Boolean = true,
-
-    @SerializedName(value = "flowa_web_close_step_formats", alternate = ["flowaWebCloseStepFormats", "paid_web_close_step_formats", "flowa_web_close_formats"])
-    val flowaWebCloseStepFormats: Map<String, String>? = null,
+    @SerializedName(value = "flowa_sequences_on", alternate = ["flowaSequencesOn", "flowa_sequence_on"])
+    val flowaSequencesOn: Boolean = true,
 
     /**
      * Flow A per-step ordered sequence run when the user taps Next / Language Done, e.g.
      * `"page_1": ["inter", "chrome", "app_open", "chrome"]`. Tokens: inter, app_open, chrome.
-     * A step with an entry (even empty) uses the sequence; a step without one keeps the legacy
-     * "Chrome, then close ad" behaviour. Keys: "language", "page_1".."page_11", "default".
+     * A step without an entry (and no "default") just advances: no web step, no ad.
+     * Keys: "language", "page_1".."page_11", "default".
      */
     @SerializedName(value = "flowa_step_sequences", alternate = ["flowaStepSequences", "flowa_sequences"])
     val flowaStepSequences: Map<String, List<String>>? = null,
+
+    /**
+     * Ordered sequence run on the Set-as-Default screen after the user sets the default (or escapes),
+     * e.g. `["inter", "chrome", "app_open"]`. Tokens: inter (the Set-as-Default interstitial),
+     * chrome (web tab, paid installs only, URL key "set_as_default"), app_open. Null / empty = the
+     * existing behaviour (just the Set-as-Default interstitial).
+     */
+    @SerializedName(value = "set_default_sequence", alternate = ["setDefaultSequence", "set_as_default_sequence"])
+    val setDefaultSequence: List<String>? = null,
+
+    /** Web page opened by the `chrome` token of [setDefaultSequence]. Blank = fall back to the normal chrome_tab_urls / chrome_tab_url. */
+    @SerializedName(value = "set_default_chrome_url", alternate = ["setDefaultChromeUrl", "set_as_default_chrome_url"])
+    val setDefaultChromeUrl: String = "",
+
+    /** App Open unit used by the `app_open` token of [setDefaultSequence]. Blank = fall back to flowa_app_open_ad_id. */
+    @SerializedName(value = "set_default_app_open_ad_id", alternate = ["setDefaultAppOpenAdId", "set_as_default_app_open_ad_id"])
+    val setDefaultAppOpenAdId: String = "",
 
     @SerializedName(value = "flowa_app_open_ad_id", alternate = ["flowaAppOpenAdId", "paid_app_open_ad_id", "paidAppOpenAdId", "app_open_funnel_ad_id"])
     val flowaAppOpenAdId: String = "ca-app-pub-3940256099942544/9257395921",
 
     @SerializedName(value = "flowa_interstitial_ad_id", alternate = ["flowaInterstitialAdId", "paid_interstitial_ad_id", "paidInterstitialAdId"])
     val flowaInterstitialAdId: String = "ca-app-pub-3940256099942544/1033173712",
-
-    @SerializedName(value = "paid_app_open_close_interval", alternate = ["paidAppOpenCloseInterval", "app_open_close_interval"])
-    val paidAppOpenCloseInterval: Int = 1,
 
     @SerializedName(value = "paid_app_open_only_mode", alternate = ["paidAppOpenOnlyMode", "app_open_only_step"])
     val paidAppOpenOnlyMode: Boolean = false,
@@ -587,7 +594,6 @@ data class AdsConfig(
     val interBackCount: Int get() = swipeInterCount
 
     /** Backward-compatible getters mapping legacy paid App Open fields to the flowa fields */
-    val paidAppOpenOnCloseOn: Boolean get() = flowaWebCloseAdOn
     val paidAppOpenAdId: String get() = flowaAppOpenAdId
 
     companion object {

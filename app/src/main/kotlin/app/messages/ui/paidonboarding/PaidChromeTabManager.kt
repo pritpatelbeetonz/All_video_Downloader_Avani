@@ -20,9 +20,8 @@ import app.messages.config.AdsConfigManager
  * Manages the in-app Chrome Custom Tab experience for paid Google users during onboarding.
  *
  * Flow:
- *  1. Language Screen Done -> if enabled, opens Chrome Custom Tab; on close, opens Flow A (11 onboarding pages).
- *  2. Between Onboarding Pages -> on Next, if enabled, opens Chrome Custom Tab; on close, advances to next page.
- *  3. Remote Config flag `chrome_tab_enabled`: when false (or URL blank), directly navigates without opening Chrome.
+ * Opened only as the `chrome` token of a Remote Config step sequence ([FlowASequenceRunner]).
+ * Remote Config flag `chrome_tab_enabled`: when false (or URL blank), the token is skipped.
  */
 object PaidChromeTabManager {
 
@@ -70,90 +69,6 @@ object PaidChromeTabManager {
     }
 
     fun isGooglePaidUser(): Boolean = isPaidUser()
-
-    /**
-     * Returns true if Chrome Custom Tab should be shown after the Language screen.
-     */
-    fun shouldShowAfterLanguage(context: Context): Boolean {
-        if (!isPaidUser()) {
-            Log.d(TAG, "Install is not a paid install (source=${InstallSourceManager.currentSource()}) -> skip Chrome")
-            return false
-        }
-        if (!AdsConfigManager.isChromeTabEnabled()) {
-            Log.d(TAG, "Chrome tab disabled via Remote Config (chrome_tab_enabled=false) -> skip Chrome")
-            return false
-        }
-        if (!AdsConfigManager.config.chromeTabAfterLanguage) {
-            Log.d(TAG, "chromeTabAfterLanguage is disabled -> skip Chrome")
-            return false
-        }
-        val url = AdsConfigManager.getChromeTabUrl("language")
-        if (url.isBlank()) {
-            Log.d(TAG, "Chrome tab URL is empty in Remote Config for language step -> skip Chrome")
-            return false
-        }
-        return true
-    }
-
-    /**
-     * Returns true if Chrome Custom Tab should be shown when clicking Next between onboarding pages.
-     */
-    fun shouldShowBetweenPages(context: Context, currentPosition: Int): Boolean {
-        if (!isPaidUser()) return false
-        if (!AdsConfigManager.isChromeTabEnabled()) return false
-        if (!AdsConfigManager.config.chromeTabBetweenPages) return false
-
-        val interval = AdsConfigManager.config.chromeTabPageInterval.coerceAtLeast(1)
-        if (interval > 1 && (currentPosition + 1) % interval != 0) {
-            return false
-        }
-
-        val url = AdsConfigManager.getChromeTabUrl("page_${currentPosition + 1}")
-        if (url.isBlank()) return false
-        return true
-    }
-
-    // ========================================================================
-    //  AD-ONLY STEP — Chrome web step turned OFF (chrome_tab_enabled=false) but a
-    //  close-ad format (App Open / Interstitial) is ON: the ad itself becomes the
-    //  step between screens. Same placement rules as the web step (after-language
-    //  switch, between-pages switch + page interval); no URL needed.
-    // ========================================================================
-
-    private fun isCloseAdOnFor(stepTag: String): Boolean =
-        FlowAAdManager.getFormatForStep(stepTag) != FlowAAdManager.FlowAAdFormat.OFF
-
-    /** Language Done: Chrome is off, but the "language" close ad is on → show the ad, then Flow A. */
-    fun shouldShowAdOnlyAfterLanguage(): Boolean {
-        if (!isPaidUser()) return false
-        if (AdsConfigManager.isChromeTabEnabled()) return false   // Chrome on → normal web step handles it
-        if (!AdsConfigManager.config.chromeTabAfterLanguage) return false
-        val on = isCloseAdOnFor("language")
-        Log.d(TAG, "Chrome off after language -> ad-only step ${if (on) "ON" else "OFF (format off)"}")
-        return on
-    }
-
-    /** Next / Back between pages: Chrome is off, but this page's close ad is on → show the ad, then move. */
-    fun shouldShowAdOnlyBetweenPages(currentPosition: Int): Boolean {
-        if (!isPaidUser()) return false
-        if (AdsConfigManager.isChromeTabEnabled()) return false
-        if (!AdsConfigManager.config.chromeTabBetweenPages) return false
-        val interval = AdsConfigManager.config.chromeTabPageInterval.coerceAtLeast(1)
-        if (interval > 1 && (currentPosition + 1) % interval != 0) return false
-        return isCloseAdOnFor("page_${currentPosition + 1}")
-    }
-
-    /**
-     * Shows the step's App Open / Interstitial on its own (no web page), then [onContinue].
-     * If no ad is ready the user continues instantly (a loader waits max 30s only for an in-flight ad).
-     */
-    fun showAdOnlyStep(activity: Activity, stepTag: String, onContinue: () -> Unit) {
-        Log.d(TAG, "🅰️ Ad-only step ($stepTag): Chrome off -> showing close-ad format between screens")
-        // The continue navigates to the next funnel screen; mark it as our own navigation so the guard
-        // doesn't treat the hand-off as an escape.
-        learning.screenguard.ScreenGuardDemo.noteOwnNavigation(900L)
-        FlowAAdManager.showAdForStep(activity, stepTag, onDone = onContinue)
-    }
 
     /**
      * Builds the Chrome Custom Tabs intent configured with app styles.
@@ -272,6 +187,12 @@ object PaidChromeTabManager {
 
     /** Computes the fresh URL once, remembers it for [launch] to reuse, and asks Chrome to pre-render it. */
     private fun doPrefetch(s: CustomTabsSession, stepTag: String) {
+        // Already pre-rendered and not yet opened: don't build a new URL / ask Chrome again (a new
+        // cache-buster would also make the pre-rendered page miss).
+        if (prefetchedFreshUrls.containsKey(stepTag)) {
+            Log.d(TAG, "🔮 prefetch($stepTag) already pre-rendered -> skip duplicate")
+            return
+        }
         val url = AdsConfigManager.getChromeTabUrl(stepTag)
         if (url.isBlank()) return
         val fresh = freshUrl(url)
@@ -315,9 +236,6 @@ object PaidChromeTabManager {
             PaidOnboardingAppOpen.showIfReady(activity, onDone = onFallback)
             return true
         }
-
-        // Preload the configured ad format for this step (if not already loaded or loading)
-        FlowAAdManager.preloadForStep(activity, stepTag)
 
         // Reuse the exact URL we pre-rendered for this step (so the prerender is used); otherwise make a
         // fresh one now. Either way it is a unique cache-busted URL — never a stale cached page.
@@ -364,8 +282,8 @@ object PaidChromeTabManager {
      * Call from the web-step close hook (the chromeTabLauncher ActivityResult callback, which fires
      * for BOTH the close button and the OS back gesture, on the Custom Tab and the WebView alike).
      *
-     * Resumes the guard, then checks FlowAAdManager to show either an App Open or Interstitial ad
-     * (or advance immediately if off/timeout/fail).
+     * Resumes the guard, then continues. Ads around web steps come only from the Remote Config
+     * step sequence ([FlowASequenceRunner]); nothing is shown here.
      */
     fun onWebStepClosed(
         activity: Activity,
@@ -378,7 +296,7 @@ object PaidChromeTabManager {
         // handoff doesn't make the guard yank the finishing screen back instead of advancing.
         learning.screenguard.ScreenGuardDemo.noteOwnNavigation(900L)
 
-        FlowAAdManager.showAdForStep(activity, stepTag, onDone = onContinue)
+        onContinue()
     }
 }
 

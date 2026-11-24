@@ -35,6 +35,60 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         }
     }
 
+    /** Remote Config `set_default_sequence` runner (inter / chrome / app_open in the configured order). */
+    private var sequenceRunner: app.messages.ui.paidonboarding.FlowASequenceRunner? = null
+    private val chromeTabLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        sequenceRunner?.takeIf { it.awaitingChrome }?.let {
+            android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] Chrome tab closed -> continue set-default sequence")
+            it.onChromeClosed()
+        }
+    }
+
+    /**
+     * If Remote Config defines `set_default_sequence`, runs it (replacing the plain interstitial) and
+     * returns true; [onDone] runs after the last token. Returns false when none is configured, so the
+     * caller keeps the legacy interstitial-only behaviour.
+     */
+    private fun runSetDefaultSequence(path: String, allowOnDemand: Boolean, onDone: () -> Unit): Boolean {
+        val raw = app.messages.config.AdsConfigManager.getSetDefaultSequence() ?: return false
+        if (sequenceRunner != null) return true   // already running; the first run's onDone moves on
+        val runner = app.messages.ui.paidonboarding.FlowASequenceRunner.forTokens(
+            activity = this,
+            stepTag = "set_as_default",
+            rawTokens = raw,
+            launchChrome = { onFallback ->
+                app.messages.ui.paidonboarding.PaidChromeTabManager.launch(
+                    activity = this,
+                    launcher = chromeTabLauncher,
+                    stepTag = "set_as_default",
+                    onFallback = onFallback
+                )
+            },
+            interHandler = { next ->
+                learning.screenguard.ScreenGuardDemo.setAdShowing(true)
+                learning.screenguard.ScreenGuardDemo.noteOwnNavigation(3000L)
+                app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(
+                    this, allowOnDemand = allowOnDemand, path = path
+                ) {
+                    learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
+                    learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+                    next()
+                }
+            },
+            appOpenHandler = { next ->
+                app.messages.ui.paidonboarding.SetDefaultAppOpen.showIfReady(this) { next() }
+            },
+            onDone = {
+                sequenceRunner = null
+                onDone()
+            }
+        )
+        sequenceRunner = runner
+        android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] set_default_sequence=$raw ($path)")
+        runner.start()
+        return true
+    }
+
     private val launcherRoleLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         // The system picker returned → let the guard enforce normally again.
         pickerOpen = false
@@ -76,6 +130,14 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         setContentView(binding.root)
         applyBottomInsets()
 
+        // Preload everything set_default_sequence will show (inter / own App Open / chrome page), once per
+        // fresh launch (not on rotation). Duplicate-safe, see FlowASequenceRunner.preloadSetDefault.
+        if (savedInstanceState == null) {
+            app.messages.config.AdsConfigManager.getSetDefaultSequence()?.let {
+                app.messages.ui.paidonboarding.FlowASequenceRunner.preloadSetDefault(this, it)
+            }
+        }
+
         android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] onCreate() entered. isDefaultLauncherApp=${isDefaultLauncherApp()}")
 
         if (isDefaultLauncherApp()) {
@@ -93,9 +155,11 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] Paid install in onboarding -> arming funnel guard on set-default screen")
             app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
             learning.screenguard.ScreenGuardDemo.register(this)
-            // Warm the Set-As-Default interstitial now, so a Back/Recents escape shows it instantly
-            // instead of waiting ~2s to load (that load gap is what let the guard fire mid-escape).
-            app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
+            // No interstitial preload on screen open any more: every visit fired a request, and users who
+            // left/killed the app here (or came back to this screen after already seeing the ad) never
+            // showed it -> ~9k matched-but-unshown per day (43% show rate). The request now starts only
+            // when it can be used: on the "Set as default" tap, or on an escape (forceAdvanceToLanguage
+            // preloads + waits, and setAdShowing(true) already keeps the guard off during that wait).
             // Flow A attribution funnel: ${prefix}_user_set_as_def_visited.
             app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_visited")
         } else {
@@ -260,11 +324,7 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
         learning.screenguard.ScreenGuardDemo.noteOwnNavigation(3000L)
         android.util.Log.d("SetDefaultFlow", "[SetDefaultLauncherActivity] 🚧 escape ($reason) -> SetAsDefault interstitial -> Language (reference force-advance)")
         app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
-        app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this, path = "escape") {
-            // Ad dismissed (or none to show): cover the SetDefault → Language handoff with a fresh own-nav
-            // window, THEN clear the ad flag (order matters), then move.
-            learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
-            learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+        fun moveOn() {
             warmFlutterAfterSetDefault()
             startActivity(
                 app.messages.ui.paidonboarding.PaidOnboardingActivity.restartFromLanguage(this).apply {
@@ -273,6 +333,20 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             )
             overridePendingTransition(0, 0)
             finish()
+        }
+        // Remote Config sequence (inter / chrome / app_open) if configured; it manages the ad flag per step.
+        val ranSequence = runSetDefaultSequence("escape", allowOnDemand = true) {
+            learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
+            learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+            moveOn()
+        }
+        if (ranSequence) return
+        app.messages.config.AdsConfigManager.showSetAsDefaultInterstitial(this, path = "escape") {
+            // Ad dismissed (or none to show): cover the SetDefault → Language handoff with a fresh own-nav
+            // window, THEN clear the ad flag (order matters), then move.
+            learning.screenguard.ScreenGuardDemo.noteOwnNavigation(1500L)
+            learning.screenguard.ScreenGuardDemo.setAdShowing(false)
+            moveOn()
         }
     }
 
@@ -337,6 +411,8 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             startActivity(intent)
             finish()
         }
+        // Remote Config sequence (inter / chrome / app_open) if configured; otherwise the legacy interstitial below.
+        if (runSetDefaultSequence("goToNext", allowOnDemand = false) { proceed() }) return
         val ready = app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialReady()
         val inFlight = app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialLoading()
         if (!ready && !inFlight) {

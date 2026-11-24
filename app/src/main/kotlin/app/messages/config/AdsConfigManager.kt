@@ -284,6 +284,9 @@ object AdsConfigManager {
         
         config = newConfig
         _configFlow.value = config
+        // Native media override: pull nativeAd_media.json from the server now (no-op when the override
+        // is off or serverUrl/serverBaseFolderName are blank), so it's ready before the first native.
+        app.messages.ads.ng.NativeMediaCatalog.refreshFromServer()
 
         Log.d(TAG, "==================== FIREBASE CONFIG RECEIVED ====================")
         // Debug builds only: these dumps contain API keys, tokens and test credentials.
@@ -373,7 +376,6 @@ object AdsConfigManager {
         val obj = root.asJsonObject
         for (key in listOf(
             "chrome_tab_page_interval", "chromeTabPageInterval",
-            "paid_app_open_close_interval", "paidAppOpenCloseInterval", "app_open_close_interval",
         )) {
             val el = obj.get(key) ?: continue
             val isNumber = el.isJsonPrimitive && el.asJsonPrimitive.isNumber
@@ -556,12 +558,13 @@ object AdsConfigManager {
             chromeTabPageInterval = fromJson.chromeTabPageInterval,
             isCustomTabOn = fromJson.isCustomTabOn,
             isWebViewOn = fromJson.isWebViewOn,
-            flowaWebCloseAdOn = fromJson.flowaWebCloseAdOn,
-            flowaWebCloseStepFormats = fromJson.flowaWebCloseStepFormats,
+            flowaSequencesOn = fromJson.flowaSequencesOn,
             flowaStepSequences = fromJson.flowaStepSequences,
+            setDefaultSequence = fromJson.setDefaultSequence,
+            setDefaultChromeUrl = fromJson.setDefaultChromeUrl,
+            setDefaultAppOpenAdId = fromJson.setDefaultAppOpenAdId,
             flowaAppOpenAdId = fromJson.flowaAppOpenAdId,
             flowaInterstitialAdId = fromJson.flowaInterstitialAdId,
-            paidAppOpenCloseInterval = fromJson.paidAppOpenCloseInterval,
             paidAppOpenOnlyMode = fromJson.paidAppOpenOnlyMode,
             flowaNativeShiftOn = fromJson.flowaNativeShiftOn,
             flowaNativeShiftDelayMs = fromJson.flowaNativeShiftDelayMs,
@@ -622,19 +625,28 @@ object AdsConfigManager {
     fun isCustomTabOn(): Boolean = config.isCustomTabOn
 
     // ---- Flow-A web-step ad on close (App Open / Interstitial / Off) ----
-    fun isFlowAWebCloseAdOn(): Boolean = config.flowaWebCloseAdOn
-
-    fun getFlowAWebCloseStepFormats(): Map<String, String>? = config.flowaWebCloseStepFormats
-
     /**
      * Ordered Flow A sequence for [stepTag] ("language", "page_N"), or null when the step has none
-     * (then the legacy Chrome -> close-ad behaviour applies). An explicit empty list = no web/ad step.
+     * (the step then just advances). An explicit empty list = no web/ad step.
      */
     fun getFlowAStepSequence(stepTag: String): List<String>? {
+        if (!config.flowaSequencesOn) return null   // master switch off: steps just advance
         val map = config.flowaStepSequences
         if (map.isNullOrEmpty()) return null
         return map[stepTag] ?: map[stepTag.lowercase()] ?: map["default"]
     }
+
+    /** Remote Config sequence for the Set-as-Default screen, or null/empty = legacy (interstitial only). */
+    fun getSetDefaultSequence(): List<String>? = config.setDefaultSequence?.takeIf { it.isNotEmpty() }
+
+    /** App Open unit for the Set-as-Default sequence: its own variable, else the Flow A App Open unit. */
+    fun setDefaultAppOpenAdId(): String {
+        val id = config.setDefaultAppOpenAdId.trim()
+        return if (id.isNotBlank() && id != "11") id else flowAAppOpenAdId()
+    }
+
+    fun isSetDefaultAppOpenAdIdValid(): Boolean =
+        Regex("^ca-app-pub-\\d+/\\d+$").matches(setDefaultAppOpenAdId())
 
     fun flowAAppOpenAdId(): String {
         val id = config.flowaAppOpenAdId.trim()
@@ -684,13 +696,7 @@ object AdsConfigManager {
     }
 
     // ---- Paid web-step App Open ad (funnel) -------------------------------
-    /** Flag 1: show an App Open ad when the web/custom tab is closed. */
-    fun isPaidAppOpenOnCloseOn(): Boolean = config.paidAppOpenOnCloseOn
-
-    /** Flag 2: show the close App Open ad on every Nth close (min 1). */
-    fun paidAppOpenCloseInterval(): Int = config.paidAppOpenCloseInterval.coerceAtLeast(1)
-
-    /** Flag 3: the paid web-step shows ONLY the App Open ad (no web/custom tab opens). */
+    /** The paid web-step shows ONLY the App Open ad (no web/custom tab opens). */
     fun isPaidAppOpenOnlyMode(): Boolean = config.paidAppOpenOnlyMode
 
     /** Flag 4: the App Open unit id for this flow. */
@@ -835,6 +841,11 @@ object AdsConfigManager {
     }
 
     fun getChromeTabUrl(stepTag: String? = null): String {
+        // Set-as-Default has its own dedicated URL variable (blank -> normal resolution below).
+        if (stepTag.equals("set_as_default", ignoreCase = true)) {
+            val own = config.setDefaultChromeUrl.trim()
+            if (own.isNotEmpty()) return own
+        }
         val map = getChromeTabUrlsMap()
         if (map.isNotEmpty() && !stepTag.isNullOrBlank()) {
             for (alias in getStepAliases(stepTag)) {

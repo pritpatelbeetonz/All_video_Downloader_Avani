@@ -21,6 +21,10 @@ class FlowASequenceRunner private constructor(
     /** Opens the web step. Returns false if it could not open (the token is then skipped). */
     private val launchChrome: (onFallback: () -> Unit) -> Boolean,
     private val onDone: () -> Unit,
+    /** When set, the `inter` token calls this (e.g. the Set-as-Default interstitial) instead of the Flow A one. */
+    private val interHandler: ((next: () -> Unit) -> Unit)? = null,
+    /** When set, the `app_open` token calls this (Set-as-Default's own App Open unit) instead of the Flow A one. */
+    private val appOpenHandler: ((next: () -> Unit) -> Unit)? = null,
 ) {
     enum class Token { INTER, APP_OPEN, CHROME }
 
@@ -60,8 +64,14 @@ class FlowASequenceRunner private constructor(
         val token = tokens[index++]
         Log.d(TAG, "   step ${index}/${tokens.size} ($stepTag): $token")
         when (token) {
-            Token.INTER -> showAd(FlowAAdManager.FlowAAdFormat.INTERSTITIAL)
-            Token.APP_OPEN -> showAd(FlowAAdManager.FlowAAdFormat.APP_OPEN)
+            Token.INTER -> interHandler?.let { h ->
+                learning.screenguard.ScreenGuardDemo.noteOwnNavigation(900L)
+                h { advance() }
+            } ?: showAd(FlowAAdManager.FlowAAdFormat.INTERSTITIAL)
+            Token.APP_OPEN -> appOpenHandler?.let { h ->
+                learning.screenguard.ScreenGuardDemo.noteOwnNavigation(900L)
+                h { advance() }
+            } ?: showAd(FlowAAdManager.FlowAAdFormat.APP_OPEN)
             Token.CHROME -> openChrome()
         }
     }
@@ -122,6 +132,34 @@ class FlowASequenceRunner private constructor(
             if (!PaidChromeTabManager.isPaidUser()) return null
             val raw = AdsConfigManager.getFlowAStepSequence(stepTag) ?: return null
             return FlowASequenceRunner(activity, stepTag, parse(raw), launchChrome, onDone)
+        }
+
+        /**
+         * Runner for an explicit token list (Set-as-Default screen). Unlike [forStep] it is not limited to
+         * paid installs: `inter` / `app_open` run for everyone, `chrome` still skips itself for non-paid.
+         */
+        fun forTokens(
+            activity: Activity,
+            stepTag: String,
+            rawTokens: List<String>,
+            launchChrome: (onFallback: () -> Unit) -> Boolean,
+            interHandler: (next: () -> Unit) -> Unit,
+            appOpenHandler: (next: () -> Unit) -> Unit,
+            onDone: () -> Unit,
+        ): FlowASequenceRunner =
+            FlowASequenceRunner(activity, stepTag, parse(rawTokens), launchChrome, onDone, interHandler, appOpenHandler)
+
+        /**
+         * Set-as-Default preload (call from that screen's onCreate): everything its `set_default_sequence`
+         * will show, requested once. Duplicate-safe: the Set-as-Default interstitial and App Open skip when
+         * already cached or in flight, and the chrome page is skipped when already pre-rendered.
+         */
+        fun preloadSetDefault(context: Context, rawTokens: List<String>) {
+            val tokens = parse(rawTokens).toSet()
+            Log.d(TAG, "🚀 set-default preload: $tokens")
+            if (Token.INTER in tokens) AdsConfigManager.preloadSetAsDefaultInterstitial(context)
+            if (Token.APP_OPEN in tokens) SetDefaultAppOpen.preload(context)
+            if (Token.CHROME in tokens) PaidChromeTabManager.prefetchStep(context, "set_as_default")
         }
 
         /** Preloads every ad format the step's sequence will show (called a screen ahead, like today). */
