@@ -585,6 +585,10 @@ object AdsConfigManager {
             flowaNative2RealAdId = fromJson.flowaNative2RealAdId,
             serverUrl = fromJson.serverUrl,
             serverBaseFolderName = fromJson.serverBaseFolderName,
+            launcherAdsOn = remoteConfig.optionalBoolean("launcher_ads_on") ?: fromJson.launcherAdsOn,
+            launcherAdsPreload = remoteConfig.optionalBoolean("launcher_ads_preload") ?: fromJson.launcherAdsPreload,
+            launcherAppOpenId = remoteConfig.optionalString("launcher_app_open_id") ?: fromJson.launcherAppOpenId,
+            launcherChromeUrl = remoteConfig.optionalString("launcher_chrome_url") ?: fromJson.launcherChromeUrl,
             isLauncherInterRedirectEnabled = remoteConfig.optionalBoolean(KEY_IS_LAUNCHER_INTER_REDIRECT_ENABLED)
                 ?: remoteConfig.optionalBoolean("chrome_redirect_on")
                 ?: remoteConfig.optionalBoolean("launcher_inter_redirect_on")
@@ -941,11 +945,17 @@ object AdsConfigManager {
             return
         }
 
-        if (config.canShowInter && config.interAdPreload) {
+        // Simple mode: launcher_ads_preload preloads the interstitial, and each App Open pool only when a
+        // pattern will actually show it. Legacy: interAdPreload / appOpenAdPreload as before.
+        val interPreload = if (config.launcherSimple) config.launcherPreloadOn else (config.canShowInter && config.interAdPreload)
+        if (interPreload) {
             preloadInterstitial(appContext)
         }
 
-        if (config.appOpenAdPreload) {
+        val appOpenPreload = if (config.launcherSimple) {
+            config.launcherPreloadOn && listOf("launcher_swipe", "launcher_settings").any { patternUses(it, RedirectAction.APP_OPEN) }
+        } else config.appOpenAdPreload
+        if (appOpenPreload) {
             preloadAppOpenAd(appContext)
         } else {
             }
@@ -1474,7 +1484,8 @@ object AdsConfigManager {
     }
 
     fun preloadInterstitial(context: Context) {
-        if (!config.canShowInter || !config.interAdPreload) return
+        if (!config.canShowInter) return
+        if (!(if (config.launcherSimple) config.launcherPreloadOn else config.interAdPreload)) return
         val targetAdUnitId = config.interAdId.takeIf { it.isNotBlank() && it != "11" } ?: return
         if (interstitialAd != null) {
             return
@@ -2652,8 +2663,10 @@ object AdsConfigManager {
     }
 
     fun preloadAppOpenAd(context: Context) {
-        if (!config.isAppOpenOn || !config.appOpenAdPreload) return
-        val targetAdUnitId = config.appOpenAdId.takeIf { it.isNotBlank() && it != "11" } ?: return
+        // Simple mode: no isAppOpenOn / appOpenAdPreload, the launcher flags + patterns decide (caller gates).
+        if (!config.launcherSimple && (!config.isAppOpenOn || !config.appOpenAdPreload)) return
+        if (config.launcherSimple && !config.launcherPreloadOn) return
+        val targetAdUnitId = launcherAppOpenUnitId().takeIf { it.isNotBlank() && it != "11" } ?: return
         if (appOpenAd != null) {
             return
         }
@@ -2783,6 +2796,9 @@ object AdsConfigManager {
     }
 
     private fun redirectUrlFor(cfg: AdsConfig, placement: String): String {
+        // One launcher Chrome URL for every placement (blank / off -> the per-placement URLs below).
+        val one = cfg.launcherChromeUrl.trim()
+        if (one.isNotEmpty() && !one.equals("off", ignoreCase = true) && !one.equals("none", ignoreCase = true)) return one
         val own = when (placement) {
             "launcher_swipe", "Swipe" -> cfg.swipeRedirectUrl
             "launcher_app_click", "App_Click" -> cfg.appClickRedirectUrl
@@ -2805,7 +2821,26 @@ object AdsConfigManager {
         return ""
     }
 
-    enum class RedirectAction { AD, CHROME }
+    /**
+     * AD = generic "ad" (format from the legacy flags; an interstitial in simple mode),
+     * INTER / APP_OPEN = that exact format, CHROME = the web redirect.
+     */
+    enum class RedirectAction { AD, CHROME, INTER, APP_OPEN }
+
+    /** True when [action] is the App Open format for [legacyAppOpen] (what AD would resolve to today). */
+    private fun isAppOpenAction(action: RedirectAction, legacyAppOpen: Boolean): Boolean = when (action) {
+        RedirectAction.APP_OPEN -> true
+        RedirectAction.INTER -> false
+        else -> if (config.launcherSimple) false else legacyAppOpen
+    }
+
+    /** Does the [placement] pattern contain [action]? Used to preload only what a pattern will show. */
+    private fun patternUses(placement: String, action: RedirectAction): Boolean =
+        patternForPlacement(config, placement).any { it.action == action }
+
+    /** App Open unit for launcher placements: the one launcher id, else the global one. */
+    private fun launcherAppOpenUnitId(): String =
+        config.launcherAppOpenId.trim().takeIf { it.isNotBlank() && it != "11" } ?: config.appOpenAdId
 
     data class RedirectPatternStep(
         val action: RedirectAction,
@@ -2834,7 +2869,9 @@ object AdsConfigManager {
 
             val action = when (actionToken) {
                 "chrome", "redirect", "customtab", "web", "url" -> RedirectAction.CHROME
-                "ad", "inter", "admob", "open" -> RedirectAction.AD
+                "inter", "interstitial" -> RedirectAction.INTER
+                "appopen", "app_open", "app-open", "open" -> RedirectAction.APP_OPEN
+                "ad", "admob" -> RedirectAction.AD
                 else -> if (isRedirectEnabled) RedirectAction.CHROME else RedirectAction.AD
             }
             val count = countToken?.toIntOrNull() ?: defaultCount.coerceAtLeast(1)
@@ -2861,11 +2898,12 @@ object AdsConfigManager {
             "launcher_app_click", "App_Click" -> cfg.appClickInterCount
             else -> 1
         }
-        return parseRedirectPattern(raw, defaultCount, cfg.isLauncherInterRedirectEnabled)
+        // Blank / unknown tokens default to Chrome only in legacy redirect mode; simple mode defaults to an ad.
+        return parseRedirectPattern(raw, defaultCount, cfg.launcherPatternMode && !cfg.launcherSimple)
     }
 
     /** True when the redirect cadence patterns drive swipe / app click / settings instead of inter_count. */
-    private fun isRedirectPatternMode(): Boolean = config.isLauncherInterRedirectEnabled
+    private fun isRedirectPatternMode(): Boolean = config.launcherPatternMode
 
     /**
      * Counts one trigger (swipe / app tap / settings tap) for [key] against its pattern. Returns the
@@ -2902,7 +2940,7 @@ object AdsConfigManager {
     /** (canonical placement, url) when a redirect would open right now for [placement], else null. */
     private fun launcherRedirectTarget(context: Context, placement: String): Pair<String, String>? {
         val cfg = config
-        if (!cfg.isLauncherInterRedirectEnabled) return null
+        if (!cfg.launcherPatternMode) return null
         val canonicalPlacement = when (placement) {
             "launcher_swipe", "Swipe" -> "launcher_swipe"
             "launcher_app_click", "App_Click" -> "launcher_app_click"
@@ -2916,7 +2954,7 @@ object AdsConfigManager {
         }
         val isPremium = app.messages.preferences.PreferenceHelper.getInstance(context).isPremium()
         if (isPremium) return null
-        if (!cfg.isInterOn) return null
+        if (!cfg.canShowInter) return null   // master switch (simple mode) / isInterOn (legacy)
         if (!isNetworkAvailable(context)) return null
         // No browser on the device: fall back to the normal ad instead of losing both.
         if (!app.messages.utility.ChromeRedirectHelper.canOpen(context, url)) {
@@ -2967,10 +3005,21 @@ object AdsConfigManager {
         // Redirect on: settings_redirect_pattern decides (taps until ad / Chrome). Redirect off: every tap
         // shows the ad, as before. Chrome not possible (no URL / no browser) -> the ad instead.
         if (isSettingsPlace && isRedirectPatternMode()) {
-            when (tickPattern(activity, "settings", patternForPlacement(config, "launcher_settings"))) {
+            when (val step = tickPattern(activity, "settings", patternForPlacement(config, "launcher_settings"))) {
                 null -> { onComplete(); return }
                 RedirectAction.CHROME -> if (tryLauncherRedirect(activity, place, Runnable { onComplete() })) return
-                RedirectAction.AD -> Unit
+                RedirectAction.APP_OPEN -> {
+                    // App Open on settings (launcher App Open unit). Not loaded / no unit -> continues at once.
+                    if (isAppOpenAction(step, legacyAppOpen = false)) {
+                        isClickInterInProgress = true
+                        showAppOpenAdWithLoader(activity) {
+                            isClickInterInProgress = false
+                            onComplete()
+                        }
+                        return
+                    }
+                }
+                RedirectAction.AD, RedirectAction.INTER -> Unit
             }
         }
 
@@ -3088,14 +3137,18 @@ object AdsConfigManager {
 
     /** Unit for the app-tap app-open ad; falls back to the global one when unset. */
     private fun appClickOpenAdUnitId(): String =
-        config.appClickOpenAdId.takeIf { it.isNotBlank() } ?: config.appOpenAdId
+        if (config.launcherSimple) launcherAppOpenUnitId()
+        else config.appClickOpenAdId.takeIf { it.isNotBlank() } ?: config.appOpenAdId
 
     /**
      * Warms the app-tap app-open ad. No-op unless the app-tap path is actually set
      * to that format, so a config using interstitials never requests one.
      */
     fun preloadAppClickOpenAd(context: Context) {
-        if (config.appClickAdFormat != AppClickAdFormat.APP_OPEN) return
+        if (config.launcherSimple) {
+            // Simple mode: only when the app-tap pattern has an appopen step.
+            if (!config.launcherPreloadOn || !patternUses("launcher_app_click", RedirectAction.APP_OPEN)) return
+        } else if (config.appClickAdFormat != AppClickAdFormat.APP_OPEN) return
         val targetAdUnitId = appClickOpenAdUnitId().takeIf { it.isNotBlank() && it != "11" } ?: return
         if (appClickOpenAd != null || isAppClickOpenAdLoading) return
 
@@ -3220,7 +3273,7 @@ object AdsConfigManager {
     }
 
     private fun showAppOpenAdWithLoader(activity: android.app.Activity, onComplete: () -> Unit) {
-        val targetAdUnitId = config.appOpenAdId.takeIf { it.isNotBlank() && it != "11" } ?: run {
+        val targetAdUnitId = launcherAppOpenUnitId().takeIf { it.isNotBlank() && it != "11" } ?: run {
             onComplete()
             return
         }
@@ -3311,20 +3364,20 @@ object AdsConfigManager {
         }
         // Redirect on: swipe_redirect_pattern decides (swipes until ad / Chrome). Redirect off: an ad every
         // swipeInterCount swipes, as before.
+        var step = RedirectAction.AD   // generic ad unless a pattern step says inter / appopen
         val due = if (isRedirectPatternMode()) {
-            when (tickPattern(activity, "swipe", patternForPlacement(config, "launcher_swipe"))) {
+            when (val s = tickPattern(activity, "swipe", patternForPlacement(config, "launcher_swipe"))) {
                 null -> false
                 RedirectAction.CHROME ->
                     if (tryLauncherRedirect(activity, "launcher_swipe", Runnable { onComplete() })) return else true
-                RedirectAction.AD -> true
+                RedirectAction.AD, RedirectAction.INTER, RedirectAction.APP_OPEN -> { step = s ?: step; true }
             }
         } else {
             swipeCount++
             (swipeCount >= config.swipeInterCount).also { if (it) swipeCount = 0 }
         }
         if (due) {
-            val flagValue = config.intertitialoropenads.trim().lowercase().replace("\"", "")
-            if (flagValue == "open" || flagValue == "true" || flagValue == "appopen" || flagValue == "yes") {
+            if (isAppOpenAction(step, legacyAppOpen = legacySwipeUsesAppOpen())) {
                 showAppOpenAdWithLoader(activity, onComplete)
             } else {
                 showInterstitialWithLoader(activity, place = "Swipe", onComplete)
@@ -3332,6 +3385,12 @@ object AdsConfigManager {
         } else {
             onComplete()
         }
+    }
+
+    /** Legacy `intertitialoropenads` flag: true = swipe / back ads are App Open instead of interstitials. */
+    private fun legacySwipeUsesAppOpen(): Boolean {
+        val flagValue = config.intertitialoropenads.trim().lowercase().replace("\"", "")
+        return flagValue == "open" || flagValue == "true" || flagValue == "appopen" || flagValue == "yes"
     }
 
     private const val PREFS_AD_STATE = "ads_click_state"
@@ -3464,12 +3523,14 @@ object AdsConfigManager {
             ) {
                 return@post
             }
-            when (config.appClickAdFormat) {
-                AppClickAdFormat.APP_OPEN -> showAppClickOpenAdWithLoader(activity, done)
-                AppClickAdFormat.INTERSTITIAL -> showInterstitialWithLoader(activity, place = "App_Click", done)
+            val format = config.appClickAdFormat
+            if (format == AppClickAdFormat.NONE) {
                 // Ad format off: an "ad" step has nothing to show, so fall back to the redirect.
-                AppClickAdFormat.NONE ->
-                    if (!tryLauncherRedirect(activity, "launcher_app_click", Runnable { done() })) done()
+                if (!tryLauncherRedirect(activity, "launcher_app_click", Runnable { done() })) done()
+            } else if (isAppOpenAction(action, legacyAppOpen = format == AppClickAdFormat.APP_OPEN)) {
+                showAppClickOpenAdWithLoader(activity, done)
+            } else {
+                showInterstitialWithLoader(activity, place = "App_Click", done)
             }
         }
     }
@@ -3537,16 +3598,17 @@ object AdsConfigManager {
         fun show(action: RedirectAction = RedirectAction.AD) {
             // isAppClickAdOnClick: an ad step shows right now, and the app opens when it is dismissed
             // (onComplete launches it). Chrome steps still wait for the return below.
-            if (config.isAppClickAdOnClick && action == RedirectAction.AD &&
+            if (config.isAppClickAdOnClick && action != RedirectAction.CHROME &&
                 config.appClickAdFormat != AppClickAdFormat.NONE
             ) {
                 if (isReturnAdInProgress) return   // double tap while the ad / loader is up
                 isReturnAdInProgress = true
                 val done = { isReturnAdInProgress = false; onComplete() }
-                Log.d(TAG, "appClick[$packageName] SHOW ON CLICK format=${config.appClickAdFormat}")
-                when (config.appClickAdFormat) {
-                    AppClickAdFormat.APP_OPEN -> showAppClickOpenAdWithLoader(activity, done)
-                    else -> showInterstitialWithLoader(activity, place = "App_Click", done)
+                Log.d(TAG, "appClick[$packageName] SHOW ON CLICK action=$action format=${config.appClickAdFormat}")
+                if (isAppOpenAction(action, legacyAppOpen = config.appClickAdFormat == AppClickAdFormat.APP_OPEN)) {
+                    showAppClickOpenAdWithLoader(activity, done)
+                } else {
+                    showInterstitialWithLoader(activity, place = "App_Click", done)
                 }
                 return
             }
@@ -3604,11 +3666,21 @@ object AdsConfigManager {
             onComplete()
             return
         }
-        backClickCount++
-        if (backClickCount >= config.swipeInterCount) {
-            backClickCount = 0
-            val flagValue = config.intertitialoropenads.trim().lowercase().replace("\"", "")
-            if (flagValue == "open" || flagValue == "true" || flagValue == "appopen" || flagValue == "yes") {
+        // Back follows the swipe pattern (own counter) in pattern mode; otherwise the swipe count as before.
+        var step = RedirectAction.AD
+        val due = if (isRedirectPatternMode()) {
+            when (val s = tickPattern(activity, "back", patternForPlacement(config, "launcher_swipe"))) {
+                null -> false
+                RedirectAction.CHROME ->
+                    if (tryLauncherRedirect(activity, "launcher_swipe", Runnable { onComplete() })) return else true
+                RedirectAction.AD, RedirectAction.INTER, RedirectAction.APP_OPEN -> { step = s ?: step; true }
+            }
+        } else {
+            backClickCount++
+            (backClickCount >= config.swipeInterCount).also { if (it) backClickCount = 0 }
+        }
+        if (due) {
+            if (isAppOpenAction(step, legacyAppOpen = legacySwipeUsesAppOpen())) {
                 showAppOpenAdWithLoader(activity, onComplete)
             } else {
                 showInterstitialWithLoader(activity, place = "Swipe", onComplete)

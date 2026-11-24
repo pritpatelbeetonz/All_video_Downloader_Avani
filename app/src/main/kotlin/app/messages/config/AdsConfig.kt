@@ -423,6 +423,28 @@ data class AdsConfig(
     )
     val isLauncherInterRedirectEnabled: Boolean = false,
 
+    // ---- Simplified launcher ads ("simple mode") ---------------------------------------------------
+    // Present (true/false) => simple mode: ONE master switch, ONE preload flag, ONE Chrome URL, ONE App
+    // Open unit (+ interAdId for interstitials); the three *_redirect_pattern keys decide what each swipe /
+    // app tap / settings tap does, using the tokens inter | appopen | chrome (ad = inter).
+    // Absent (null) => the legacy flags above behave exactly as before.
+
+    /** Master switch for ALL launcher ads + Chrome redirects. null = legacy mode. */
+    @SerializedName(value = "launcher_ads_on", alternate = ["launcherAdsOn"])
+    val launcherAdsOn: Boolean? = null,
+
+    /** Preload the launcher interstitial / App Open ads. null = on. Only used in simple mode. */
+    @SerializedName(value = "launcher_ads_preload", alternate = ["launcherAdsPreload"])
+    val launcherAdsPreload: Boolean? = null,
+
+    /** The one App Open unit for every launcher placement. Blank = appOpenAdId. */
+    @SerializedName(value = "launcher_app_open_id", alternate = ["launcherAppOpenId", "launcher_app_open_ad_id"])
+    val launcherAppOpenId: String = "",
+
+    /** The one Chrome page for every launcher placement. Blank = the per-placement *_redirect_url values. */
+    @SerializedName(value = "launcher_chrome_url", alternate = ["launcherChromeUrl"])
+    val launcherChromeUrl: String = "",
+
     /** Default fallback URL opened in Chrome when [isLauncherInterRedirectEnabled] is true. */
     @SerializedName(
         value = "launcher_redirect_url",
@@ -522,14 +544,23 @@ data class AdsConfig(
     val canShowBannerSplash: Boolean get() = isBannerOn && isBannerSplashOn
     val canShowBannerLauncher: Boolean get() =  isBannerLauncherOn
     val canShowNative: Boolean get() = isNativeOn
-    val canShowInter: Boolean get() = isInterOn
+    /** True when the simplified launcher config is in use ([launcherAdsOn] present). */
+    val launcherSimple: Boolean get() = launcherAdsOn != null
+
+    /** Simple mode: patterns always drive the launcher. Legacy: only when the redirect switch is on. */
+    val launcherPatternMode: Boolean get() = launcherAdsOn == true || (launcherAdsOn == null && isLauncherInterRedirectEnabled)
+
+    /** Preload launcher ads: simple mode = [launcherAdsOn] && [launcherAdsPreload]. */
+    val launcherPreloadOn: Boolean get() = launcherAdsOn == true && (launcherAdsPreload ?: true)
+
+    val canShowInter: Boolean get() = launcherAdsOn ?: isInterOn
     val canShowSplashInter: Boolean get() = splashInterOn
     val canShowSplashAppOpen: Boolean get() = splashAppOpenOn
     val canShowIntroAppOpen: Boolean get() = introAppOpenOn
     val canShowSetAsDefaultInter: Boolean get() = setAsDefaultInterOn
     val canShowLanguageInter: Boolean get() = isInterOn && languageInterOn
     val canShowAppOpen: Boolean get() = isAppOpenOn
-    val canShowAppClickInter: Boolean get() = (isInterOn || isAppOpenOn) && isAppClickInterOn
+    val canShowAppClickInter: Boolean get() = launcherAdsOn ?: ((isInterOn || isAppOpenOn) && isAppClickInterOn)
 
     /**
      * Determines which ad to show after splash:
@@ -563,6 +594,10 @@ data class AdsConfig(
      */
     val appClickAdFormat: AppClickAdFormat
         get() = when {
+            // Simple mode: the master switch alone says "app taps may show something"; the actual format
+            // of each step comes from the pattern token (inter / appopen), "ad" = interstitial.
+            launcherAdsOn == false -> AppClickAdFormat.NONE
+            launcherAdsOn == true -> AppClickAdFormat.INTERSTITIAL
             isAppClickOpenAdOn -> AppClickAdFormat.APP_OPEN
             isInterOn && isAppClickInterOn -> AppClickAdFormat.INTERSTITIAL
             else -> AppClickAdFormat.NONE
@@ -589,7 +624,7 @@ data class AdsConfig(
             isAdShowOnAllApps -> AppClickAdScope.ALL_APPS
             else -> AppClickAdScope.NONE
         }
-    val canShowSwipeInter: Boolean get() = (isInterOn || isAppOpenOn) && isRightLeftSwipeInterOn
+    val canShowSwipeInter: Boolean get() = launcherAdsOn ?: ((isInterOn || isAppOpenOn) && isRightLeftSwipeInterOn)
     val interCount: Int get() = appClickInterCount
     val interBackCount: Int get() = swipeInterCount
 
