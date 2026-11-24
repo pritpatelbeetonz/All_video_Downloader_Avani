@@ -36,12 +36,6 @@
 -keep class app.messages.data.model.** { *; }
 
 # ==============================================================================
-# 6. Google Play Billing
-# ==============================================================================
--keep class com.android.billingclient.** { *; }
--dontwarn com.android.billingclient.**
-
-# ==============================================================================
 # 7. Warnings suppression
 # ==============================================================================
 # Facebook Infer nullability annotations. Compile-time only — the Meta Audience

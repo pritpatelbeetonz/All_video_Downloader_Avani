@@ -29,7 +29,6 @@
     <string name="menu_starred">Starred</string>
     <string name="menu_backup">Backup</string>
     <string name="menu_settings">Settings</string>
-    <string name="menu_premium">Go Premium</string>
 
     <!-- Onboarding -->
     <string name="onboarding_welcome_title">A calmer home for your messages</string>
@@ -62,7 +61,7 @@
     <string name="search_suggestions">Search Suggestions</string>
     <string name="fill_search">Fill search</string>
     <string name="clear_all">Clear All</string>
-    <string name="app_name_permission" translatable="false">#All Video Downloader</string>
+    <string name="app_name_permission" translatable="false">##All Video Downloader</string>
     <string name="edge_tab_video_downloader">Video Downloader</string>
     <string name="edge_tab_dashboard">Dashboard</string>
     <string name="next">Next</string>
@@ -278,29 +277,19 @@
     <string name="unknown_error">Unknown error</string>
     <string name="never">Never</string>
     <string name="automatically_save_your_messages_and_restore_them_effortlessly_across_devices_without_losing_a_single_detail">Automatically save your messages and restore them effortlessly across devices without losing a single detail.</string>
-    <string name="unlock_premium">Unlock Premium</string>
     <string name="remove_ads_and_get_more_features">Remove Ads and get more features</string>
     <string name="get_pro">Get Pro</string>
-    <string name="upgrade_to_premium">Upgrade to Premium</string>
-    <string name="go_premium_and_make_the_most_out_of_every_feature_we_offer">Go premium and make the most out of every feature we offer.</string>
     <string name="text_messaging">Text messaging</string>
     <string name="scheduled_messages">Scheduled Messages</string>
     <string name="pro">Pro</string>
     <string name="vip_customer_support">VIP Customer Support</string>
     <string name="remove_ads">Remove Ads</string>
-    <string name="_990_00_year_auto_renews_cancel_anytime">₹ 990.00 /year auto-renews. Cancel Anytime.</string>
     <string name="try_limited_version">Try limited Version</string>
     <string name="terms_of_use">Terms of use</string>
     <string name="basic">Basic</string>
     <string name="you">You</string>
     <string name="continue_">Continue</string>
-    <string name="loading_price">Loading price...</string>
     <string name="restoring">Restoring...</string>
-    <string name="checking_previous_purchases">Checking for previous purchases...</string>
-    <string name="restore_purchase">Restore Purchase</string>
-    <string name="you_re_now_premium">You are now a Premium user!</string>
-    <string name="no_active_subscription_found">No active subscription found for this account.</string>
-    <string name="premium_price_format">%1$s /year · Auto-renews · Cancel anytime</string>
     <string name="no_email_app_found">No email app found</string>
     <string name="feedback_subject">Feedback for Messages App</string>
     <string name="feedback_email_body">Hi Team,\n\nI would like to share my feedback:\n</string>

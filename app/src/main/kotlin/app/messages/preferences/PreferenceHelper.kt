@@ -49,7 +49,6 @@ class PreferenceHelper private constructor(context: Context) {
         const val KEY_LAST_BACKUP_TIME = "last_backup_time"
         const val KEY_IS_FIRST_APP_LAUNCH = "is_first_app_launch"
         const val KEY_APP_OPEN_COUNT = "app_open_count"
-        const val KEY_PREMIUM_INTRO_SHOWN = "premium_intro_shown"
         const val KEY_IS_LAUNCHER_MODE = "is_launcher_mode"
         const val KEY_SMS_PERMISSION_REQUESTED = "sms_permission_requested"
         const val KEY_DROP_MESSAGES_ENABLED = "drop_messages_enabled"
@@ -123,14 +122,6 @@ class PreferenceHelper private constructor(context: Context) {
         prefs.edit().putBoolean(KEY_IS_FIRST_APP_LAUNCH, isFirst).apply()
     }
 
-    fun isPremiumIntroShown(): Boolean {
-        return prefs.getBoolean(KEY_PREMIUM_INTRO_SHOWN, false)
-    }
-
-    fun setPremiumIntroShown(shown: Boolean) {
-        prefs.edit().putBoolean(KEY_PREMIUM_INTRO_SHOWN, shown).apply()
-    }
-
     fun isLauncherModeEnabled(): Boolean {
         return prefs.getBoolean(KEY_IS_LAUNCHER_MODE, false)
     }
@@ -176,10 +167,6 @@ class PreferenceHelper private constructor(context: Context) {
 
     fun setFirstLauncherLandingDone(done: Boolean) {
         prefs.edit().putBoolean(KEY_FIRST_LAUNCHER_LANDING_DONE, done).apply()
-    }
-
-    fun setIsPremium(isPremium: Boolean) {
-        prefs.edit().putBoolean(KEY_IS_PREMIUM, isPremium).apply()
     }
 
     fun isPremium(): Boolean {

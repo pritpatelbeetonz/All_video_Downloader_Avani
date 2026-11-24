@@ -10,6 +10,7 @@ import app.messages.Controller
 import app.messages.ads.ng.FullScreenContentCallback
 import app.messages.ads.ng.NextGenAds
 import app.messages.ads.ng.NgLoadCallback
+import app.messages.ads.ng.fullScreenContentCallback
 import app.messages.config.AdsConfigManager
 import app.messages.preferences.PreferenceHelper
 import com.google.android.libraries.ads.mobile.sdk.appopen.AppOpenAd

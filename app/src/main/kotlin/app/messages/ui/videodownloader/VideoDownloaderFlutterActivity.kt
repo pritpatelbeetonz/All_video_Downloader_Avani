@@ -58,27 +58,15 @@ class VideoDownloaderFlutterActivity : FlutterActivity() {
 
     private fun registerAdFactories(flutterEngine: FlutterEngine) {
         try {
-            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "smallNativeAds")
             NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "bigNativeAds")
-            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "fullNativeAds")
         } catch (_: Exception) {
             // ignore if not previously registered
         }
 
         NgAdsFlutterBridge.registerNativeAdFactory(
             flutterEngine,
-            "smallNativeAds",
-            NativeAdFactorySmall(layoutInflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
-        )
-        NgAdsFlutterBridge.registerNativeAdFactory(
-            flutterEngine,
             "bigNativeAds",
             NativeAdFactoryBig(layoutInflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
-        )
-        NgAdsFlutterBridge.registerNativeAdFactory(
-            flutterEngine,
-            "fullNativeAds",
-            NativeAdFactoryFull(layoutInflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
         )
     }
 
@@ -128,111 +116,10 @@ class VideoDownloaderFlutterActivity : FlutterActivity() {
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         try {
-            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "smallNativeAds")
             NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "bigNativeAds")
-            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "fullNativeAds")
         } catch (_: Exception) {
         }
         super.cleanUpFlutterEngine(flutterEngine)
-    }
-}
-
-class NativeAdFactorySmall(
-    private val layoutInflater: LayoutInflater,
-    private val startColor: String,
-    private val endColor: String,
-    private val backgroundColor: String,
-    private val headLineTextColor: String,
-    private val bodyTextColor: String,
-    private val buttonTextColor: String
-) : NgNativeAdFactory {
-
-    override fun createNativeAd(
-        nativeAd: NativeAd?,
-        customOptions: MutableMap<String, Any>?
-    ): NativeAdView {
-        val adView = layoutInflater.inflate(R.layout.small_template, null) as NativeAdView
-
-        val circularLayoutBackground: LinearLayout = adView.findViewById(R.id.circular_layout_background)
-        val cornerRadius = 20f * adView.context.resources.displayMetrics.density
-        val backgroundGradientDrawable = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            setColor(safeParseColor(backgroundColor, Color.parseColor("#FFF8F5")))
-            this.cornerRadius = cornerRadius
-        }
-        circularLayoutBackground.background = backgroundGradientDrawable
-
-        val mediaView: com.google.android.libraries.ads.mobile.sdk.nativead.MediaView? = app.messages.ads.ng.NativeMediaOverride.resolveMediaView(adView, R.id.native_ad_media, "downloader")
-
-        adView.headlineView = adView.findViewById(R.id.ad_headline)
-        (adView.headlineView as? TextView)?.setTextColor(safeParseColor(headLineTextColor, Color.BLACK))
-
-        adView.bodyView = adView.findViewById(R.id.ad_body)
-        (adView.bodyView as? TextView)?.setTextColor(safeParseColor(bodyTextColor, Color.DKGRAY))
-
-        adView.callToActionView = adView.findViewById(R.id.ad_call_to_action)
-        val buttonGradientDrawable = GradientDrawable(
-            GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
-        )
-        buttonGradientDrawable.cornerRadius = 14f * adView.context.resources.displayMetrics.density
-        adView.callToActionView?.background = buttonGradientDrawable
-        (adView.callToActionView as? Button)?.setTextColor(safeParseColor(buttonTextColor, Color.WHITE))
-
-        adView.iconView = adView.findViewById(R.id.ad_app_icon)
-
-        adView.priceView = adView.findViewById(R.id.native_ad_attribution_small)
-        val priceGradientDrawable = GradientDrawable(
-            GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
-        ).apply {
-            cornerRadii = floatArrayOf(
-                10f * adView.context.resources.displayMetrics.density, 10f * adView.context.resources.displayMetrics.density,
-                0f, 0f,
-                0f, 0f,
-                5f * adView.context.resources.displayMetrics.density, 5f * adView.context.resources.displayMetrics.density
-            )
-        }
-        adView.priceView?.background = priceGradientDrawable
-        (adView.priceView as? TextView)?.setTextColor(safeParseColor(buttonTextColor, Color.WHITE))
-
-        adView.starRatingView = adView.findViewById(R.id.ad_stars)
-
-        (adView.headlineView as? TextView)?.text = nativeAd?.headline
-
-        if (nativeAd?.body == null) {
-            adView.bodyView?.visibility = View.INVISIBLE
-        } else {
-            adView.bodyView?.visibility = View.VISIBLE
-            (adView.bodyView as? TextView)?.text = nativeAd.body
-        }
-
-        if (nativeAd?.callToAction == null) {
-            adView.callToActionView?.visibility = View.INVISIBLE
-        } else {
-            adView.callToActionView?.visibility = View.VISIBLE
-            (adView.callToActionView as? Button)?.text = nativeAd.callToAction
-        }
-
-        if (nativeAd?.icon == null) {
-            adView.iconView?.visibility = View.GONE
-        } else {
-            (adView.iconView as? ImageView)?.setImageDrawable(nativeAd.icon?.drawable)
-            adView.iconView?.visibility = View.VISIBLE
-        }
-
-        if (nativeAd?.starRating == null) {
-            adView.starRatingView?.visibility = View.INVISIBLE
-        } else {
-            (adView.starRatingView as? RatingBar)?.rating = nativeAd.starRating?.toFloat() ?: 0f
-            adView.starRatingView?.visibility = View.VISIBLE
-        }
-
-        if (nativeAd != null) {
-            NextGenAds.bindNative(adView, nativeAd, mediaView)
-        }
-
-        return adView
     }
 }
 
@@ -246,191 +133,32 @@ class NativeAdFactoryBig(
     private val buttonTextColor: String
 ) : NgNativeAdFactory {
 
+    /**
+     * Same card as the Language / Flow A / Dashboard natives (ads_native_big), so every wide native in
+     * the app looks alike. Only the CTA keeps the downloader's own orange gradient (Remote Config colors).
+     */
     override fun createNativeAd(
         nativeAd: NativeAd?,
         customOptions: MutableMap<String, Any>?
     ): NativeAdView {
-        val adView = layoutInflater.inflate(R.layout.big_template, null) as NativeAdView
+        val adView = layoutInflater.inflate(R.layout.ads_native_big, null) as NativeAdView
+        val density = adView.context.resources.displayMetrics.density
 
-        val circularLayoutBackground: LinearLayout = adView.findViewById(R.id.circular_layout_background)
-        val cornerRadius = 20f * adView.context.resources.displayMetrics.density
-        val backgroundGradientDrawable = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            setColor(safeParseColor(backgroundColor, Color.parseColor("#FFF8F5")))
-            this.cornerRadius = cornerRadius
-            val strokeWidth = (1.5f * adView.context.resources.displayMetrics.density).toInt()
-            setStroke(strokeWidth, safeParseColor(startColor, Color.parseColor("#FB7829")))
-        }
-        circularLayoutBackground.background = backgroundGradientDrawable
-
-        val mediaView: com.google.android.libraries.ads.mobile.sdk.nativead.MediaView? = app.messages.ads.ng.NativeMediaOverride.resolveMediaView(adView, R.id.native_ad_media, "downloader")
-
-        adView.headlineView = adView.findViewById(R.id.ad_headline)
-        (adView.headlineView as? TextView)?.setTextColor(safeParseColor(headLineTextColor, Color.BLACK))
-
-        adView.bodyView = adView.findViewById(R.id.ad_body)
-        (adView.bodyView as? TextView)?.setTextColor(safeParseColor(bodyTextColor, Color.DKGRAY))
-
-        adView.callToActionView = adView.findViewById(R.id.ad_call_to_action)
-        val buttonGradientDrawable = GradientDrawable(
-            GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
-        )
-        buttonGradientDrawable.cornerRadius = 14f * adView.context.resources.displayMetrics.density
-        adView.callToActionView?.background = buttonGradientDrawable
-        (adView.callToActionView as? Button)?.setTextColor(safeParseColor(buttonTextColor, Color.WHITE))
-
-        adView.iconView = adView.findViewById(R.id.ad_app_icon)
-
-        adView.priceView = adView.findViewById(R.id.native_ad_attribution_small)
-        val priceGradientDrawable = GradientDrawable(
-            GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
-        ).apply {
-            cornerRadii = floatArrayOf(
-                10f * adView.context.resources.displayMetrics.density, 10f * adView.context.resources.displayMetrics.density,
-                0f, 0f,
-                0f, 0f,
-                5f * adView.context.resources.displayMetrics.density, 5f * adView.context.resources.displayMetrics.density
-            )
-        }
-        adView.priceView?.background = priceGradientDrawable
-        (adView.priceView as? TextView)?.setTextColor(safeParseColor(buttonTextColor, Color.WHITE))
-
-        adView.starRatingView = adView.findViewById(R.id.ad_stars)
-
-        (adView.headlineView as? TextView)?.text = nativeAd?.headline
-
-        if (nativeAd?.body == null) {
-            adView.bodyView?.visibility = View.INVISIBLE
-        } else {
-            adView.bodyView?.visibility = View.VISIBLE
-            (adView.bodyView as? TextView)?.text = nativeAd.body
-        }
-
-        if (nativeAd?.callToAction == null) {
-            adView.callToActionView?.visibility = View.INVISIBLE
-        } else {
-            adView.callToActionView?.visibility = View.VISIBLE
-            (adView.callToActionView as? Button)?.text = nativeAd.callToAction
-        }
-
-        if (nativeAd?.icon == null) {
-            adView.iconView?.visibility = View.GONE
-        } else {
-            (adView.iconView as? ImageView)?.setImageDrawable(nativeAd.icon?.drawable)
-            adView.iconView?.visibility = View.VISIBLE
-        }
-
-        if (nativeAd?.starRating == null) {
-            adView.starRatingView?.visibility = View.INVISIBLE
-        } else {
-            (adView.starRatingView as? RatingBar)?.rating = nativeAd.starRating?.toFloat() ?: 0f
-            adView.starRatingView?.visibility = View.VISIBLE
+        adView.findViewById<TextView>(R.id.ad_call_to_action)?.apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TR_BL,
+                intArrayOf(
+                    safeParseColor(startColor, Color.parseColor("#FB7829")),
+                    safeParseColor(endColor, Color.parseColor("#FF0048"))
+                )
+            ).apply { cornerRadius = 100f * density }
+            backgroundTintList = null
+            setTextColor(safeParseColor(buttonTextColor, Color.WHITE))
         }
 
         if (nativeAd != null) {
-            NextGenAds.bindNative(adView, nativeAd, mediaView)
+            app.messages.config.AdsConfigManager.populateNativeAdView(nativeAd, adView, "downloader_big")
         }
-
-        return adView
-    }
-}
-
-class NativeAdFactoryFull(
-    private val layoutInflater: LayoutInflater,
-    private val startColor: String,
-    private val endColor: String,
-    private val backgroundColor: String,
-    private val headLineTextColor: String,
-    private val bodyTextColor: String,
-    private val buttonTextColor: String
-) : NgNativeAdFactory {
-
-    override fun createNativeAd(
-        nativeAd: NativeAd?,
-        customOptions: MutableMap<String, Any>?
-    ): NativeAdView {
-        val adView = layoutInflater.inflate(R.layout.full_template, null) as NativeAdView
-
-        val circularLayoutBackground: LinearLayout = adView.findViewById(R.id.circular_layout_background)
-        val backgroundGradientDrawable = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            setColor(safeParseColor(backgroundColor, Color.parseColor("#FFF8F5")))
-            this.cornerRadius = 0f
-        }
-        circularLayoutBackground.background = backgroundGradientDrawable
-
-        val mediaView: com.google.android.libraries.ads.mobile.sdk.nativead.MediaView? = app.messages.ads.ng.NativeMediaOverride.resolveMediaView(adView, R.id.native_ad_media, "downloader")
-
-        adView.headlineView = adView.findViewById(R.id.ad_headline)
-        (adView.headlineView as? TextView)?.setTextColor(safeParseColor(headLineTextColor, Color.BLACK))
-
-        adView.bodyView = adView.findViewById(R.id.ad_body)
-        (adView.bodyView as? TextView)?.setTextColor(safeParseColor(bodyTextColor, Color.DKGRAY))
-
-        adView.callToActionView = adView.findViewById(R.id.ad_call_to_action)
-        val buttonGradientDrawable = GradientDrawable(
-            GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
-        )
-        buttonGradientDrawable.cornerRadius = 14f * adView.context.resources.displayMetrics.density
-        adView.callToActionView?.background = buttonGradientDrawable
-        (adView.callToActionView as? Button)?.setTextColor(safeParseColor(buttonTextColor, Color.WHITE))
-
-        adView.iconView = adView.findViewById(R.id.ad_app_icon)
-
-        adView.priceView = adView.findViewById(R.id.native_ad_attribution_small)
-        val priceGradientDrawable = GradientDrawable(
-            GradientDrawable.Orientation.TR_BL,
-            intArrayOf(safeParseColor(startColor, Color.parseColor("#FB7829")), safeParseColor(endColor, Color.parseColor("#FF0048")))
-        ).apply {
-            cornerRadii = floatArrayOf(
-                10f * adView.context.resources.displayMetrics.density, 10f * adView.context.resources.displayMetrics.density,
-                0f, 0f,
-                0f, 0f,
-                5f * adView.context.resources.displayMetrics.density, 5f * adView.context.resources.displayMetrics.density
-            )
-        }
-        adView.priceView?.background = priceGradientDrawable
-        (adView.priceView as? TextView)?.setTextColor(safeParseColor(buttonTextColor, Color.WHITE))
-
-        adView.starRatingView = adView.findViewById(R.id.ad_stars)
-
-        (adView.headlineView as? TextView)?.text = nativeAd?.headline
-
-        if (nativeAd?.body == null) {
-            adView.bodyView?.visibility = View.INVISIBLE
-        } else {
-            adView.bodyView?.visibility = View.VISIBLE
-            (adView.bodyView as? TextView)?.text = nativeAd.body
-        }
-
-        if (nativeAd?.callToAction == null) {
-            adView.callToActionView?.visibility = View.INVISIBLE
-        } else {
-            adView.callToActionView?.visibility = View.VISIBLE
-            (adView.callToActionView as? Button)?.text = nativeAd.callToAction
-        }
-
-        if (nativeAd?.icon == null) {
-            adView.iconView?.visibility = View.GONE
-        } else {
-            (adView.iconView as? ImageView)?.setImageDrawable(nativeAd.icon?.drawable)
-            adView.iconView?.visibility = View.VISIBLE
-        }
-
-        if (nativeAd?.starRating == null) {
-            adView.starRatingView?.visibility = View.INVISIBLE
-        } else {
-            (adView.starRatingView as? RatingBar)?.rating = nativeAd.starRating?.toFloat() ?: 0f
-            adView.starRatingView?.visibility = View.VISIBLE
-        }
-
-        if (nativeAd != null) {
-            NextGenAds.bindNative(adView, nativeAd, mediaView)
-        }
-
         return adView
     }
 }

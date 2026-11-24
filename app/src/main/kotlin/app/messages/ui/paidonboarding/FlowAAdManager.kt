@@ -51,54 +51,6 @@ object FlowAAdManager {
         PreferenceHelper.getInstance(context).isPremium()
 
     /**
-     * Resolves the configured ad format for a given step tag (e.g. "language", "page_1".."page_11").
-     */
-    fun getFormatForStep(stepTag: String): FlowAAdFormat {
-        if (!AdsConfigManager.isFlowAWebCloseAdOn()) {
-            return FlowAAdFormat.OFF
-        }
-
-        val stepFormats = AdsConfigManager.getFlowAWebCloseStepFormats()
-        val formatStr = if (!stepFormats.isNullOrEmpty()) {
-            stepFormats[stepTag]
-                ?: stepFormats[stepTag.lowercase()]
-                ?: stepFormats[normalizeStepTag(stepTag)]
-                ?: stepFormats["default"]
-                ?: stepFormats["DEFAULT"]
-        } else {
-            // Fallback for legacy configs where paid_app_open_on_close_on was used
-            if (AdsConfigManager.isPaidAppOpenOnCloseOn()) "app_open" else "app_open"
-        }
-
-        return when (formatStr?.trim()?.lowercase()) {
-            "interstitial", "inter", "inter_ad" -> FlowAAdFormat.INTERSTITIAL
-            "app_open", "appopen", "app-open" -> FlowAAdFormat.APP_OPEN
-            "off", "none", "false" -> FlowAAdFormat.OFF
-            else -> FlowAAdFormat.OFF
-        }
-    }
-
-    private fun normalizeStepTag(stepTag: String): String {
-        val lower = stepTag.trim().lowercase()
-        val match = Regex("(\\d+)").find(lower)
-        return if (match != null) "page_${match.groupValues[1]}" else lower
-    }
-
-    /**
-     * Preloads the required ad format for an upcoming step (called in onCreate of screens/pages).
-     * De-duplicates network calls: if already loaded or loading, does nothing.
-     */
-    fun preloadForStep(context: Context, stepTag: String) {
-        val format = getFormatForStep(stepTag)
-        Log.d(TAG, "🔍 preloadForStep($stepTag) -> resolved format=$format")
-        when (format) {
-            FlowAAdFormat.APP_OPEN -> preloadAppOpen(context)
-            FlowAAdFormat.INTERSTITIAL -> preloadInterstitial(context)
-            FlowAAdFormat.OFF -> { /* no-op */ }
-        }
-    }
-
-    /**
      * Preloads an App Open ad for the funnel. No-op if premium, invalid ID, loaded, or in-flight.
      */
     fun preloadAppOpen(context: Context) {
@@ -192,40 +144,6 @@ object FlowAAdManager {
                 }
             }
         )
-    }
-
-    /**
-     * Shows the configured ad format for [stepTag] when the Chrome Custom Tab is closed.
-     * If the ad is already loaded: shows it immediately.
-     * If the ad is in-flight: displays a loading dialog, waiting up to 30 seconds.
-     * If ad is not ready / fails / times out: calls [onDone] immediately.
-     */
-    fun showAdForStep(
-        activity: Activity,
-        stepTag: String,
-        onDone: () -> Unit
-    ) {
-        if (isPremium(activity)) {
-            onDone()
-            return
-        }
-
-        val format = getFormatForStep(stepTag)
-        Log.d(TAG, "🚀 showAdForStep(stepTag=$stepTag) -> format=$format")
-
-        when (format) {
-            FlowAAdFormat.OFF -> {
-                onDone()
-            }
-
-            FlowAAdFormat.APP_OPEN -> {
-                handleShowAppOpen(activity, onDone)
-            }
-
-            FlowAAdFormat.INTERSTITIAL -> {
-                handleShowInterstitial(activity, onDone)
-            }
-        }
     }
 
     /** Preloads a specific [format] (used by the Flow A step sequence). */

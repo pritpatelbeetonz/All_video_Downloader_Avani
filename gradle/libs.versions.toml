@@ -29,7 +29,6 @@ lottie = "6.4.0"
 blurview = "version-2.0.6"
 shimmer = "0.5.0"
 playServicesAds = "24.3.0"
-billing = "9.1.0"
 onesignal = "5.1.28"
 gson = "2.11.0"
 browser = "1.8.0"
@@ -101,7 +100,6 @@ lottie = { module = "com.airbnb.android:lottie", version.ref = "lottie" }
 blurview = { group = "com.github.Dimezis", name = "BlurView", version.ref = "blurview" }
 shimmer = { group = "com.facebook.shimmer", name = "shimmer", version.ref = "shimmer" }
 play-services-ads = { module = "com.google.android.gms:play-services-ads", version.ref = "playServicesAds" }
-billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
 onesignal = { module = "com.onesignal:OneSignal", version.ref = "onesignal" }
 facebook-core = { module = "com.facebook.android:facebook-core", version = "17.0.2" }
 meta-adapter = { module = "com.google.ads.mediation:facebook", version = "6.18.0.0" }

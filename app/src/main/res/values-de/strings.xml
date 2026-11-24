@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Messages</string>
     <string name="title_messages">Nachrichten</string>
     <string name="title_search">Suchen</string>
     <string name="title_settings">Einstellungen</string>
@@ -18,7 +17,6 @@
     <string name="menu_starred">Markiert</string>
     <string name="menu_backup">Sicherung</string>
     <string name="menu_settings">Einstellungen</string>
-    <string name="menu_premium">Premium holen</string>
 
     <string name="google_search_hint">Suchen</string>
     <string name="recent_searches">Letzte Suchanfragen</string>

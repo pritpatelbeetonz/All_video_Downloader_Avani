@@ -273,7 +273,7 @@ class DashboardFragment : Fragment() {
         val replacing = binding.nativeAdFrameLayout.childCount > 0
         binding.nativeAdFrameLayout.removeAllViews()
 
-        val adView = layoutInflater.inflate(R.layout.ads_native_dashboard, null, false) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
+        val adView = layoutInflater.inflate(R.layout.ads_native_big, null, false) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
         AdsConfigManager.populateNativeAdView(nativeAd, adView, "dashboard")
 
         binding.nativeAdFrameLayout.addView(adView)

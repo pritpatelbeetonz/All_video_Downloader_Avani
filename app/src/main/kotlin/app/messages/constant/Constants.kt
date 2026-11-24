@@ -16,15 +16,6 @@ object Constants {
 
 
 
-    // TODO: REPLACE THIS WITH YOUR ACTUAL GOOGLE PLAY PRODUCT ID (SKU)
-    const val PREMIUM_PRODUCT_ID = "premium_yearly"
-
-    /**
-     * Master switch for Google Play Billing. While premium isn't sold (no product in Play Console),
-     * keep this false: BillingHelper never connects to Play and isPremium is forced to false,
-     * which removes the startup cost. Flip to true once PREMIUM_PRODUCT_ID exists in Play Console.
-     */
-    const val BILLING_ENABLED = false
     const val PRIVACY_POLICY = "https://johnrileyblogs.blogspot.com/2022/06/privacy-policy.html"
 
 }

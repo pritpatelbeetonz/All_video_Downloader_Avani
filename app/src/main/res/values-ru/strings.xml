@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Messages</string>
     <string name="title_messages">Сообщения</string>
     <string name="title_search">Поиск</string>
     <string name="title_settings">Настройки</string>
@@ -18,7 +17,6 @@
     <string name="menu_starred">Избранные</string>
     <string name="menu_backup">Резервное копирование</string>
     <string name="menu_settings">Настройки</string>
-    <string name="menu_premium">Перейти на Premium</string>
 
     <string name="google_search_hint">Поиск</string>
     <string name="recent_searches">Недавние поиски</string>

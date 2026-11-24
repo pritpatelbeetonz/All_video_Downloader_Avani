@@ -11,6 +11,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingHorizontal="24dp"
+        android:clipToPadding="false"
         android:paddingTop="20dp"
         android:paddingBottom="16dp">
 
@@ -45,6 +46,7 @@
         <FrameLayout
             android:id="@+id/adNativeContainer"
             android:layout_width="match_parent"
+            android:layout_marginHorizontal="-20dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:visibility="gone" />

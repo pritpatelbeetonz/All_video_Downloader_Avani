@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Messages</string>
     <string name="title_messages">Mesej</string>
     <string name="title_search">Cari</string>
     <string name="title_settings">Tetapan</string>
@@ -18,7 +17,6 @@
     <string name="menu_starred">Berbintang</string>
     <string name="menu_backup">Sandaran</string>
     <string name="menu_settings">Tetapan</string>
-    <string name="menu_premium">Dapatkan Premium</string>
 
     <string name="google_search_hint">Cari</string>
     <string name="recent_searches">Carian terkini</string>

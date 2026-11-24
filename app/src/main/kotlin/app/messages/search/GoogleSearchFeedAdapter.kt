@@ -134,7 +134,7 @@ class GoogleSearchFeedAdapter(
                 binding.nativeAdFrameLayout.visibility = android.view.View.VISIBLE
                 binding.nativeAdFrameLayout.removeAllViews()
                 val adView = LayoutInflater.from(binding.root.context).inflate(
-                    app.messages.R.layout.ads_native_dashboard,
+                    app.messages.R.layout.ads_native_big,
                     binding.nativeAdFrameLayout, false
                 ) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
                 app.messages.config.AdsConfigManager.populateNativeAdView(cachedAd, adView, "search")
@@ -246,7 +246,7 @@ class GoogleSearchFeedAdapter(
                     binding.nativeAdShimmerFrameLayout.visibility = android.view.View.GONE
                     binding.nativeAdFrameLayout.visibility = android.view.View.VISIBLE
                     val adView = LayoutInflater.from(binding.root.context).inflate(
-                        app.messages.R.layout.ads_native_dashboard,
+                        app.messages.R.layout.ads_native_big,
                         binding.nativeAdFrameLayout, false
                     ) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
                     app.messages.config.AdsConfigManager.populateNativeAdView(nativeAd, adView, "search")

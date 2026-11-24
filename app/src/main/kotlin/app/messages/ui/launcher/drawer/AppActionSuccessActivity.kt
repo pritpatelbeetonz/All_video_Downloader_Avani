@@ -131,7 +131,7 @@ class AppActionSuccessActivity : AppCompatActivity() {
                 frameLayout.removeAllViews()
                 
                 // Inflate native ad layout
-                val adView = layoutInflater.inflate(app.messages.R.layout.ads_native_dashboard, null, false) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
+                val adView = layoutInflater.inflate(app.messages.R.layout.ads_native_big, null, false) as com.google.android.libraries.ads.mobile.sdk.nativead.NativeAdView
                 AdsConfigManager.populateNativeAdView(nativeAd, adView, "action_success")
                 
                 frameLayout.addView(adView)

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Messages</string>
     <string name="title_messages">ข้อความ</string>
     <string name="title_search">ค้นหา</string>
     <string name="title_settings">การตั้งค่า</string>
@@ -18,7 +17,6 @@
     <string name="menu_starred">ติดดาวแล้ว</string>
     <string name="menu_backup">สำรองข้อมูล</string>
     <string name="menu_settings">การตั้งค่า</string>
-    <string name="menu_premium">รับพรีเมียม</string>
 
     <string name="google_search_hint">ค้นหา</string>
     <string name="recent_searches">การค้นหาล่าสุด</string>

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Messages</string>
     <string name="title_messages">メッセージ</string>
     <string name="title_search">検索</string>
     <string name="title_settings">設定</string>
@@ -18,7 +17,6 @@
     <string name="menu_starred">スター付き</string>
     <string name="menu_backup">バックアップ</string>
     <string name="menu_settings">設定</string>
-    <string name="menu_premium">プレミアムを取得</string>
 
     <string name="google_search_hint">検索</string>
     <string name="recent_searches">最近の検索</string>

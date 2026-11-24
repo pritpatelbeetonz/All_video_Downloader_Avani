@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Messages</string>
     <string name="title_messages">信息</string>
     <string name="title_search">搜索</string>
     <string name="title_settings">设置</string>
@@ -18,7 +17,6 @@
     <string name="menu_starred">已加星标</string>
     <string name="menu_backup">备份</string>
     <string name="menu_settings">设置</string>
-    <string name="menu_premium">获取高级版</string>
 
     <string name="google_search_hint">搜索</string>
     <string name="recent_searches">最近搜索</string>

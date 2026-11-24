@@ -345,14 +345,6 @@ class LauncherActivity : AppCompatActivity() {
         return resolve?.activityInfo?.packageName == packageName
     }
 
-    /**
-     * PremiumActivity is no longer shown during startup flow.
-     * Kept here as a no-op to avoid breaking any indirect call sites.
-     */
-    private fun maybeShowPremiumIntro() {
-        // Intentionally empty — removed from startup flow per requirements.
-    }
-
     private val launcherViewModel: LauncherViewModel by viewModels { LauncherViewModel.Factory(this) }
     private var packageReceiver: android.content.BroadcastReceiver? = null
 

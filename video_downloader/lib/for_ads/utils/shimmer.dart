@@ -141,7 +141,7 @@ class ShimmerBigNative extends StatelessWidget {
       baseColor: Colors.white12,
       highlightColor: Colors.grey[300]!,
       child: Container(
-        height: Get.height/2.5,
+        height: Get.width * 0.80, // same box as AppBigNativeAdWidget (ads_native_big card)
         decoration: BoxDecoration(
             color: Colors.white38,
             borderRadius: BorderRadius.circular(15.r)),

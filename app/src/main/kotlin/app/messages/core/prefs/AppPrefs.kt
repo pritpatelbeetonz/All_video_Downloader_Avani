@@ -34,7 +34,6 @@ private object PrefKeys {
     val MESSAGE_PREVIEW = booleanPreferencesKey("message_preview")
     val ADS_ENABLED_DEBUG = booleanPreferencesKey("ads_enabled_debug")
     val SURVEY_PRIORITIES = stringSetPreferencesKey("survey_priorities")
-    val PREMIUM_LOCAL = booleanPreferencesKey("premium_local")
     val APP_OPEN_COUNT = intPreferencesKey("app_open_count")
     val APP_OPEN_COUNT_DAY = longPreferencesKey("app_open_count_day")
     val APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
@@ -138,18 +137,6 @@ class AppPrefs @Inject constructor(
 
     suspend fun setSurveyPriorities(values: Set<String>) {
         context.dataStore.edit { it[PrefKeys.SURVEY_PRIORITIES] = values }
-    }
-
-    /**
-     * Locally-cached premium entitlement. The source of truth at maturity is
-     * RevenueCat's CustomerInfo (re-validated on launch); this cache keeps the
-     * UI correct offline and is what a debug build / successful purchase sets.
-     */
-    val premiumLocal: Flow<Boolean> =
-        context.dataStore.data.map { it[PrefKeys.PREMIUM_LOCAL] ?: false }
-
-    suspend fun setPremiumLocal(value: Boolean) {
-        context.dataStore.edit { it[PrefKeys.PREMIUM_LOCAL] = value }
     }
 
     // ── App-open ad daily cap accounting ───────────────────────────────────────

@@ -1,18 +1,12 @@
 {
-  "_comment": "Local stand-in for the server media feed. Later this exact shape is fetched from the server; for now the app reads it from assets and renders the bundled 'resource' drawable. 'url' is where the server copy will live (empty = use the bundled resource).",
-  "version": 1,
+  "_comment": "Native media override feed. 'resource' = drawable name in res/drawable-nodpi (no extension; PNG and WebP must have DIFFERENT names). 'surfaces' = which ad areas the entry is for; an entry without 'surfaces' is the default for every area. If a listed drawable is not in the app yet, the default entry is used. 'url' = future server copy (empty = use the bundled resource).",
+  "version": 2,
   "media": [
-    {
-      "id": "image",
-      "format": "png",
-      "resource": "demo",
-      "url": ""
-    },
-    {
-      "id": "webp",
-      "format": "webp",
-      "resource": "demo1",
-      "url": ""
-    }
+    {"id": "image", "format": "png", "resource": "demo", "url": ""},
+    {"id": "webp", "format": "webp", "resource": "demo1", "url": ""},
+    {"id": "image", "format": "png", "surfaces": ["language", "settings", "flowa", "dashboard", "search", "action_success", "downloader_big"], "resource": "native_big_img", "url": ""},
+    {"id": "webp", "format": "webp", "surfaces": ["language", "settings", "flowa", "dashboard", "search", "action_success", "downloader_big"], "resource": "native_big_webp", "url": ""},
+    {"id": "image", "format": "png", "surfaces": ["drawer"], "resource": "native_drawer_img", "url": ""},
+    {"id": "webp", "format": "webp", "surfaces": ["drawer"], "resource": "native_drawer_webp", "url": ""}
   ]
 }

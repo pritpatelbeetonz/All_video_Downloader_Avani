@@ -18,7 +18,7 @@
         <RelativeLayout
             android:id="@+id/iv_relative"
             android:layout_width="match_parent"
-            android:layout_height="@dimen/_115sdp"
+            android:layout_height="@dimen/_140sdp"
             android:layout_marginHorizontal="@dimen/_8sdp"
             android:layout_marginTop="@dimen/_8sdp"
             android:clipToOutline="true"
@@ -156,8 +156,7 @@
             android:layout_gravity="center_vertical"
             android:layout_marginHorizontal="@dimen/_5sdp"
             android:layout_marginBottom="@dimen/_5sdp"
-            android:background="@drawable/round_corner_20"
-            android:backgroundTint="@color/colorPrimary"
+            android:background="@drawable/bg_paid_onb_button"
             android:gravity="center"
             android:includeFontPadding="false"
             android:layoutDirection="locale"

@@ -348,12 +348,7 @@ object FlowAAdBinder {
             destroyShownIn(container)
             val adView = activity.layoutInflater.inflate(R.layout.ads_native_big, null) as NativeAdView
             AdsConfigManager.populateNativeAdView(ad, adView, "flowa")
-
-            // Make native ad CTA button identically match the Flow A Next button (orange gradient & rounded corners)
-            adView.findViewById<TextView>(R.id.ad_call_to_action)?.apply {
-                background = ContextCompat.getDrawable(activity, R.drawable.bg_paid_onb_button)
-                backgroundTintList = null
-            }
+            // CTA is orange from the layout itself (bg_paid_onb_button), same as every native.
 
             container.removeAllViews()
             container.addView(adView)

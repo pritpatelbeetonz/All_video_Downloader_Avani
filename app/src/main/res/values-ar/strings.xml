@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Messages</string>
     <string name="title_messages">الرسائل</string>
     <string name="title_search">بحث</string>
     <string name="title_settings">الإعدادات</string>
@@ -18,7 +17,6 @@
     <string name="menu_starred">المميزة بنجمة</string>
     <string name="menu_backup">النسخ الاحتياطي</string>
     <string name="menu_settings">الإعدادات</string>
-    <string name="menu_premium">الانتقال إلى بريميوم</string>
 
     <string name="google_search_hint">بحث</string>
     <string name="recent_searches">عمليات البحث الأخيرة</string>

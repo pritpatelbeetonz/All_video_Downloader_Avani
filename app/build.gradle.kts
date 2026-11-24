@@ -149,7 +149,6 @@ dependencies {
     implementation(libs.shimmer)
     // Google Mobile Ads Next-Gen SDK (replaces the classic play-services-ads; the two cannot coexist)
     implementation(libs.ads.mobile.sdk)
-    implementation(libs.billing.ktx)
     implementation(libs.onesignal)
     implementation(libs.facebook.core)
     implementation(libs.meta.adapter)

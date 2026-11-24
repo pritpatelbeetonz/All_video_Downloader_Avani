@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Messages</string>
     <string name="title_messages">Mesajlar</string>
     <string name="title_search">Ara</string>
     <string name="title_settings">Ayarlar</string>
@@ -18,7 +17,6 @@
     <string name="menu_starred">Yıldızlı</string>
     <string name="menu_backup">Yedekleme</string>
     <string name="menu_settings">Ayarlar</string>
-    <string name="menu_premium">Premium Al</string>
 
     <string name="google_search_hint">Ara</string>
     <string name="recent_searches">Son aramalar</string>

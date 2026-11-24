@@ -25,26 +25,14 @@ object VideoDownloaderEngineHelper {
     fun registerAdFactories(context: Context, flutterEngine: FlutterEngine) {
         val inflater = LayoutInflater.from(context)
         try {
-            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "smallNativeAds")
             NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "bigNativeAds")
-            NgAdsFlutterBridge.unregisterNativeAdFactory(flutterEngine, "fullNativeAds")
         } catch (_: Exception) {
         }
 
         NgAdsFlutterBridge.registerNativeAdFactory(
             flutterEngine,
-            "smallNativeAds",
-            NativeAdFactorySmall(inflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
-        )
-        NgAdsFlutterBridge.registerNativeAdFactory(
-            flutterEngine,
             "bigNativeAds",
             NativeAdFactoryBig(inflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
-        )
-        NgAdsFlutterBridge.registerNativeAdFactory(
-            flutterEngine,
-            "fullNativeAds",
-            NativeAdFactoryFull(inflater, startColor, endColor, backgroundColor, headLineTextColor, bodyTextColor, buttonTextColor)
         )
     }
 
