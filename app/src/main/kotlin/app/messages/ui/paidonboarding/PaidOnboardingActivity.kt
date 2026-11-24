@@ -55,22 +55,7 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
     private var isShiftAdRendered = false
     private val shiftHandler = Handler(Looper.getMainLooper())
 
-    /** True while an ad-only step (Chrome off, close ad on) is showing, so taps can't start it twice. */
-    private var isAdOnlyStepRunning = false
-
-    /** Chrome off + close ad on: show the step's ad, then move to [target]. */
-    private fun runAdOnlyStep(stepTag: String, target: Int) {
-        if (isAdOnlyStepRunning) return
-        isAdOnlyStepRunning = true
-        PaidChromeTabManager.showAdOnlyStep(this, stepTag) {
-            isAdOnlyStepRunning = false
-            if (!isFinishing && !isDestroyed && target in 0 until pages.size) {
-                binding.pager.currentItem = target
-            }
-        }
-    }
-
-    /** Active Remote Config step sequence (Next), or null when the step uses the legacy flow. */
+    /** Active Remote Config step sequence (Next), or null when the step has none. */
     private var sequenceRunner: FlowASequenceRunner? = null
 
     private val chromeTabLauncher = registerForActivityResult(
@@ -89,7 +74,7 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         pendingStepTag = null
         val target = if (backPos in 0 until pages.size) backPos else nextPos
         Log.d(TAG, "Chrome Custom Tab closed ($tag) -> go to page ${target + 1} (${if (backPos >= 0) "back" else "next"})")
-        // Guard resumes + optional ad on close (App Open or Interstitial), then move.
+        // Guard resumes, then move.
         PaidChromeTabManager.onWebStepClosed(this, stepTag = tag) {
             if (target in 0 until pages.size) {
                 binding.pager.currentItem = target
@@ -111,7 +96,6 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         // (covers the Splash -> Language -> Flow A relaunch path, which skips the launcher).
         app.messages.onboarding.watch.OnboardingAppWatcher.register(this)
         learning.screenguard.ScreenGuardDemo.register(this)   // timed-loop mechanism demo (log-only)
-        FlowAAdManager.preloadForStep(this, "page_1")         // Preload ad for page 1 web-step close early
         binding = ActivityPaidOnboardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -154,33 +138,11 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         binding.btnNext.setOnClickListener { next() }
 
         // Back stays inside onboarding: previous page, or a toast on page 1 (never out to the launcher).
-        // #3 (reference onIntroBack): for a non-organic user, a Back that moves to a previous page first
-        // shows a web step, then lands on that page — same "monetise the back press" behaviour.
         onBackPressedDispatcher.addCallback(this) {
             FlowAEscapeLogger.onEscapeAttempt(this@PaidOnboardingActivity, "back")
             val current = binding.pager.currentItem
             if (current > 0) {
                 val prev = current - 1
-                if (isFunnelTrapActive() && PaidChromeTabManager.shouldShowBetweenPages(this@PaidOnboardingActivity, prev)) {
-                    pendingBackPosition = prev
-                    pendingStepTag = "back_${current + 1}"
-                    val launched = PaidChromeTabManager.launch(
-                        activity = this@PaidOnboardingActivity,
-                        launcher = chromeTabLauncher,
-                        stepTag = "back_${current + 1}",
-                        onFallback = {
-                            binding.pager.currentItem = prev
-                            pendingBackPosition = -1
-                            pendingStepTag = null
-                        }
-                    )
-                    if (launched) return@addCallback
-                    pendingStepTag = null
-                } else if (isFunnelTrapActive() && PaidChromeTabManager.shouldShowAdOnlyBetweenPages(prev)) {
-                    // Chrome off, close ad on: the ad is the back step, then land on the previous page.
-                    runAdOnlyStep("back_${current + 1}", prev)
-                    return@addCallback
-                }
                 binding.pager.currentItem = prev
             } else {
                 Log.d(TAG, "⛔ Back on page 1 -> stay")
@@ -225,7 +187,6 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         // only the NEXT page's ads one ahead (rolling preload, not all pages at once).
         FlowAAdBinder.bindBanner(this, position + 1, binding.adBannerContainer, bannerAdLauncher)
         FlowAAdBinder.preloadForPage(this, position + 2)
-        FlowAAdManager.preloadForStep(this, "page_${position + 1}")
         FlowASequenceRunner.preload(this, "page_${position + 1}")   // ads a Remote Config sequence will show
         // Prefetch the NEXT web step's page so the Custom Tab is ready the instant the user taps Next
         // (fresh, cache-busted URL — no stale cached page).
@@ -290,38 +251,11 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
                     runner.start()
                     return
                 }
-                // No Remote Config sequence for this step -> fall through to the legacy web/ad step,
-                // which sets its own pending values; clear our guesses first.
+                // No Remote Config sequence for this step -> just advance; clear our guesses first.
                 pendingNextPosition = -1
                 pendingStepTag = null
             } else {
                 return   // a sequence is already running; ignore extra taps
-            }
-            if (PaidChromeTabManager.shouldShowBetweenPages(this, position)) {
-                pendingNextPosition = nextPos
-                pendingStepTag = "page_${position + 1}"
-                val launched = PaidChromeTabManager.launch(
-                    activity = this,
-                    launcher = chromeTabLauncher,
-                    stepTag = "page_${position + 1}",
-                    onFallback = {
-                        binding.pager.currentItem = nextPos
-                        pendingNextPosition = -1
-                        pendingStepTag = null
-                    }
-                )
-                // launch() signals the guard itself (stand down for a Custom Tab, stay active for the
-                // WebView fallback), so we just stop here when it opened a web step.
-                if (launched) {
-                    // Flow A attribution funnel: ${prefix}_onb_${N}_web_open.
-                    FlowAEscapeLogger.logFunnelEvery(this, "onb_${position + 1}_web_open")
-                    return
-                }
-                pendingStepTag = null
-            } else if (PaidChromeTabManager.shouldShowAdOnlyBetweenPages(position)) {
-                // Chrome off, close ad on: the ad is the step between pages, then advance.
-                runAdOnlyStep("page_${position + 1}", nextPos)
-                return
             }
             binding.pager.currentItem = nextPos
         } else {
@@ -339,6 +273,9 @@ class PaidOnboardingActivity : PaidFunnelActivity() {
         if (!isLeaving.compareAndSet(false, true)) return
         Log.d(TAG, "✅ Flow A done -> Launcher")
         PaidOnboardingPrefs.setDone(this)
+        // Flow A is over: warm the launcher's swipe / app-tap / settings ads + Chrome page, only the formats
+        // their patterns use (no-op outside simple launcher mode). Duplicate-safe.
+        AdsConfigManager.preloadLauncherByPatterns(this)
         // Flow A is over: now it is safe to boot the Flutter engine (deferred for the whole funnel).
         app.messages.feature.LauncherSlot.warmUp(applicationContext)
         // Flow A attribution funnel: ${prefix}_onb_done (completion).

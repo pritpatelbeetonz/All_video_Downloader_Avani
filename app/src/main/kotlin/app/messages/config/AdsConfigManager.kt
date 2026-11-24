@@ -205,6 +205,11 @@ object AdsConfigManager {
         androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
             override fun onStart(owner: androidx.lifecycle.LifecycleOwner) {
                 refresh()
+                // Back from a launcher Chrome redirect: pre-render the page again for the next one.
+                if (chromeRewarmPending) {
+                    chromeRewarmPending = false
+                    prefetchLauncherChrome(app.messages.Controller.getInstance())
+                }
             }
         })
 
@@ -937,6 +942,47 @@ object AdsConfigManager {
     private val loadingNativeAds = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
     private val loadingBannerAds = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
+    /** Set when a launcher Chrome redirect was opened, so the pre-render pool is refilled on return. */
+    @Volatile private var chromeRewarmPending = false
+
+    /**
+     * Simple-mode launcher preload, driven by the tokens in the three redirect patterns (back uses the
+     * swipe one): `inter`/`ad` -> interstitial, `appopen` -> the App Open pool(s), `chrome` -> pre-render
+     * the launcher URL. A token that no pattern uses is never requested. Duplicate-safe (each pool skips
+     * when cached / loading / pre-rendered) and refilled after every show / Chrome open, so call it freely.
+     * No-op outside simple mode, with the master switch or `launcher_ads_preload` off, or for premium.
+     * Called from Language (Flow B) and at the end of Flow A.
+     */
+    fun preloadLauncherByPatterns(context: Context) {
+        val appCtx = context.applicationContext
+        if (!config.launcherSimple || !config.launcherPreloadOn) {
+            Log.d(TAG, "[LauncherPreload] skipped (simple=${config.launcherSimple} preload=${config.launcherPreloadOn})")
+            return
+        }
+        if (app.messages.preferences.PreferenceHelper.getInstance(appCtx).isPremium()) return
+
+        val placements = listOf("launcher_swipe", "launcher_app_click", "launcher_settings")
+        val steps = placements.flatMap { patternForPlacement(config, it) }
+        val wantsInter = steps.any { it.action == RedirectAction.INTER || it.action == RedirectAction.AD }
+        val wantsAppOpen = listOf("launcher_swipe", "launcher_settings").any { patternUses(it, RedirectAction.APP_OPEN) }
+        val wantsAppClickOpen = patternUses("launcher_app_click", RedirectAction.APP_OPEN)
+        val wantsChrome = steps.any { it.action == RedirectAction.CHROME }
+        Log.d(TAG, "[LauncherPreload] inter=$wantsInter appOpen=$wantsAppOpen appClickOpen=$wantsAppClickOpen chrome=$wantsChrome")
+
+        if (wantsInter) preloadInterstitial(appCtx)
+        if (wantsAppOpen) preloadAppOpenAd(appCtx)
+        if (wantsAppClickOpen) preloadAppClickOpenAd(appCtx)   // self-gates on the app-tap pattern too
+        if (wantsChrome) prefetchLauncherChrome(appCtx)
+    }
+
+    /** Pre-renders the launcher Chrome page (one URL for every placement in simple mode). */
+    private fun prefetchLauncherChrome(context: Context) {
+        val url = redirectUrlFor(config, "launcher_swipe")
+        if (!app.messages.utility.ChromeRedirectHelper.isWebUrl(url)) return
+        if (!isNetworkAvailable(context) || !app.messages.utility.ChromeRedirectHelper.canOpen(context, url)) return
+        app.messages.utility.ChromeRedirectHelper.prefetch(context, url)
+    }
+
     fun preloadAllAds(context: Context) {
         val appContext = context.applicationContext
         val prefs = app.messages.preferences.PreferenceHelper.getInstance(appContext)
@@ -945,23 +991,16 @@ object AdsConfigManager {
             return
         }
 
-        // Simple mode: launcher_ads_preload preloads the interstitial, and each App Open pool only when a
-        // pattern will actually show it. Legacy: interAdPreload / appOpenAdPreload as before.
-        val interPreload = if (config.launcherSimple) config.launcherPreloadOn else (config.canShowInter && config.interAdPreload)
-        if (interPreload) {
-            preloadInterstitial(appContext)
-        }
-
-        val appOpenPreload = if (config.launcherSimple) {
-            config.launcherPreloadOn && listOf("launcher_swipe", "launcher_settings").any { patternUses(it, RedirectAction.APP_OPEN) }
-        } else config.appOpenAdPreload
-        if (appOpenPreload) {
-            preloadAppOpenAd(appContext)
+        if (config.launcherSimple) {
+            // Simple mode: only what the three patterns will show (inter / appopen / chrome).
+            preloadLauncherByPatterns(appContext)
         } else {
-            }
-
-        // Self-gating: no-ops unless the app-tap path is set to the app-open format.
-        preloadAppClickOpenAd(appContext)
+            // Legacy: interAdPreload / appOpenAdPreload as before.
+            if (config.canShowInter && config.interAdPreload) preloadInterstitial(appContext)
+            if (config.appOpenAdPreload) preloadAppOpenAd(appContext)
+            // Self-gating: no-ops unless the app-tap path is set to the app-open format.
+            preloadAppClickOpenAd(appContext)
+        }
 
         // Preload drawer native ad on launcher startup
         preloadDrawerNativeAd(appContext)
@@ -2975,6 +3014,7 @@ object AdsConfigManager {
         Log.i(TAG, "Redirecting to Chrome instead of the ad ($canonicalPlacement): $url")
         proceedFirst?.run()
         val opened = app.messages.utility.ChromeRedirectHelper.openUrl(context, url)
+        if (opened && config.launcherSimple) chromeRewarmPending = true   // refill the pre-render on return
         if (opened) {
             runCatching {
                 val b = android.os.Bundle().apply { putString("placement", canonicalPlacement) }
@@ -3452,10 +3492,13 @@ object AdsConfigManager {
         awaitingReturn = false
         // Chrome step: no ad to warm (a preload here would sit unused and hurt the show rate).
         if (action == RedirectAction.CHROME && hasLauncherRedirect(context, "launcher_app_click")) return
-        when (config.appClickAdFormat) {
-            AppClickAdFormat.APP_OPEN -> preloadAppClickOpenAd(context)
-            AppClickAdFormat.INTERSTITIAL -> preloadInterstitial(context)
-            AppClickAdFormat.NONE -> Unit
+        val format = config.appClickAdFormat
+        if (format == AppClickAdFormat.NONE) return
+        // The step itself decides the pool in simple mode (appopen / inter tokens), else the legacy format.
+        if (isAppOpenAction(action, legacyAppOpen = format == AppClickAdFormat.APP_OPEN)) {
+            preloadAppClickOpenAd(context)
+        } else {
+            preloadInterstitial(context)
         }
     }
 

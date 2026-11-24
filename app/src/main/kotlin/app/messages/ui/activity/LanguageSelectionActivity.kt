@@ -59,7 +59,7 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             return@registerForActivityResult
         }
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Chrome tab closed -> continue to Flow A")
-        // Guard resumes + optional ad on close (App Open or Interstitial), then continue to Flow A.
+        // Guard resumes, then continue to Flow A.
         app.messages.ui.paidonboarding.PaidChromeTabManager.onWebStepClosed(this, stepTag = "language") {
             startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
             finish()
@@ -101,7 +101,6 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             // Done (fresh, cache-busted URL — no stale cached page).
             app.messages.ui.paidonboarding.PaidChromeTabManager.prefetchStep(this, "after_language")
             // Preload the Flow A ad (App Open or Interstitial) for the after-language web-step close.
-            app.messages.ui.paidonboarding.FlowAAdManager.preloadForStep(this, "language")
             app.messages.ui.paidonboarding.FlowASequenceRunner.preload(this, "language")
             // Fetch the Flow-A dummy ad images now (native.json / banner.json) so they're cached and
             // ready by the time Flow A opens after Done, then warm ONLY the first Flow-A page's ads
@@ -122,8 +121,18 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
         // Warm it now so the Done tap shows it instantly rather than parking the
         // user on a loader while it fetches on demand.
         Log.d("SetDefaultFlow", "[LanguageSelectionActivity] Preloading language interstitial ad and generic interstitial")
-        app.messages.config.AdsConfigManager.preloadLanguageInterstitial(this)
-        app.messages.config.AdsConfigManager.preloadInterstitial(this)
+        // Flow A (paid) never shows the language interstitial (it uses the Flow A step ads instead),
+        // so preloading it there only creates unshown requests.
+        if (!isPaidOnboarding) {
+            app.messages.config.AdsConfigManager.preloadLanguageInterstitial(this)
+        }
+        if (app.messages.config.AdsConfigManager.config.launcherSimple) {
+            // Simple launcher config: preload ONLY what the swipe / app-tap / settings patterns use (inter,
+            // appopen, chrome). Flow B here; Flow A does the same when its last page finishes.
+            if (!isPaidOnboarding) app.messages.config.AdsConfigManager.preloadLauncherByPatterns(this)
+        } else {
+            app.messages.config.AdsConfigManager.preloadInterstitial(this)
+        }
 
         setupUI()
         setupRecyclerView()
@@ -338,35 +347,6 @@ class LanguageSelectionActivity : PaidFunnelActivity() {
             sequenceRunner?.let {
                 android.util.Log.d("FLOW_CHECK", "[LANGUAGE_DONE] Paid install -> Remote Config step sequence")
                 it.start()
-                return
-            }
-            // Paid install: check if in-app Chrome tab should be shown after language
-            if (app.messages.ui.paidonboarding.PaidChromeTabManager.shouldShowAfterLanguage(this)) {
-                android.util.Log.d("FLOW_CHECK", "[LANGUAGE_DONE] Paid Google install -> Opening Chrome Custom Tab")
-                val launched = app.messages.ui.paidonboarding.PaidChromeTabManager.launch(
-                    activity = this,
-                    launcher = chromeTabLauncher,
-                    stepTag = "after_language",
-                    onFallback = {
-                        startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
-                        finish()
-                    }
-                )
-                // launch() now signals the guard itself (stand down for a Custom Tab, stay active for the
-                // WebView fallback), so we just stop here when it opened a web step.
-                if (launched) {
-                    // Flow A attribution funnel: ${prefix}_user_lang_web_open.
-                    app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelEvery(this, "user_lang_web_open")
-                    return
-                }
-            } else if (app.messages.ui.paidonboarding.PaidChromeTabManager.shouldShowAdOnlyAfterLanguage()) {
-                // Chrome web step is off but the App Open / Interstitial is on: show the ad between
-                // Language and Flow A, then continue (instantly if no ad is ready).
-                android.util.Log.d("FLOW_CHECK", "[LANGUAGE_DONE] Chrome off -> ad-only step, then Flow A")
-                app.messages.ui.paidonboarding.PaidChromeTabManager.showAdOnlyStep(this, "language") {
-                    startActivity(app.messages.ui.paidonboarding.PaidOnboardingActivity.intent(this))
-                    finish()
-                }
                 return
             }
             android.util.Log.d("FLOW_CHECK", "🚀 [LANGUAGE_DONE] Paid install -> PaidOnboardingActivity (Flow A)")

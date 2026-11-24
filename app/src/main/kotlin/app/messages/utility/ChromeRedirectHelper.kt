@@ -1,10 +1,15 @@
 package app.messages.utility
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.browser.customtabs.CustomTabsCallback
+import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.browser.customtabs.CustomTabsServiceConnection
+import androidx.browser.customtabs.CustomTabsSession
 
 /**
  * Resilient utility for opening external URLs in Chrome or Chrome Custom Tabs.
@@ -34,6 +39,53 @@ object ChromeRedirectHelper {
         return runCatching { intent.resolveActivity(context.packageManager) != null }.getOrDefault(false)
     }
 
+    // ---- Pre-render ("pool") for the launcher redirect page -------------------------------------------
+    // Own Custom Tabs session, separate from Flow A's (whose callback talks to the screen guard).
+    private var client: CustomTabsClient? = null
+    private var session: CustomTabsSession? = null
+    private var boundPkg: String? = null
+    /** URL Chrome was asked to pre-render and that no open has consumed yet (duplicate guard). */
+    private var prefetchedUrl: String? = null
+    private var pendingPrefetchUrl: String? = null
+
+    private val connection = object : CustomTabsServiceConnection() {
+        override fun onCustomTabsServiceConnected(name: ComponentName, newClient: CustomTabsClient) {
+            client = newClient
+            runCatching { newClient.warmup(0L) }
+            session = newClient.newSession(CustomTabsCallback())
+            Log.d(TAG, "Custom Tabs service connected ($name)")
+            pendingPrefetchUrl?.let { pending -> pendingPrefetchUrl = null; session?.let { doPrefetch(it, pending) } }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            client = null; session = null; boundPkg = null; prefetchedUrl = null
+        }
+    }
+
+    /**
+     * Asks Chrome to pre-render [url] so the launcher redirect opens instantly. No-op when the URL is not
+     * web, no Custom Tabs browser exists, or the same URL is already pre-rendered and unopened.
+     */
+    @JvmStatic
+    fun prefetch(context: Context, url: String) {
+        if (!isWebUrl(url)) return
+        val clean = url.trim()
+        if (prefetchedUrl == clean) { Log.d(TAG, "prefetch skipped: already pre-rendered ($clean)"); return }
+        val pkg = app.messages.ui.paidonboarding.PaidChromeTabManager.resolveBrowserPackage(context) ?: return
+        val s = session
+        if (s != null && boundPkg == pkg) { doPrefetch(s, clean); return }
+        pendingPrefetchUrl = clean
+        runCatching {
+            if (CustomTabsClient.bindCustomTabsService(context.applicationContext, pkg, connection)) boundPkg = pkg
+        }.onFailure { Log.w(TAG, "bindCustomTabsService failed: ${it.message}") }
+    }
+
+    private fun doPrefetch(s: CustomTabsSession, url: String) {
+        val ok = runCatching { s.mayLaunchUrl(Uri.parse(url), null, null) }.getOrDefault(false)
+        if (ok) prefetchedUrl = url
+        Log.d(TAG, "prefetch mayLaunchUrl=$ok -> $url")
+    }
+
     @JvmStatic
     fun openUrl(context: Context, url: String): Boolean {
         if (!isWebUrl(url)) {
@@ -44,6 +96,23 @@ object ChromeRedirectHelper {
         if (uri == null) {
             Log.e(TAG, "Cannot parse URL: $url")
             return false
+        }
+
+        // Attempt 0: the pre-rendered page, opened WITH the session that pre-rendered it.
+        val s = session
+        if (s != null && prefetchedUrl == url.trim() && boundPkg != null) {
+            try {
+                val intent = CustomTabsIntent.Builder(s).setShowTitle(true).build().intent
+                intent.setPackage(boundPkg)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                intent.data = uri
+                context.startActivity(intent)
+                prefetchedUrl = null   // consumed: the pool is refilled by the next prefetch()
+                Log.d(TAG, "Launched pre-rendered page: $url")
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "Pre-rendered launch failed, falling back: ${e.message}")
+            }
         }
 
         // Attempt 1: Dedicated Chrome Custom Tab
