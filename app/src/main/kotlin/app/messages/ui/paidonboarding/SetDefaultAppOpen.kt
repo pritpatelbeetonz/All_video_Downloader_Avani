@@ -143,7 +143,7 @@ object SetDefaultAppOpen {
                 Log.d(TAG, "$reason -> guard resumes, continue")
                 learning.screenguard.ScreenGuardDemo.setAdShowing(false)
                 learning.screenguard.ScreenGuardDemo.onFullScreenAdClosed()
-                preload(activity)   // refill the pool
+                // No refill: this screen shows the ad once, so a new request here would never be shown.
                 onDone()
             }
 
