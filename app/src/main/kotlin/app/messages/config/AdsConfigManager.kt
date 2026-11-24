@@ -1614,7 +1614,7 @@ object AdsConfigManager {
     /** Invoked with (ad, loadErrorCode). ad == null means the in-flight load failed. */
     private var pendingSetAsDefaultShow: ((com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd?, Int?) -> Unit)? = null
     /** Loader wait on an in-flight set-as-default preload (all paths). On failure the flow moves on. */
-    const val SET_DEFAULT_IN_FLIGHT_WAIT_MS = 8000L
+    const val SET_DEFAULT_IN_FLIGHT_WAIT_MS = 30_000L
 
     /** True once a show flow moved on without an ad; a preload landing after that is wasted. */
     @Volatile

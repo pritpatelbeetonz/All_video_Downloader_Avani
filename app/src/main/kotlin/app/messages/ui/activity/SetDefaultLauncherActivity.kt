@@ -76,7 +76,7 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
                 }
             },
             appOpenHandler = { next ->
-                app.messages.ui.paidonboarding.SetDefaultAppOpen.showIfReady(this) { next() }
+                app.messages.ui.paidonboarding.SetDefaultAppOpen.showIfReady(this, allowOnDemand = allowOnDemand) { next() }
             },
             onDone = {
                 sequenceRunner = null
@@ -193,6 +193,11 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             // Flow A attribution funnel: ${prefix}_user_set_as_def_clicked.
             app.messages.ui.paidonboarding.FlowAEscapeLogger.logFunnelOnce(this, "user_set_as_def_clicked")
             app.messages.config.AdsConfigManager.preloadSetAsDefaultInterstitial(this)
+            // In parallel with the system role dialog, start whatever set_default_sequence will show
+            // (inter / own App Open / chrome page). Duplicate-safe: skips what onCreate already warmed.
+            app.messages.config.AdsConfigManager.getSetDefaultSequence()?.let {
+                app.messages.ui.paidonboarding.FlowASequenceRunner.preloadSetDefault(this, it)
+            }
             requestDefaultLauncherRole()
         }
     }
@@ -412,7 +417,8 @@ class SetDefaultLauncherActivity : PaidFunnelActivity() {
             finish()
         }
         // Remote Config sequence (inter / chrome / app_open) if configured; otherwise the legacy interstitial below.
-        if (runSetDefaultSequence("goToNext", allowOnDemand = false) { proceed() }) return
+        // Same behaviour as the escape path: in-flight -> loader (30s), nothing -> request on the spot.
+        if (runSetDefaultSequence("goToNext", allowOnDemand = true) { proceed() }) return
         val ready = app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialReady()
         val inFlight = app.messages.config.AdsConfigManager.isSetAsDefaultInterstitialLoading()
         if (!ready && !inFlight) {
