@@ -139,6 +139,9 @@ class SplashActivity : BaseActivity() {
             }
         }
 
+        // 2b. Native media override: warm bundled catalog + cached server feed/images in the background
+        app.messages.ads.ng.NativeMediaCatalog.preloadAll(applicationContext)
+
         // 3. Fetch Remote Config and coordinate Splash duration
         callRemoteConfigAndProceed()
     }
